@@ -1,0 +1,397 @@
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+  margin: 0;
+}
+
+.sortBtns {
+  display: flex;
+  gap: 8px;
+}
+
+.sortBtn {
+  background: none;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 999px;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.sortBtn:hover {
+  border-color: var(--primary, #F20D16);
+  color: var(--text-primary, #FFFFFF);
+}
+
+.sortActive {
+  background-color: var(--primary, #F20D16);
+  border-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+}
+
+.addRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.addBox {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.input {
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border, #27272A);
+  color: var(--text-primary, #FFFFFF);
+  font-size: 14px;
+  padding: 6px 0 8px;
+  outline: none;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: border-color 0.2s ease;
+}
+
+.input::placeholder {
+  color: var(--text-secondary, #71717A);
+}
+
+.input:focus {
+  border-bottom-color: var(--primary, #F20D16);
+}
+
+.addActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cancelBtn {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.cancelBtn:hover {
+  background-color: var(--bg-card, #1A1A1E);
+  color: var(--text-primary, #FFFFFF);
+}
+
+.postBtn {
+  background-color: var(--border, #27272A);
+  border: none;
+  color: var(--text-secondary, #71717A);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: not-allowed;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s ease;
+}
+
+.postReady {
+  background-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+.postReady:hover {
+  background-color: var(--primary-hover, #FF1A1A);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.comment {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.commentBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.commentHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.user {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary, #FFFFFF);
+}
+
+.time {
+  font-size: 11px;
+  color: var(--text-secondary, #71717A);
+}
+
+.text {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-primary, #FFFFFF);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.commentActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.likeBtn {
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.likeBtn:hover {
+  color: var(--text-primary, #FFFFFF);
+}
+
+.liked {
+  color: var(--primary, #F20D16);
+}
+
+.likeIcon {
+  font-size: 15px;
+}
+
+.replyBtn {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.replyBtn:hover {
+  color: var(--text-primary, #FFFFFF);
+}
+
+.repliesToggle {
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary, #F20D16);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.replies {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  border-left: 2px solid var(--border, #27272A);
+  padding-left: 12px;
+}
+
+.reply {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.avatarSm {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--border, #27272A);
+  color: var(--text-primary, #FFFFFF);
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.input:disabled,
+.cancelBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.lockWrap {
+  position: relative;
+}
+
+.locked {
+  max-height: 460px;
+  overflow: hidden;
+  filter: blur(5px);
+  user-select: none;
+  pointer-events: none;
+}
+
+.lockOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(transparent 20%, rgba(0, 0, 0, 0.55) 70%);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.lockCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  background-color: var(--bg-card, #0D0D0F);
+  border: 1px solid var(--border, #27272A);
+  border-radius: 12px;
+  padding: 20px 28px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  margin: 0 16px;
+}
+
+.lockIcon {
+  font-size: 34px;
+  color: var(--primary, #F20D16);
+}
+
+.lockTitle {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+  margin: 0;
+}
+
+.lockText {
+  font-size: 13px;
+  color: var(--text-secondary, #A1A1AA);
+  margin: 0;
+}
+
+.lockFav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary, #F20D16);
+  margin: 4px 0 0;
+}
+
+.lockStar {
+  font-size: 16px;
+}
+
+/* Light theme */
+[data-theme="light"] .lockOverlay {
+  background: linear-gradient(transparent 20%, rgba(255, 255, 255, 0.7) 70%);
+}
+
+[data-theme="light"] .lockCard {
+  background-color: #FFFFFF;
+  border-color: #E4E4E7;
+}
+
+[data-theme="light"] .lockTitle {
+  color: #09090B;
+}
+
+/* Light theme */
+[data-theme="light"] .input {
+  color: #09090B;
+}
+
+[data-theme="light"] .text,
+[data-theme="light"] .user {
+  color: #09090B;
+}
+
+[data-theme="light"] .cancelBtn:hover {
+  background-color: #F4F4F5;
+  color: #09090B;
+}
+
+@media (max-width: 640px) {
+  .title {
+    font-size: 14px;
+  }
+
+  .text {
+    font-size: 13px;
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+  }
+}

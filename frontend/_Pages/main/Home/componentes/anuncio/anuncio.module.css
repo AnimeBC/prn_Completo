@@ -1,0 +1,168 @@
+.wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary, #71717A);
+  text-align: center;
+}
+
+.box {
+  width: 100%;
+  min-height: 90px;
+  border: 1px dashed var(--border, #27272A);
+  border-radius: 8px;
+  background-color: var(--bg-card, #0D0D0F);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 16px;
+  text-align: center;
+}
+
+.boxAlto {
+  min-height: 600px;
+}
+
+.bannerFrame {
+  border: 0;
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* Marco de 300px para banners angostos (160x600): rellena el rail con estilo */
+.marcoBanner {
+  width: 300px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 14px;
+  display: flex;
+  justify-content: center;
+  border-radius: 12px;
+  border: 1px solid var(--border, #27272A);
+  background:
+    radial-gradient(ellipse 80% 30% at 50% 100%, rgba(242, 13, 22, 0.12), transparent 70%),
+    var(--bg-card, #0D0D0F);
+}
+
+.marcoBanner .bannerFrame {
+  border-radius: 6px;
+  box-shadow: 0 0 24px rgba(242, 13, 22, 0.25);
+}
+
+/* Light theme */
+[data-theme="light"] .marcoBanner {
+  background:
+    radial-gradient(ellipse 80% 30% at 50% 100%, rgba(242, 13, 22, 0.08), transparent 70%),
+    #F4F4F5;
+  border-color: #E4E4E7;
+}
+
+.smartLink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 10px;
+  text-decoration: none;
+  background:
+    linear-gradient(var(--bg-card, #0D0D0F), var(--bg-card, #0D0D0F)) padding-box,
+    linear-gradient(135deg, var(--primary, #F20D16), transparent 60%) border-box;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.smartLink:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(242, 13, 22, 0.35);
+}
+
+.smartIcon {
+  font-size: 26px;
+  color: var(--primary, #F20D16);
+  flex-shrink: 0;
+}
+
+.smartTexts {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.smartTitle {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+}
+
+.smartText {
+  font-size: 12px;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+.smartArrow {
+  font-size: 20px;
+  color: var(--primary, #F20D16);
+  flex-shrink: 0;
+}
+
+/* Light theme */
+[data-theme="light"] .smartLink {
+  background:
+    linear-gradient(#FFFFFF, #FFFFFF) padding-box,
+    linear-gradient(135deg, var(--primary, #F20D16), transparent 60%) border-box;
+}
+
+[data-theme="light"] .smartTitle {
+  color: #09090B;
+}
+
+.icon {
+  font-size: 22px;
+  color: var(--text-secondary, #71717A);
+}
+
+.text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #A1A1AA);
+  margin: 0;
+}
+
+.sub {
+  font-size: 11px;
+  color: var(--text-secondary, #71717A);
+}
+
+/* Light theme */
+[data-theme="light"] .box {
+  background-color: #F4F4F5;
+  border-color: #E4E4E7;
+}
+
+@media (max-width: 768px) {
+  .box {
+    min-height: 72px;
+    padding: 12px;
+  }
+
+  .text {
+    font-size: 12px;
+  }
+}

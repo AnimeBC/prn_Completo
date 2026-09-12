@@ -1,0 +1,16 @@
+.adminShell{
+  min-height:100vh;
+  width:100%;
+  background-color: var(--bg, #050505);
+  color: var(--text-primary, #FFFFFF);
+  font-family: system-ui, -apple-system, sans-serif;
+  display:flex;
+  flex-direction:column;
+  transition: background-color .3s ease, color .3s ease;
+}
+.content{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+}

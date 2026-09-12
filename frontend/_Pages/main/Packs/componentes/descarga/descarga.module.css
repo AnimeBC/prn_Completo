@@ -1,0 +1,178 @@
+.dlOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dlCard {
+  width: 100%;
+  max-width: 400px;
+  background-color: var(--bg-card, #0D0D0F);
+  border: 1px solid var(--border, #27272A);
+  border-radius: 14px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  animation: popIn 0.22s ease;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.dlHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dlTitle {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+  margin: 0;
+}
+
+.dlClose {
+  background: none;
+  border: none;
+  color: var(--text-primary, #FFFFFF);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  border-radius: 6px;
+}
+
+.dlClose:hover {
+  background-color: var(--bg-surface, #1A1A1E);
+}
+
+.dlStep {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 10px;
+  padding: 12px;
+  transition: border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.dlStepLocked {
+  opacity: 0.45;
+}
+
+.dlStepDone {
+  border-color: var(--primary, #F20D16);
+}
+
+.dlNum {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: var(--bg-surface, #1A1A1E);
+  border: 1px solid var(--border, #27272A);
+  color: var(--text-primary, #FFFFFF);
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dlStepDone .dlNum {
+  background-color: var(--primary, #F20D16);
+  border-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+}
+
+.dlStepBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dlStepTitle {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+  margin: 0;
+}
+
+.dlStepText {
+  font-size: 12px;
+  color: var(--text-secondary, #A1A1AA);
+  margin: 0;
+  line-height: 1.45;
+}
+
+.dlHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-secondary, #A1A1AA);
+  background-color: rgba(242, 13, 22, 0.08);
+  border: 1px dashed rgba(242, 13, 22, 0.45);
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin: 2px 0 0;
+}
+
+.dlStepBtn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--primary, #F20D16);
+  border: none;
+  border-radius: 8px;
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 14px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s ease;
+}
+
+.dlStepBtn:hover {
+  background-color: var(--primary-hover, #FF1A1A);
+}
+
+.dlCheck {
+  font-size: 15px;
+}
+
+/* Light theme */
+[data-theme="light"] .dlCard {
+  background-color: #FFFFFF;
+  border-color: #E4E4E7;
+}
+
+[data-theme="light"] .dlTitle,
+[data-theme="light"] .dlStepTitle {
+  color: #09090B;
+}

@@ -1,0 +1,61 @@
+.box {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background-color: var(--bg-surface, #18181B);
+  border-radius: 8px;
+}
+
+.static {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, var(--bg-surface, #27272A) 0%, var(--bg-card, #121215) 100%);
+  transition: transform 2.5s ease;
+}
+
+.thumbImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.box:hover .static {
+  transform: scale(1.08);
+}
+
+.video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  background-color: #000000;
+}
+
+.video.on {
+  opacity: 1;
+}
+
+.top {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Light theme */
+[data-theme="light"] .box {
+  background-color: #E4E4E7;
+}
+
+[data-theme="light"] .static {
+  background: radial-gradient(circle at center, #E4E4E7 0%, #F4F4F5 100%);
+}

@@ -1,0 +1,16 @@
+media_completa/
+uploads/
+backend/uploads/
+node_modules/
+.next/
+out/
+build/
+dist/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,38 @@
+.wrap{ width:100% }
+.head{ margin-bottom:16px }
+.h2{ margin:0; font-size:19px; font-weight:800; color:var(--text-primary,#fff) }
+.sub{ margin:4px 0 0; font-size:12.5px; color:var(--text-secondary,#A1A1AA) }
+
+.panel{
+  width:100%;
+  min-height:380px;
+  background:var(--bg-card,#121215);
+  border:1px solid var(--border,#27272A);
+  border-radius:18px;
+  padding:46px 24px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; gap:14px;
+}
+.icon{
+  display:flex; align-items:center; justify-content:center;
+  width:78px; height:78px; border-radius:22px;
+  background:rgba(242,13,22,.12); color:var(--primary,#F20D16); font-size:38px;
+}
+.badge{
+  font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--primary,#F20D16);
+  background:rgba(242,13,22,.1);
+  border:1px solid rgba(242,13,22,.25);
+  padding:4px 10px; border-radius:999px;
+}
+.title{ font-size:20px; font-weight:800; margin:0; color:var(--text-primary,#fff) }
+.desc{ font-size:13.5px; line-height:1.6; color:var(--text-secondary,#A1A1AA); margin:0; max-width:520px }
+
+[data-theme="light"] .h2,
+[data-theme="light"] .title{ color:#09090B }
+[data-theme="light"] .panel{ background:#fff; border-color:#E4E4E7 }
+
+@media (max-width: 480px){
+  .panel{ padding:34px 18px; min-height:320px }
+  .icon{ width:64px; height:64px; font-size:30px }
+}

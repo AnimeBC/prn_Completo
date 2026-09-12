@@ -1,0 +1,289 @@
+.sidebar {
+  width: 250px;
+  background-color: var(--bg-surface, #0D0D0F);
+  background-image:
+    radial-gradient(ellipse 90% 22% at 10% 100%, rgba(242, 13, 22, 0.06), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 120' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%23F20D16' stroke-width='1'%3E%3Cpath d='M0,70 C50,55 100,85 150,70 S250,55 300,70' opacity='0.16'/%3E%3Cpath d='M0,88 C55,73 105,103 155,88 S255,73 300,88' opacity='0.10'/%3E%3Cpath d='M0,106 C60,91 110,121 160,106 S260,91 300,106' opacity='0.06'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0 0, bottom left;
+  background-size: auto, 100% 110px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  position: fixed;
+  top: 80px;
+  left: 0;
+  bottom: 0;
+  width: 250px;
+  height: calc(100vh - 80px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border, #27272A) transparent;
+  transition: transform 0.3s ease;
+  border-right: 1px solid var(--border, #27272A);
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--border, #27272A);
+  border-radius: 2px;
+}
+
+.sidebarOpen {
+  transform: translateX(0);
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sectionLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary, #A1A1AA);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 8px 12px 4px;
+  flex-shrink: 0;
+}
+
+.navItem {
+  color: var(--text-primary, #FFFFFF);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.navItem:hover {
+  background-color: var(--bg-card, #1A1A1E);
+}
+
+.navItem:active {
+  transform: scale(0.98);
+}
+
+.navItemActive {
+  background-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+.navItemActive:hover {
+  background-color: var(--primary-hover, #FF1A1A);
+}
+
+.navIcon {
+  font-size: 18px;
+  color: inherit;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+/* Botones promo tipo oferta (Reels / En Vivo) */
+.promoItem {
+  font-weight: 800;
+  border: 1px solid transparent;
+  margin: 2px 0;
+}
+
+.promoReels {
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+.promoReels:hover {
+  background-color: var(--bg-card, #1A1A1E);
+  filter: none;
+}
+
+.promoLive {
+  background: linear-gradient(135deg, rgba(242, 13, 22, 0.22), rgba(242, 13, 22, 0.06));
+  border: 1px solid rgba(242, 13, 22, 0.65);
+  box-shadow: 0 0 12px rgba(242, 13, 22, 0.25), inset 0 0 12px rgba(242, 13, 22, 0.08);
+}
+
+.promoLive:hover {
+  background: linear-gradient(135deg, rgba(242, 13, 22, 0.32), rgba(242, 13, 22, 0.1));
+}
+
+.promoActive {
+  border-color: #FFFFFF;
+  box-shadow: 0 0 0 1px #FFFFFF, 0 0 18px rgba(242, 13, 22, 0.65);
+}
+
+.promoTag {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #F20D16;
+  flex-shrink: 0;
+}
+
+.promoTagLive {
+  background: #F20D16;
+  color: #FFFFFF;
+}
+
+.promoTagIcon {
+  font-size: 12px;
+  color: #F20D16;
+  flex-shrink: 0;
+}
+
+.liveDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  animation: liveBlink 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes liveBlink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.75); }
+}
+
+.moreBtn {
+  width: 100%;
+  border: 1px solid var(--border, #27272A);
+  background: transparent;
+  color: var(--text-primary, #FFFFFF);
+  padding: 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  margin-top: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+  font-family: system-ui, -apple-system, sans-serif;
+  flex-shrink: 0;
+}
+
+.moreBtn:hover {
+  background-color: var(--bg-card, #1A1A1E);
+  border-color: var(--border, #3F3F46);
+}
+
+.moreBtnActive,
+.moreBtnActive:hover {
+  background-color: var(--primary, #F20D16);
+  border-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+}
+
+.moreIcon {
+  font-size: 16px;
+}
+
+/* Overlay */
+.overlay {
+  display: none;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    z-index: 100;
+    width: 250px;
+    height: calc(100vh - 56px);
+    transform: translateX(-100%);
+    background-color: var(--bg-surface, #0D0D0F);
+    padding: 12px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+    border-right: none;
+    border-bottom: 1px solid var(--border, #27272A);
+  }
+
+  .sidebarOpen {
+    transform: translateX(0);
+  }
+
+  .overlay {
+    display: block;
+    position: fixed;
+    top: 56px;
+    left: 0;
+    width: 100%;
+    height: calc(100vh - 56px);
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 99;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .promoItem {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .promoTag {
+    font-size: 9px;
+    padding: 2px 7px;
+  }
+}
+
+/* Light theme overrides for sidebar */
+[data-theme="light"] .sidebar {
+  background-color: var(--bg-surface, #F4F4F5);
+  border-right-color: var(--border, #E4E4E7);
+}
+
+[data-theme="light"] .navItem:hover {
+  background-color: var(--bg-card, #F4F4F5);
+}
+
+[data-theme="light"] .sectionLabel {
+  color: var(--text-secondary, #71717A);
+}
+
+[data-theme="light"] .divider {
+  border-top-color: var(--border, #E4E4E7);
+}
+
+[data-theme="light"] .sidebar {
+  border-right-color: #E4E4E7;
+}

@@ -1,0 +1,144 @@
+.layout {
+  position: relative;
+  min-height: 100vh;
+  background-color: var(--bg, #050505);
+  padding-top: 80px; /* fixed header height */
+  overflow-x: hidden;
+}
+
+/* ===== Fondo global (todas las páginas main) =====
+   Capa 1: resplandores rojos + lavado superior. */
+.layout::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(242, 13, 22, 0.10) 0%, transparent 16%),
+    radial-gradient(ellipse 48% 38% at 5% 0%, rgba(242, 13, 22, 0.20), transparent 62%),
+    radial-gradient(ellipse 42% 36% at 97% 9%, rgba(225, 29, 72, 0.13), transparent 60%),
+    radial-gradient(ellipse 62% 46% at 50% 112%, rgba(242, 13, 22, 0.16), transparent 66%);
+}
+
+/* Capa 2: rejilla fina con máscara radial. */
+.layout::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: 34px 34px;
+  -webkit-mask-image: radial-gradient(ellipse 85% 75% at 50% 32%, #000 0%, transparent 82%);
+  mask-image: radial-gradient(ellipse 85% 75% at 50% 32%, #000 0%, transparent 82%);
+}
+
+/* Capa 3: ondas rojas (solo se animan donde exista el SVG) */
+.pageBg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: transparent;
+}
+
+.waves {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 18px rgba(242, 13, 22, 0.18));
+}
+
+.wavesBottom {
+  bottom: 0;
+  height: 38vh;
+  min-height: 220px;
+  animation: waveDrift 16s ease-in-out infinite alternate;
+}
+
+.wavesTop {
+  top: 0;
+  height: 30vh;
+  min-height: 170px;
+  opacity: 0.6;
+  animation: waveDriftTop 20s ease-in-out infinite alternate;
+}
+
+@keyframes waveDrift {
+  from { transform: translateX(-1.5%); }
+  to { transform: translateX(1.5%); }
+}
+
+@keyframes waveDriftTop {
+  from { transform: translateX(1.5%); }
+  to { transform: translateX(-1.5%); }
+}
+
+.body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  margin-left: 250px; /* fixed sidebar width */
+}
+
+.body > :last-child {
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .layout {
+    padding-top: 56px; /* fixed mobile header height */
+  }
+
+  .body {
+    flex-direction: column;
+    margin-left: 0; /* sidebar is an off-canvas drawer on mobile */
+  }
+
+  .body > :last-child {
+    width: 100%;
+  }
+
+  .wavesTop {
+    height: 22vh;
+    min-height: 120px;
+  }
+
+  .wavesBottom {
+    height: 30vh;
+    min-height: 160px;
+  }
+}
+
+/* En modo claro se suaviza todo para no ensuciar el fondo blanco */
+[data-theme="light"] .layout::before {
+  background:
+    linear-gradient(180deg, rgba(242, 13, 22, 0.06) 0%, transparent 16%),
+    radial-gradient(ellipse 48% 38% at 5% 0%, rgba(242, 13, 22, 0.10), transparent 62%),
+    radial-gradient(ellipse 42% 36% at 97% 9%, rgba(225, 29, 72, 0.07), transparent 60%),
+    radial-gradient(ellipse 62% 46% at 50% 112%, rgba(242, 13, 22, 0.08), transparent 66%);
+}
+
+[data-theme="light"] .layout::after {
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.028) 1px, transparent 1px);
+}
+
+[data-theme="light"] .pageBg {
+  opacity: 0.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wavesBottom,
+  .wavesTop {
+    animation: none;
+  }
+}

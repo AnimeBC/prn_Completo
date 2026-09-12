@@ -1,0 +1,73 @@
+:root {
+  --primary: #F20D16;
+  --primary-hover: #FF1A1A;
+  --bg-main: #050505;
+  --bg-surface: #0D0D0F;
+  --bg-card: #0D0D0F;
+  --bg-input: #0D0D0F;
+  --text-primary: #FFFFFF;
+  --text-secondary: #A1A1AA;
+  --border: #27272A;
+  --header-bg: #0D0D0F;
+  --header-border: #27272A;
+}
+
+[data-theme="light"] {
+  --bg: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-input: #F4F4F5;
+  --bg-surface: #F4F4F5;
+  --text: var(--text-primary);
+  --header-bg: #FFFFFF;
+  --header-border: #E4E4E7;
+  --border: #E4E4E7;
+  --text-primary: #09090B;
+  --text-secondary: #71717A;
+}
+
+[data-theme="dark"] {
+  --bg: var(--bg-main);
+  --bg-card: var(--bg-card);
+  --bg-input: var(--bg-input);
+  --bg-surface: var(--bg-surface);
+  --text: var(--text-primary);
+  --header-bg: var(--header-bg);
+  --header-border: var(--header-border);
+  --border: var(--border);
+  --text-primary: var(--text-primary);
+  --text-secondary: var(--text-secondary);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg, #050505);
+  color: var(--text, #FFFFFF);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border, #27272A);
+  border-radius: 3px;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #D4D4D8;
+}

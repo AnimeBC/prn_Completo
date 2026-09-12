@@ -1,0 +1,68 @@
+.main {
+  flex: 1;
+  padding: 24px;
+  background-color: transparent;
+  color: var(--text, #FFFFFF);
+  min-height: calc(100vh - 80px);
+  width: 100%;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.grid {
+  max-width: 1600px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  align-items: start;
+}
+
+.grid.theater {
+  grid-template-columns: 1fr 300px;
+}
+
+.playerFull {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.leftCol {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-width: 0;
+}
+
+.rightCol {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.rightColSlim {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .grid,
+  .grid.theater {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .main {
+    padding: 16px;
+    min-height: calc(100vh - 56px);
+  }
+}
+
+@media (max-width: 480px) {
+  .main {
+    padding: 12px;
+  }
+}

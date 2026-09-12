@@ -1,0 +1,146 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import styles from './videoinfo.module.css';
+import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
+import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
+import CompartirModal from '@/_Pages/main/Videos/componentes/compartir';
+import AuthModal from '@/_Pages/main/Auth/AuthModal';
+import { getInteractions, viewVideo } from '@/_Extras/Interacciones/interactions.js';
+
+function formatCount(n) {
+  const num = Number(n) || 0;
+  if (num >= 1000000) return (num / 1000000).toFixed(num >= 10000000 ? 0 : 1).replace('.0', '') + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(num >= 10000 ? 0 : 1).replace('.0', '') + 'K';
+  return String(num);
+}
+
+export default function VideoInfo({ videoId, info: infoProp = null, src = '/videos/1.mov' }) {
+  const { t } = useLanguage();
+  const { videos } = useContenido();
+  const INFO = Object.fromEntries(
+    videos.map((v) => [v.id, { title: v.title, views: v.viewsFull, date: v.date, channel: v.channel, since: v.since, tags: v.tags, desc: v.desc }])
+  );
+  const info = INFO[videoId] || infoProp || { title: `Video #${videoId ?? ''}`, views: '0 vistas', date: 'recent', channel: 'administrador pikante.pe', since: '', tags: [], desc: '' };
+
+  const [expanded, setExpanded] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authReason, setAuthReason] = useState('default');
+
+  const [stats, setStats] = useState({ likes: 0, dislikes: 0, views: 0, subscribers: 0, myVote: null, saved: false, following: false });
+
+  useEffect(() => {
+    let alive = true;
+    getInteractions(videoId).then((d) => { if (alive && d) setStats((s) => ({ ...s, ...d })); });
+    // cuenta la vista al abrir el video (sin cuenta)
+    viewVideo(videoId).then((d) => { if (alive && d) setStats((s) => ({ ...s, ...d })); });
+    return () => { alive = false; };
+  }, [videoId]);
+
+  function requireAuth(reason) {
+    setAuthReason(reason);
+    setAuthOpen(true);
+  }
+
+  const liked = stats.myVote === 'like';
+  const disliked = stats.myVote === 'dislike';
+  const totalVotes = stats.likes + stats.dislikes;
+  // sin votos se muestra la barra al 50/50 (verde/rojo visibles)
+  const likePct = totalVotes ? Math.round((stats.likes / totalVotes) * 100) : 50;
+  const dislikePct = 100 - likePct;
+
+  return (
+    <div className={styles.col}>
+      <div className={styles.videoHead}>
+        <h1 className={styles.videoTitle}>{info.title}</h1>
+        <p className={styles.videoMeta}>{formatCount(stats.views)} vistas • {info.date}</p>
+      </div>
+
+      <div className={styles.channelRow}>
+        <div className={styles.channel}>
+          <div className={styles.avatar} />
+          <div>
+            <div className={styles.channelName}>
+              <span>{info.channel}</span>
+              <ion-icon name="checkmark-circle" className={styles.verified} suppressHydrationWarning></ion-icon>
+            </div>
+            <span className={styles.channelSince}>
+              {formatCount(stats.subscribers)} {t('video.suscriptores')}{info.since ? ` · ${info.since}` : ''}
+            </span>
+          </div>
+          <button
+            className={`${styles.followBtn} ${stats.following ? styles.following : ''}`}
+            type="button"
+            onClick={() => requireAuth('default')}
+          >
+            <ion-icon name={stats.following ? 'checkmark' : 'add-outline'} className={styles.followIcon} suppressHydrationWarning></ion-icon>
+            {stats.following ? t('video.siguiendo') : t('video.seguir')}
+          </button>
+        </div>
+
+        <div className={styles.rightGroup}>
+        <div className={styles.ytSegmentedWrap}>
+          <div className={styles.ytSegmented}>
+            <button className={`${styles.ytSegBtn} ${liked ? styles.ytSegActive : ''}`} type="button" aria-label={t('video.like')} aria-pressed={liked} onClick={() => requireAuth('like')}>
+              <ion-icon name={liked ? 'thumbs-up' : 'thumbs-up-outline'} className={styles.ytSegIcon} suppressHydrationWarning></ion-icon>
+              <span className={styles.ytCount}>{formatCount(stats.likes)}</span>
+            </button>
+            <div className={styles.ytSegDivider} />
+            <button className={`${styles.ytSegBtn} ${disliked ? styles.ytSegActive : ''}`} type="button" aria-label={t('video.dislike')} aria-pressed={disliked} onClick={() => requireAuth('like')}>
+              <ion-icon name={disliked ? 'thumbs-down' : 'thumbs-down-outline'} className={styles.ytSegIcon} suppressHydrationWarning></ion-icon>
+              <span className={styles.ytCount}>{formatCount(stats.dislikes)}</span>
+            </button>
+          </div>
+          <div className={styles.ratioWrap} aria-hidden="true">
+            <div className={styles.ratioBar}>
+              <div className={styles.ratioGreen} style={{ width: `${likePct}%` }} />
+              <div className={styles.ratioRed} style={{ width: `${dislikePct}%` }} />
+            </div>
+            {totalVotes > 0 && (
+              <div className={styles.ratioLabels}>
+                <span className={styles.ratioLabelGreen} style={{ width: `${likePct}%` }}>{likePct}%</span>
+                <span className={styles.ratioLabelRed} style={{ width: `${dislikePct}%` }}>{dislikePct}%</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.actions}>
+          <button className={`${styles.actionBtn} ${stats.saved ? styles.actionActive : ''}`} type="button" onClick={() => requireAuth('save')}>
+            <ion-icon name={stats.saved ? 'bookmark' : 'bookmark-outline'} className={styles.actionIcon} suppressHydrationWarning></ion-icon> {stats.saved ? t('video.guardado') : t('video.guardar')}
+          </button>
+          <button className={styles.actionBtn} type="button" onClick={() => setShareOpen(true)}>
+            <ion-icon name="share-social-outline" className={styles.actionIcon} suppressHydrationWarning></ion-icon> {t('video.compartir')}
+          </button>
+          <button className={`${styles.actionBtn} ${stats.reported ? styles.actionActive : ''}`} type="button" onClick={() => requireAuth('report')}>
+            <ion-icon name="flag-outline" className={styles.actionIcon} suppressHydrationWarning></ion-icon> {stats.reported ? t('video.reportado') : t('video.reportar')}
+          </button>
+          <button className={`${styles.actionBtn} ${styles.actionDownload}`} type="button" onClick={() => requireAuth('download')}>
+            <ion-icon name="download-outline" className={styles.actionIcon} suppressHydrationWarning></ion-icon> {t('video.descargar')}
+          </button>
+        </div>
+        </div>
+      </div>
+
+      <CompartirModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        title={info.title}
+      />
+
+      <AuthModal open={authOpen} reason={authReason} onClose={() => setAuthOpen(false)} />
+
+      <div className={styles.descBox}>
+        <div className={styles.tagsRow}>
+          <span className={styles.tagsLabel}>{t('video.etiquetas')}</span>
+          {(info.tags || []).map((tag) => (
+            <span key={tag} className={styles.tag}>{tag}</span>
+          ))}
+        </div>
+        <p className={`${styles.desc} ${expanded ? styles.descFull : ''}`}>{info.desc}</p>
+        <span className={styles.showMore} onClick={() => setExpanded((p) => !p)}>{expanded ? t('video.mostrarMenos') : t('video.mostrarMas')}</span>
+      </div>
+    </div>
+  );
+}
