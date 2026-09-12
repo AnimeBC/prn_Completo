@@ -42,13 +42,22 @@ export async function generateMetadata({ params }) {
   const entry = await resolveEntry(id);
   if (!entry) return { title: 'Video' };
   const title = entry.title;
-  const description = `${entry.viewsFull || ''} • ${entry.channel || ''}`.trim();
+  const resumen = (entry.desc || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const description =
+    resumen ||
+    `${entry.viewsFull || ''} • ${entry.channel || ''}`.trim() ||
+    `Mira ${title} en pikante pe`;
   return {
     title,
-    description: description || `Mira ${title} en pikante pe`,
+    description,
     keywords: entry.tags,
     alternates: { canonical: `/videos/${id}` },
-    openGraph: { title: `${title} | pikante pe`, description, images: entry.thumb ? [entry.thumb] : undefined },
+    openGraph: {
+      type: 'video.other',
+      title: `${title} | pikante pe`,
+      description,
+      images: entry.thumb ? [entry.thumb] : undefined,
+    },
   };
 }
 

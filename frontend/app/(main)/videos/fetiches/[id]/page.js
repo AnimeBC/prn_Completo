@@ -32,13 +32,23 @@ export async function generateMetadata({ params }) {
   const { id } = await params;
   const entry = await resolveEntry(id);
   if (!entry) return { title: 'Video no encontrado' };
-  const description = `${entry.viewsFull || ''} • ${entry.channel || ''}`.trim();
+  const title = entry.title;
+  const resumen = (entry.desc || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const description =
+    resumen ||
+    `${entry.viewsFull || ''} • ${entry.channel || ''}`.trim() ||
+    `Mira ${title} en pikante pe`;
   return {
-    title: entry.title,
-    description: description || `Mira ${entry.title} en pikante pe`,
+    title,
+    description,
     keywords: entry.tags,
     alternates: { canonical: `/videos/fetiches/${id}` },
-    openGraph: { title: `${entry.title} | pikante pe`, description, images: entry.thumb ? [entry.thumb] : undefined },
+    openGraph: {
+      type: 'video.other',
+      title: `${title} | pikante pe`,
+      description,
+      images: entry.thumb ? [entry.thumb] : undefined,
+    },
   };
 }
 
