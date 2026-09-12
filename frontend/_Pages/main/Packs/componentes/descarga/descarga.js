@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import styles from './descarga.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 
-export default function DescargaModal({ open, onClose, paso1, paso2, directo, titulo = 'Descargar' }) {
+export default function DescargaModal({ open, onClose, paso1, paso2, directo, titulo = 'Descargar', onDownload }) {
   const { t } = useLanguage();
   const [step, setStep] = useState(1);
 
@@ -34,7 +34,7 @@ export default function DescargaModal({ open, onClose, paso1, paso2, directo, ti
       >
         <div className={styles.dlHead}>
           <h3 className={styles.dlTitle}>{titulo}</h3>
-          <button className={styles.dlClose} type="button" aria-label="Close" onClick={onClose}>
+          <button className={styles.dlClose} type="button" aria-label={t('descarga.cerrar')} onClick={onClose}>
             <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
           </button>
         </div>
@@ -103,7 +103,11 @@ export default function DescargaModal({ open, onClose, paso1, paso2, directo, ti
               rel="nofollow noopener"
               aria-disabled={step < 3}
               onClick={(e) => {
-                if (step < 3) e.preventDefault();
+                if (step < 3) {
+                  e.preventDefault();
+                  return;
+                }
+                if (onDownload) onDownload();
               }}
               style={step < 3 ? { pointerEvents: 'none', opacity: 0.5 } : undefined}
             >

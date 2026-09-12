@@ -26,16 +26,19 @@
 }
 
 [data-theme="dark"] {
-  --bg: var(--bg-main);
-  --bg-card: var(--bg-card);
-  --bg-input: var(--bg-input);
-  --bg-surface: var(--bg-surface);
-  --text: var(--text-primary);
-  --header-bg: var(--header-bg);
-  --header-border: var(--header-border);
-  --border: var(--border);
-  --text-primary: var(--text-primary);
-  --text-secondary: var(--text-secondary);
+  --primary: #F20D16;
+  --primary-hover: #FF1A1A;
+  --bg: #050505;
+  --bg-main: #050505;
+  --bg-card: #0D0D0F;
+  --bg-input: #0D0D0F;
+  --bg-surface: #0D0D0F;
+  --text: #FFFFFF;
+  --text-primary: #FFFFFF;
+  --text-secondary: #A1A1AA;
+  --header-bg: #0D0D0F;
+  --header-border: #27272A;
+  --border: #27272A;
 }
 
 html {

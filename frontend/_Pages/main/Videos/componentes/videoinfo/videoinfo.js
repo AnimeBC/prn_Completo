@@ -5,8 +5,15 @@ import styles from './videoinfo.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import CompartirModal from '@/_Pages/main/Videos/componentes/compartir';
-import AuthModal from '@/_Pages/main/Auth/AuthModal';
-import { getInteractions, viewVideo } from '@/_Extras/Interacciones/interactions.js';
+import ReportModal from '@/_Pages/main/Videos/componentes/reportar';
+import {
+  getInteractions,
+  viewVideo,
+  likeVideo,
+  saveVideo,
+  downloadVideo,
+  followChannel,
+} from '@/_Extras/Interacciones/interactions.js';
 
 function formatCount(n) {
   const num = Number(n) || 0;
@@ -25,10 +32,9 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
 
   const [expanded, setExpanded] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
-  const [authReason, setAuthReason] = useState('default');
+  const [reportOpen, setReportOpen] = useState(false);
 
-  const [stats, setStats] = useState({ likes: 0, dislikes: 0, views: 0, subscribers: 0, myVote: null, saved: false, following: false });
+  const [stats, setStats] = useState({ likes: 0, dislikes: 0, views: 0, subscribers: 0, myVote: null, saved: false, following: false, reported: false });
 
   useEffect(() => {
     let alive = true;
@@ -38,9 +44,38 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
     return () => { alive = false; };
   }, [videoId]);
 
-  function requireAuth(reason) {
-    setAuthReason(reason);
-    setAuthOpen(true);
+  async function toggleLike() {
+    const d = await likeVideo(videoId, stats.myVote === 'like' ? 'none' : 'like');
+    if (d) setStats((s) => ({ ...s, ...d }));
+  }
+
+  async function toggleDislike() {
+    const d = await likeVideo(videoId, stats.myVote === 'dislike' ? 'none' : 'dislike');
+    if (d) setStats((s) => ({ ...s, ...d }));
+  }
+
+  async function toggleSave() {
+    const d = await saveVideo(videoId);
+    if (d) setStats((s) => ({ ...s, ...d }));
+  }
+
+  async function toggleFollow() {
+    const d = await followChannel(info.channel);
+    if (d) setStats((s) => ({ ...s, following: d.following, subscribers: d.subscribers }));
+  }
+
+  async function doDownload() {
+    const d = await downloadVideo(videoId);
+    if (d) setStats((s) => ({ ...s, ...d }));
+    if (src && !src.startsWith('/videos/')) {
+      const a = document.createElement('a');
+      a.href = src;
+      a.download = '';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   }
 
   const liked = stats.myVote === 'like';
@@ -72,7 +107,7 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
           <button
             className={`${styles.followBtn} ${stats.following ? styles.following : ''}`}
             type="button"
-            onClick={() => requireAuth('default')}
+            onClick={toggleFollow}
           >
             <ion-icon name={stats.following ? 'checkmark' : 'add-outline'} className={styles.followIcon} suppressHydrationWarning></ion-icon>
             {stats.following ? t('video.siguiendo') : t('video.seguir')}
@@ -82,12 +117,12 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
         <div className={styles.rightGroup}>
         <div className={styles.ytSegmentedWrap}>
           <div className={styles.ytSegmented}>
-            <button className={`${styles.ytSegBtn} ${liked ? styles.ytSegActive : ''}`} type="button" aria-label={t('video.like')} aria-pressed={liked} onClick={() => requireAuth('like')}>
+            <button className={`${styles.ytSegBtn} ${liked ? styles.ytSegActive : ''}`} type="button" aria-label={t('video.like')} aria-pressed={liked} onClick={toggleLike}>
               <ion-icon name={liked ? 'thumbs-up' : 'thumbs-up-outline'} className={styles.ytSegIcon} suppressHydrationWarning></ion-icon>
               <span className={styles.ytCount}>{formatCount(stats.likes)}</span>
             </button>
             <div className={styles.ytSegDivider} />
-            <button className={`${styles.ytSegBtn} ${disliked ? styles.ytSegActive : ''}`} type="button" aria-label={t('video.dislike')} aria-pressed={disliked} onClick={() => requireAuth('like')}>
+            <button className={`${styles.ytSegBtn} ${disliked ? styles.ytSegActive : ''}`} type="button" aria-label={t('video.dislike')} aria-pressed={disliked} onClick={toggleDislike}>
               <ion-icon name={disliked ? 'thumbs-down' : 'thumbs-down-outline'} className={styles.ytSegIcon} suppressHydrationWarning></ion-icon>
               <span className={styles.ytCount}>{formatCount(stats.dislikes)}</span>
             </button>
@@ -107,16 +142,16 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
         </div>
 
         <div className={styles.actions}>
-          <button className={`${styles.actionBtn} ${stats.saved ? styles.actionActive : ''}`} type="button" onClick={() => requireAuth('save')}>
+          <button className={`${styles.actionBtn} ${stats.saved ? styles.actionActive : ''}`} type="button" onClick={toggleSave}>
             <ion-icon name={stats.saved ? 'bookmark' : 'bookmark-outline'} className={styles.actionIcon} suppressHydrationWarning></ion-icon> {stats.saved ? t('video.guardado') : t('video.guardar')}
           </button>
           <button className={styles.actionBtn} type="button" onClick={() => setShareOpen(true)}>
             <ion-icon name="share-social-outline" className={styles.actionIcon} suppressHydrationWarning></ion-icon> {t('video.compartir')}
           </button>
-          <button className={`${styles.actionBtn} ${stats.reported ? styles.actionActive : ''}`} type="button" onClick={() => requireAuth('report')}>
+          <button className={`${styles.actionBtn} ${stats.reported ? styles.actionActive : ''}`} type="button" onClick={() => setReportOpen(true)}>
             <ion-icon name="flag-outline" className={styles.actionIcon} suppressHydrationWarning></ion-icon> {stats.reported ? t('video.reportado') : t('video.reportar')}
           </button>
-          <button className={`${styles.actionBtn} ${styles.actionDownload}`} type="button" onClick={() => requireAuth('download')}>
+          <button className={`${styles.actionBtn} ${styles.actionDownload}`} type="button" onClick={doDownload}>
             <ion-icon name="download-outline" className={styles.actionIcon} suppressHydrationWarning></ion-icon> {t('video.descargar')}
           </button>
         </div>
@@ -129,7 +164,12 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
         title={info.title}
       />
 
-      <AuthModal open={authOpen} reason={authReason} onClose={() => setAuthOpen(false)} />
+      <ReportModal
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        videoId={videoId}
+        onReported={() => setStats((s) => ({ ...s, reported: true }))}
+      />
 
       <div className={styles.descBox}>
         <div className={styles.tagsRow}>

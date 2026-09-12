@@ -15,4 +15,17 @@ export const env = {
     database: process.env.DB_NAME || 'pikantepe',
   },
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+  app: {
+    publicUrl: process.env.PUBLIC_URL || `http://localhost:${Number(process.env.PORT || 3001)}`,
+  },
+  mail: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT || 465),
+    user: process.env.GMAIL_USER || '',
+    pass: process.env.GMAIL_APP_PASSWORD || '',
+    from: process.env.MAIL_FROM || 'pikante pe <no-reply@pikantepe.com>',
+  },
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+  },
 };

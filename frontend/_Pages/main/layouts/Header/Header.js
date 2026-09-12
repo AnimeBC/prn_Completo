@@ -18,7 +18,7 @@ const filters = [
 
 export default function Header() {
   const { isDark, toggleTheme } = useTheme();
-  const { isOpen, toggle: toggleSidebar, openMaint } = useSidebar();
+  const { isOpen, toggle: toggleSidebar } = useSidebar();
   const { t } = useLanguage();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -73,7 +73,7 @@ export default function Header() {
   }
 
   function handleProfileClick() {
-    openMaint();
+    router.push('/perfil');
   }
 
   function renderResults() {

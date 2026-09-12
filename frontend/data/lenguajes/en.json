@@ -131,7 +131,8 @@
     "paso3d": "Your file is ready, go for it.",
     "descargarArchivo": "Download file",
     "hint1": "Just close whatever tab opens, it doesn't matter — it's only to unlock the next step.",
-    "hint2": "Same as before: close the tab that opens and keep going."
+    "hint2": "Same as before: close the tab that opens and keep going.",
+    "cerrar": "Close"
   },
   "compartir": {
     "titulo": "Share",
@@ -172,7 +173,28 @@
     "fotos": "photos",
     "videos": "videos",
     "vistas": "views",
-    "descargas": "downloads"
+    "descargas": "downloads",
+    "titulo": "Popular packs",
+    "subtitulo": "All packs",
+    "buscar": "Search by name or person...",
+    "limpiar": "Clear search",
+    "topDescargados": "Top 10 downloads",
+    "resultados": "Results",
+    "todosPacks": "All packs",
+    "borrarFiltros": "Clear filters",
+    "sinResultados": "No packs match those filters yet.",
+    "optDescMas": "Most downloaded",
+    "optDescMenos": "Least downloaded",
+    "optBusqMas": "Most searched",
+    "optBusqMenos": "Least searched",
+    "optNuevos": "Newest first",
+    "optAntiguos": "Oldest first",
+    "optTodas": "All",
+    "optGrandes": "Large (+30 photos)",
+    "optCompletos": "Complete (+3 videos)",
+    "imagen": "Pack image",
+    "badge": "PACK",
+    "relacionados": "Related packs"
   },
   "ageGate": {
     "titulo": "Adults only",

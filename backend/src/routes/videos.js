@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { query } from '../db/pool.js';
 import {
   upload, MEDIA_DIR,
-  videoFolderName, videoRootDir, publicOf, removeVideoFolder,
+  videoFolderName, videoRootDir, publicOf, removeVideoFolder, moveFileSync,
 } from '../services/upload.js';
 import { authRequired } from '../middleware/auth.js';
 import { slugify } from '../utils/slug.js';
@@ -26,7 +26,7 @@ function stageOriginal({ id, isFetiche, collection, videoFile }) {
 
   const ext = (path.extname(videoFile.filename) || path.extname(videoFile.originalname) || '.mp4').toLowerCase();
   const origPath = path.join(destDir, `original${VIDEO_EXT.test(ext) ? ext : '.mp4'}`);
-  fs.renameSync(videoFile.path, origPath);
+  moveFileSync(videoFile.path, origPath);
   return { destDir, folderName, origPath };
 }
 
@@ -238,7 +238,7 @@ r.post('/upload', authRequired, upload.fields([{ name: 'video', maxCount: 1 }, {
       const thumbsDir = path.join(destDir, 'thumbs');
       fs.mkdirSync(thumbsDir, { recursive: true });
       const target = path.join(thumbsDir, `cover${ext}`);
-      fs.renameSync(thumbFile.path, target);
+      moveFileSync(thumbFile.path, target);
       thumb = publicOf(target);
     }
 
@@ -294,7 +294,7 @@ r.post('/:id/media', authRequired, upload.fields([{ name: 'video', maxCount: 1 }
       fs.mkdirSync(thumbsDir, { recursive: true });
       const ext = (path.extname(thumbFile.filename) || '.jpg').toLowerCase();
       const target = path.join(thumbsDir, `cover${ext}`);
-      fs.renameSync(thumbFile.path, target);
+      moveFileSync(thumbFile.path, target);
       thumb = publicOf(target);
     }
 

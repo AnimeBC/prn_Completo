@@ -1,5 +1,7 @@
+import { env } from '../config/env.js';
+
 export function errorHandler(err, req, res, _next) {
-  console.error('[error]', err.message);
+  console.error('[error]', (err && (err.stack || err.message)) || err);
 
   // Errores de multer (subida de archivos)
   if (err && err.name === 'MulterError') {
@@ -11,8 +13,15 @@ export function errorHandler(err, req, res, _next) {
     return res.status(413).json({ error: msg, code: err.code });
   }
 
-  const status = err.status || 500;
-  res.status(status).json({ error: err.message || 'Error interno del servidor' });
+  const status = err?.status || 500;
+  const raw = err?.message || 'Error interno del servidor';
+
+  // En producción no exponemos rutas/errores internos del sistema de archivos
+  const safe = status >= 500 && env.nodeEnv === 'production'
+    ? 'Error interno del servidor'
+    : raw;
+
+  res.status(status).json({ error: safe });
 }
 
 export function notFound(req, res) {

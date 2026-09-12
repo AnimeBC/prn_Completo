@@ -1,10 +1,10 @@
 /* pikante pe — Service Worker (PWA instalable) */
-const CACHE = 'pikantepe-v1';
+const CACHE = 'pikantepe-v2';
 const OFFLINE_URL = '/offline.html';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(['/', OFFLINE_URL])).catch(() => {})
+    caches.open(CACHE).then((cache) => cache.addAll([OFFLINE_URL])).catch(() => {})
   );
   self.skipWaiting();
 });
@@ -21,23 +21,13 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  // No cachear API ni media (videos/imágenes pesadas)
-  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/media')) return;
+  // No cachear API ni media (videos/imágenes pesadas), ni los chunks de Next
+  // (si no, en desarrollo se sirve JavaScript viejo y la app se queda colgada).
+  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/media') || url.pathname.startsWith('/_next')) return;
   if (url.origin !== self.location.origin) return;
 
-  // Navegación: network-first con fallback a caché/offline
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(request, copy)).catch(() => {});
-          return res;
-        })
-        .catch(() => caches.match(request).then((r) => r || caches.match(OFFLINE_URL)))
-    );
-    return;
-  }
+  // Navegación (páginas): SIEMPRE red, nunca se cachea el HTML
+  if (request.mode === 'navigate') return;
 
   // Estáticos: cache-first
   event.respondWith(

@@ -1,0 +1,11 @@
+/* En PC el footer es fijo abajo; deja espacio para que no tape el contenido.
+   En móvil el footer va debajo del contenido, así que no hace falta. */
+.wrap {
+  padding-bottom: 76px;
+}
+
+@media (max-width: 768px) {
+  .wrap {
+    padding-bottom: 0;
+  }
+}

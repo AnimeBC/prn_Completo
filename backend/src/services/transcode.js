@@ -110,3 +110,41 @@ export async function transcodeVideo({ inputPath, destDir }) {
     duration: info?.duration || 0,
   };
 }
+
+/** Anchos objetivo para imágenes de packs. */
+export const IMAGE_WIDTHS = [1280, 720, 480];
+
+/**
+ * Genera "calidades" de una imagen dentro de destDir:
+ *   destDir/original.<ext>  +  destDir/calidades/<w>.jpg
+ * Devuelve { renditions, original } con rutas relativas a destDir.
+ */
+export async function transcodeImage({ inputPath, destDir }) {
+  fs.mkdirSync(destDir, { recursive: true });
+
+  const ext = (path.extname(inputPath) || '.jpg').toLowerCase();
+  const originalName = `original${ext}`;
+  fs.copyFileSync(inputPath, path.join(destDir, originalName));
+  const original = { label: 'original', file: originalName };
+
+  if (!hasFFmpeg) return { renditions: [original], original: originalName };
+
+  const qualDir = path.join(destDir, 'calidades');
+  fs.mkdirSync(qualDir, { recursive: true });
+
+  const renditions = [];
+  for (const w of IMAGE_WIDTHS) {
+    const file = `${w}.jpg`;
+    try {
+      await run(FFMPEG, [
+        '-y', '-i', inputPath,
+        '-vf', `scale='min(${w},iw)':-2`,
+        '-q:v', '3',
+        path.join(qualDir, file),
+      ]);
+      renditions.push({ label: String(w), width: w, file: `calidades/${file}` });
+    } catch { /* ignora esta calidad */ }
+  }
+  if (!renditions.length) renditions.push(original);
+  return { renditions, original: originalName };
+}

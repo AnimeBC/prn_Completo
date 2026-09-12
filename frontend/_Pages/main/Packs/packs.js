@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './packs.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
+import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
 
@@ -16,12 +17,29 @@ function parseNum(text) {
   return /K/i.test(text) ? n * 1000 : n;
 }
 
-const DROP_DESCARGAS = ['Más descargados', 'Menos descargados'];
-const DROP_BUSCADOS = ['Más buscados', 'Menos buscados'];
-const DROP_NUEVOS = ['Nuevos primero', 'Antiguos primero'];
-const DROP_CATEGORIA = ['Todas', 'Grandes (+30 fotos)', 'Completos (+3 videos)'];
+const OPT_DESCARGAS = [
+  { value: 'desc_mas', key: 'packs.optDescMas' },
+  { value: 'desc_menos', key: 'packs.optDescMenos' },
+];
+const OPT_BUSCADOS = [
+  { value: 'busq_mas', key: 'packs.optBusqMas' },
+  { value: 'busq_menos', key: 'packs.optBusqMenos' },
+];
+const OPT_NUEVOS = [
+  { value: 'nuevos', key: 'packs.optNuevos' },
+  { value: 'antiguos', key: 'packs.optAntiguos' },
+];
+const OPT_CATEGORIA = [
+  { value: 'todas', key: 'packs.optTodas' },
+  { value: 'grandes', key: 'packs.optGrandes' },
+  { value: 'completos', key: 'packs.optCompletos' },
+];
 
-function Drop({ options, value, onChange, extraIcon }) {
+function findOption(options, value, fallback) {
+  return options.find((o) => o.value === value) || fallback;
+}
+
+function Drop({ options, value, onChange, t, extraIcon }) {
   const [open, setOpen] = useState(false);
   return (
     <div className={styles.dropWrap}>
@@ -30,7 +48,7 @@ function Drop({ options, value, onChange, extraIcon }) {
         type="button"
         onClick={() => setOpen((o) => !o)}
       >
-        {value}
+        {t(value.key)}
         <ion-icon name="chevron-down-outline" className={styles.dropChevron} suppressHydrationWarning></ion-icon>
         {extraIcon && (
           <ion-icon name="options-outline" className={styles.dropOptions} suppressHydrationWarning></ion-icon>
@@ -40,15 +58,12 @@ function Drop({ options, value, onChange, extraIcon }) {
         <div className={styles.dropMenu}>
           {options.map((op) => (
             <button
-              key={op}
-              className={`${styles.dropItem} ${op === value ? styles.dropItemActive : ''}`}
+              key={op.value}
+              className={`${styles.dropItem} ${op.value === value.value ? styles.dropItemActive : ''}`}
               type="button"
-              onClick={() => {
-                onChange(op);
-                setOpen(false);
-              }}
+              onClick={() => { onChange(op); setOpen(false); }}
             >
-              {op}
+              {t(op.key)}
             </button>
           ))}
         </div>
@@ -59,11 +74,12 @@ function Drop({ options, value, onChange, extraIcon }) {
 
 export default function PacksClient() {
   const router = useRouter();
+  const { t } = useLanguage();
   const { packs } = useContenido();
-  const [descargas, setDescargas] = useState(DROP_DESCARGAS[0]);
-  const [buscados, setBuscados] = useState(DROP_BUSCADOS[0]);
-  const [novedad, setNovedad] = useState(DROP_NUEVOS[0]);
-  const [categoria, setCategoria] = useState(DROP_CATEGORIA[0]);
+  const [descargas, setDescargas] = useState(OPT_DESCARGAS[0]);
+  const [buscados, setBuscados] = useState(OPT_BUSCADOS[0]);
+  const [novedad, setNovedad] = useState(OPT_NUEVOS[0]);
+  const [categoria, setCategoria] = useState(OPT_CATEGORIA[0]);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [canLeft, setCanLeft] = useState(false);
@@ -71,37 +87,36 @@ export default function PacksClient() {
   const [isMobile, setIsMobile] = useState(false);
   const rowRef = useRef(null);
 
-  // Querys propias de packs (distintas al buscador global del header).
   // Lee los valores iniciales para links compartidos y los mantiene sincronizados.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const q = p.get('q');
     if (q) setQuery(q);
     const d = p.get('descargas');
-    if (d && DROP_DESCARGAS.includes(d)) setDescargas(d);
+    if (d) setDescargas(findOption(OPT_DESCARGAS, d, OPT_DESCARGAS[0]));
     const b = p.get('buscados');
-    if (b && DROP_BUSCADOS.includes(b)) setBuscados(b);
+    if (b) setBuscados(findOption(OPT_BUSCADOS, b, OPT_BUSCADOS[0]));
     const n = p.get('novedad');
-    if (n && DROP_NUEVOS.includes(n)) setNovedad(n);
+    if (n) setNovedad(findOption(OPT_NUEVOS, n, OPT_NUEVOS[0]));
     const c = p.get('categoria');
-    if (c && DROP_CATEGORIA.includes(c)) setCategoria(c);
+    if (c) setCategoria(findOption(OPT_CATEGORIA, c, OPT_CATEGORIA[0]));
     const pg = Number(p.get('page'));
     if (Number.isInteger(pg) && pg >= 1) setPage(pg);
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       const p = new URLSearchParams();
       if (query.trim()) p.set('q', query.trim());
-      if (descargas !== DROP_DESCARGAS[0]) p.set('descargas', descargas);
-      if (buscados !== DROP_BUSCADOS[0]) p.set('buscados', buscados);
-      if (novedad !== DROP_NUEVOS[0]) p.set('novedad', novedad);
-      if (categoria !== DROP_CATEGORIA[0]) p.set('categoria', categoria);
+      if (descargas.value !== OPT_DESCARGAS[0].value) p.set('descargas', descargas.value);
+      if (buscados.value !== OPT_BUSCADOS[0].value) p.set('buscados', buscados.value);
+      if (novedad.value !== OPT_NUEVOS[0].value) p.set('novedad', novedad.value);
+      if (categoria.value !== OPT_CATEGORIA[0].value) p.set('categoria', categoria.value);
       if (page > 1) p.set('page', String(page));
       const qs = p.toString();
       router.replace(qs ? `/packs?${qs}` : '/packs', { scroll: false });
     }, 400);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [query, descargas, buscados, novedad, categoria, page, router]);
 
   useEffect(() => {
@@ -132,23 +147,23 @@ export default function PacksClient() {
 
   const isFiltering =
     query.trim() !== '' ||
-    descargas !== DROP_DESCARGAS[0] ||
-    buscados !== DROP_BUSCADOS[0] ||
-    novedad !== DROP_NUEVOS[0] ||
-    categoria !== DROP_CATEGORIA[0];
+    descargas.value !== OPT_DESCARGAS[0].value ||
+    buscados.value !== OPT_BUSCADOS[0].value ||
+    novedad.value !== OPT_NUEVOS[0].value ||
+    categoria.value !== OPT_CATEGORIA[0].value;
 
   const top10 = [...packs].sort((a, b) => parseNum(b.descargas) - parseNum(a.descargas)).slice(0, 10);
 
   let list = [...packs];
-  if (categoria === 'Grandes (+30 fotos)') list = list.filter((p) => p.fotos >= 30);
-  if (categoria === 'Completos (+3 videos)') list = list.filter((p) => p.videos >= 3);
+  if (categoria.value === 'grandes') list = list.filter((p) => p.fotos >= 30);
+  if (categoria.value === 'completos') list = list.filter((p) => p.videos >= 3);
   const q = query.trim().toLowerCase();
-  if (q) list = list.filter((p) => p.title.toLowerCase().includes(q) || p.uploader.toLowerCase().includes(q));
-  if (descargas === 'Más descargados') list.sort((a, b) => parseNum(b.descargas) - parseNum(a.descargas));
+  if (q) list = list.filter((p) => p.title.toLowerCase().includes(q) || (p.uploader || '').toLowerCase().includes(q));
+  if (descargas.value === 'desc_mas') list.sort((a, b) => parseNum(b.descargas) - parseNum(a.descargas));
   else list.sort((a, b) => parseNum(a.descargas) - parseNum(b.descargas));
-  if (buscados === 'Más buscados') list.sort((a, b) => parseNum(b.views) - parseNum(a.views));
+  if (buscados.value === 'busq_mas') list.sort((a, b) => parseNum(b.views) - parseNum(a.views));
   else list.sort((a, b) => parseNum(a.views) - parseNum(b.views));
-  if (novedad === 'Antiguos primero') list.reverse();
+  if (novedad.value === 'antiguos') list.reverse();
 
   const totalPages = Math.max(1, Math.ceil(list.length / PER_PAGE));
   const safePage = Math.min(page, totalPages);
@@ -172,10 +187,10 @@ export default function PacksClient() {
 
   function clearFilters() {
     setQuery('');
-    setDescargas(DROP_DESCARGAS[0]);
-    setBuscados(DROP_BUSCADOS[0]);
-    setNovedad(DROP_NUEVOS[0]);
-    setCategoria(DROP_CATEGORIA[0]);
+    setDescargas(OPT_DESCARGAS[0]);
+    setBuscados(OPT_BUSCADOS[0]);
+    setNovedad(OPT_NUEVOS[0]);
+    setCategoria(OPT_CATEGORIA[0]);
     setPage(1);
   }
 
@@ -208,9 +223,15 @@ export default function PacksClient() {
         }}
       >
         <div className={styles.thumb}>
-          <span className={styles.packBadge}>PACK</span>
-          <ion-icon name="image-outline" className={styles.thumbIcon} suppressHydrationWarning></ion-icon>
-          <span className={styles.thumbLabel}>IMAGEN DE PACK</span>
+          <span className={styles.packBadge}>{t('packs.badge')}</span>
+          {pack.thumb
+            ? <img className={styles.thumbImg} src={pack.thumb} alt="" loading="lazy" />
+            : (
+              <>
+                <ion-icon name="image-outline" className={styles.thumbIcon} suppressHydrationWarning></ion-icon>
+                <span className={styles.thumbLabel}>{t('packs.imagen')}</span>
+              </>
+            )}
         </div>
         <div className={styles.info}>
           <div className={styles.titleRow}>
@@ -218,7 +239,7 @@ export default function PacksClient() {
             <ion-icon name="lock-closed-outline" className={styles.lockIcon} suppressHydrationWarning></ion-icon>
           </div>
           <span className={styles.uploader}>{pack.uploader}</span>
-          <span className={styles.meta}>{pack.fotos} Fotos + {pack.videos} Videos</span>
+          <span className={styles.meta}>{pack.fotos} {t('packs.fotos')} + {pack.videos} {t('packs.videos')}</span>
           <span className={styles.views}>
             <ion-icon name="eye-outline" className={styles.eyeIcon} suppressHydrationWarning></ion-icon>
             {pack.views}
@@ -239,14 +260,14 @@ export default function PacksClient() {
           <section className={styles.section}>
             <div className={styles.headRow}>
               <div>
-                <h1 className={styles.title}>Packs populares</h1>
-                <p className={styles.subtitle}>Todos los Packs</p>
+                <h1 className={styles.title}>{t('packs.titulo')}</h1>
+                <p className={styles.subtitle}>{t('packs.subtitulo')}</p>
               </div>
               <div className={styles.toolbar}>
-                <Drop options={DROP_DESCARGAS} value={descargas} onChange={(v) => { setDescargas(v); setPage(1); }} />
-                <Drop options={DROP_BUSCADOS} value={buscados} onChange={(v) => { setBuscados(v); setPage(1); }} />
-                <Drop options={DROP_NUEVOS} value={novedad} onChange={(v) => { setNovedad(v); setPage(1); }} />
-                <Drop options={DROP_CATEGORIA} value={categoria} onChange={(v) => { setCategoria(v); setPage(1); }} extraIcon />
+                <Drop options={OPT_DESCARGAS} value={descargas} onChange={(v) => { setDescargas(v); setPage(1); }} t={t} />
+                <Drop options={OPT_BUSCADOS} value={buscados} onChange={(v) => { setBuscados(v); setPage(1); }} t={t} />
+                <Drop options={OPT_NUEVOS} value={novedad} onChange={(v) => { setNovedad(v); setPage(1); }} t={t} />
+                <Drop options={OPT_CATEGORIA} value={categoria} onChange={(v) => { setCategoria(v); setPage(1); }} t={t} extraIcon />
               </div>
             </div>
 
@@ -256,12 +277,12 @@ export default function PacksClient() {
                 <input
                   className={styles.searchInput}
                   type="text"
-                  placeholder="Buscar por nombre o persona..."
+                  placeholder={t('packs.buscar')}
                   value={query}
                   onChange={(e) => { setQuery(e.target.value); setPage(1); }}
                 />
                 {query && (
-                  <button className={styles.searchClear} type="button" aria-label="Limpiar búsqueda" onClick={() => setQuery('')}>
+                  <button className={styles.searchClear} type="button" aria-label={t('packs.limpiar')} onClick={() => setQuery('')}>
                     <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
                   </button>
                 )}
@@ -270,7 +291,7 @@ export default function PacksClient() {
 
             {!isFiltering && (
               <div className={styles.topSection}>
-                <h2 className={styles.sectionTitle}>Los 10 más descargados</h2>
+                <h2 className={styles.sectionTitle}>{t('packs.topDescargados')}</h2>
                 <div className={styles.topViewport}>
                   <div className={styles.row} ref={rowRef}>
                     {top10.map(renderCard)}
@@ -281,7 +302,7 @@ export default function PacksClient() {
                     <button
                       className={`${styles.edgeBtn} ${styles.edgeBtnLeft}`}
                       type="button"
-                      aria-label="Anterior"
+                      aria-label={t('paginacion.anterior')}
                       onClick={() => scrollRow(-1)}
                     >
                       <ion-icon name="chevron-back-outline" className={styles.navIcon} suppressHydrationWarning></ion-icon>
@@ -291,7 +312,7 @@ export default function PacksClient() {
                     <button
                       className={`${styles.edgeBtn} ${styles.edgeBtnRight}`}
                       type="button"
-                      aria-label="Siguiente"
+                      aria-label={t('paginacion.siguiente')}
                       onClick={() => scrollRow(1)}
                     >
                       <ion-icon name="chevron-forward-outline" className={styles.navIcon} suppressHydrationWarning></ion-icon>
@@ -308,20 +329,20 @@ export default function PacksClient() {
             )}
 
             <div className={styles.allHead}>
-              <h2 className={styles.sectionTitle}>{isFiltering ? 'Resultados' : 'Todos los packs'}</h2>
+              <h2 className={styles.sectionTitle}>{isFiltering ? t('packs.resultados') : t('packs.todosPacks')}</h2>
               <div className={styles.allHeadRight}>
                 {isFiltering && (
                   <button className={styles.clearFiltersBtn} type="button" onClick={clearFilters}>
                     <ion-icon name="close-circle-outline" suppressHydrationWarning></ion-icon>
-                    Borrar filtros
+                    {t('packs.borrarFiltros')}
                   </button>
                 )}
-                <span className={styles.count}>{list.length} packs</span>
+                <span className={styles.count}>{list.length} {t('nav.packs').toLowerCase()}</span>
               </div>
             </div>
 
             {list.length === 0 ? (
-              <p className={styles.empty}>No hay packs con esos filtros por ahora.</p>
+              <p className={styles.empty}>{t('packs.sinResultados')}</p>
             ) : (
               <>
                 <div className={styles.grid}>
@@ -345,7 +366,7 @@ export default function PacksClient() {
                     type="button"
                     disabled={safePage <= 1}
                     onClick={() => goPage(safePage - 1)}
-                    aria-label="Página anterior"
+                    aria-label={t('paginacion.anterior')}
                   >
                     <ion-icon name="chevron-back-outline" suppressHydrationWarning></ion-icon>
                   </button>
@@ -364,7 +385,7 @@ export default function PacksClient() {
                     type="button"
                     disabled={safePage >= totalPages}
                     onClick={() => goPage(safePage + 1)}
-                    aria-label="Página siguiente"
+                    aria-label={t('paginacion.siguiente')}
                   >
                     <ion-icon name="chevron-forward-outline" suppressHydrationWarning></ion-icon>
                   </button>

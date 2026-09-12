@@ -40,6 +40,14 @@
   color: var(--text-secondary, #52525B);
 }
 
+.photoImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .packBadge {
   position: absolute;
   top: 12px;
@@ -106,6 +114,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   color: var(--text-primary, #FFFFFF);
 }
@@ -115,6 +124,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1;
 }
 
 .title {
@@ -140,6 +150,88 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px 16px;
+}
+
+/* ===== Barra de acciones (like/dislike, guardar, compartir, descargar) ===== */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--bg-surface, #18181B);
+  border: 1px solid var(--border, #27272A);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.segBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.segBtn:hover {
+  color: var(--text-primary, #FFFFFF);
+}
+
+.segActive {
+  color: var(--primary, #F20D16);
+}
+
+.segDivider {
+  width: 1px;
+  height: 22px;
+  background-color: var(--border, #27272A);
+}
+
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 999px;
+  background-color: var(--bg-surface, #18181B);
+  color: var(--text-primary, #FFFFFF);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.actionBtn:hover {
+  border-color: var(--primary, #F20D16);
+  color: var(--primary, #F20D16);
+}
+
+.actionActive {
+  border-color: var(--primary, #F20D16);
+  color: var(--primary, #F20D16);
+}
+
+.actionDownload {
+  border-color: var(--primary, #F20D16);
+  background-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+}
+
+.actionDownload:hover {
+  background-color: var(--primary-hover, #FF1A1A);
+  color: #FFFFFF;
 }
 
 .stat {
@@ -193,6 +285,14 @@
   border-radius: 6px;
   flex-shrink: 0;
   overflow: hidden;
+}
+
+.miniImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .miniBadge {

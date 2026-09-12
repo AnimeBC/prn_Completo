@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/pool.js';
 import { publishEvent, cacheDel } from '../db/redis.js';
+import { authRequired } from '../middleware/auth.js';
 
 const r = Router();
 
@@ -22,18 +23,20 @@ async function getStats(videoId, userKey, channel) {
     [videoId, channel || '']
   );
   const s = rows[0];
-  let myVote = null, saved = false, following = false;
+  let myVote = null, saved = false, following = false, reported = false;
   if (userKey) {
     const v = await query('SELECT tipo FROM video_likes WHERE video_id = $1 AND user_key = $2', [videoId, userKey]);
     myVote = v.rows[0]?.tipo || null;
     const sv = await query('SELECT 1 FROM saved_videos WHERE video_id = $1 AND user_key = $2', [videoId, userKey]);
     saved = !!sv.rows[0];
+    const rp = await query('SELECT 1 FROM reports WHERE video_id = $1 AND user_key = $2 LIMIT 1', [videoId, userKey]);
+    reported = !!rp.rows[0];
     if (channel) {
       const f = await query('SELECT 1 FROM subscriptions WHERE channel = $1 AND user_key = $2', [channel, userKey]);
       following = !!f.rows[0];
     }
   }
-  return { videoId, channel: channel || null, ...s, myVote, saved, following };
+  return { videoId, channel: channel || null, ...s, myVote, saved, following, reported };
 }
 
 // GET /api/videos/:id/interactions?userKey=
@@ -111,15 +114,48 @@ r.post('/videos/:id/save', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /api/report-motivos  -> catálogo de motivos de reporte
+r.get('/report-motivos', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      'SELECT slug, nombre FROM report_motivos WHERE activo = TRUE ORDER BY id'
+    );
+    res.json({ data: rows });
+  } catch (e) { next(e); }
+});
+
 // POST /api/videos/:id/report  { userKey, motivo, detalle }
 r.post('/videos/:id/report', async (req, res, next) => {
   try {
     const v = await getVideo(req.params.id);
     if (!v) return res.status(404).json({ error: 'Video no encontrado' });
     const { userKey, motivo, detalle } = req.body || {};
-    await query('INSERT INTO reports (video_id, user_key, motivo, detalle) VALUES ($1,$2,$3,$4)', [v.id, userKey || null, motivo || 'otro', detalle || null]);
+    const slug = String(motivo || 'otro').trim().slice(0, 60) || 'otro';
+    const nota = detalle ? String(detalle).trim().slice(0, 1000) : null;
+
+    await query(
+      `INSERT INTO reports (video_id, user_key, motivo, motivo_slug, detalle, estado)
+       VALUES ($1, $2, $3, $4, $5, 'pendiente')`,
+      [v.id, userKey || null, slug, slug, nota]
+    );
+
     await publishEvent('video_report', { id: v.id });
     res.json({ ok: true, reported: true });
+  } catch (e) { next(e); }
+});
+
+// GET /api/reports  (admin) -> lista de reportes recibidos
+r.get('/reports', authRequired, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT r.id, r.video_id, r.user_key, r.motivo, r.detalle, r.estado, r.created_at,
+              v.titulo_es, v.titulo_en, v.thumb
+         FROM reports r
+         LEFT JOIN videos v ON v.id = r.video_id
+        ORDER BY r.created_at DESC
+        LIMIT 200`
+    );
+    res.json({ data: rows });
   } catch (e) { next(e); }
 });
 

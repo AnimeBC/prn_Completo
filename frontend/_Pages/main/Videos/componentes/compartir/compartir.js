@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import styles from './compartir.module.css';
+import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 
 export default function CompartirModal({ open, onClose, title = '' }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
   const [url, setUrl] = useState('');
 
@@ -49,12 +51,12 @@ export default function CompartirModal({ open, onClose, title = '' }) {
         className={styles.card}
         role="dialog"
         aria-modal="true"
-        aria-label="Compartir video"
+        aria-label={t('compartir.titulo')}
         onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.head}>
-          <h3 className={styles.title}>Compartir</h3>
-          <button className={styles.closeBtn} type="button" aria-label="Cerrar" onClick={onClose}>
+          <h3 className={styles.title}>{t('compartir.titulo')}</h3>
+          <button className={styles.closeBtn} type="button" aria-label={t('descarga.cerrar')} onClick={onClose}>
             <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
           </button>
         </div>
@@ -73,7 +75,7 @@ export default function CompartirModal({ open, onClose, title = '' }) {
           ))}
           <button className={`${styles.opt} ${styles.copy} ${copied ? styles.copied : ''}`} type="button" onClick={copy}>
             <ion-icon name="link-outline" className={styles.optIcon} suppressHydrationWarning></ion-icon>
-            {copied ? '¡Copiado!' : 'Copiar enlace'}
+            {copied ? t('compartir.copiado') : t('compartir.copiar')}
           </button>
         </div>
       </div>

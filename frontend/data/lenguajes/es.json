@@ -135,7 +135,8 @@
     "paso3d": "Tu archivo está listo, dale sin miedo.",
     "descargarArchivo": "Descargar archivo",
     "hint1": "La pestaña que se abra ciérrala nomás, no importa — solo es para liberar el siguiente paso.",
-    "hint2": "Igual que antes: cierra la pestaña que se abra y sigue nomás."
+    "hint2": "Igual que antes: cierra la pestaña que se abra y sigue nomás.",
+    "cerrar": "Cerrar"
   },
   "compartir": {
     "titulo": "Compartir",
@@ -179,7 +180,28 @@
     "fotos": "fotos",
     "videos": "videos",
     "vistas": "vistas",
-    "descargas": "descargas"
+    "descargas": "descargas",
+    "titulo": "Packs populares",
+    "subtitulo": "Todos los Packs",
+    "buscar": "Buscar por nombre o persona...",
+    "limpiar": "Limpiar búsqueda",
+    "topDescargados": "Los 10 más descargados",
+    "resultados": "Resultados",
+    "todosPacks": "Todos los packs",
+    "borrarFiltros": "Borrar filtros",
+    "sinResultados": "No hay packs con esos filtros por ahora.",
+    "optDescMas": "Más descargados",
+    "optDescMenos": "Menos descargados",
+    "optBusqMas": "Más buscados",
+    "optBusqMenos": "Menos buscados",
+    "optNuevos": "Nuevos primero",
+    "optAntiguos": "Antiguos primero",
+    "optTodas": "Todas",
+    "optGrandes": "Grandes (+30 fotos)",
+    "optCompletos": "Completos (+3 videos)",
+    "imagen": "Imagen de pack",
+    "badge": "PACK",
+    "relacionados": "Packs relacionados"
   },
   "ageGate": {
     "titulo": "Contenido solo para adultos",

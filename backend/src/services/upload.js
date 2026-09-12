@@ -18,6 +18,7 @@ export const DIRS = {
   videos: path.join(MEDIA_DIR, 'videos'),
   fetiches: path.join(MEDIA_DIR, 'fetiches'),
   hentai: path.join(MEDIA_DIR, 'hentai'),
+  packs: path.join(MEDIA_DIR, 'packs'),
   tmp: path.join(MEDIA_DIR, '_tmp'),
 };
 
@@ -61,6 +62,52 @@ export function publicOf(absPath) {
   return `/media/${path.relative(MEDIA_DIR, absPath).replace(/\\/g, '/')}`;
 }
 
+/** Multer para packs: portada + varios videos + varias imágenes. */
+export const packUpload = multer({
+  storage,
+  limits: { fileSize: MAX_MB * 1024 * 1024, files: 80 },
+  fileFilter(req, file, cb) {
+    const bad = (msg) => { const e = new Error(msg); e.status = 400; return cb(e); };
+    if (file.fieldname === 'videos') {
+      if (!videoMime.includes(file.mimetype) && !file.originalname.match(/\.(mp4|mov|webm|mkv|avi)$/i)) {
+        return bad('Formato de video no permitido (mp4/mov/webm/mkv)');
+      }
+    } else if (file.fieldname === 'images' || file.fieldname === 'thumb') {
+      if (!imageMime.includes(file.mimetype) && !file.originalname.match(/\.(png|jpg|jpeg|webp|avif)$/i)) {
+        return bad('Formato de imagen no permitido (png/jpg/webp/avif)');
+      }
+    }
+    cb(null, true);
+  },
+});
+
+/** nombre de la carpeta del pack: pack_<slug>_<id> */
+export function packFolderName(slug, id) {
+  const s = (slug || 'pack').slice(0, 60);
+  return `pack_${s}_${String(id).padStart(2, '0')}`;
+}
+
+export function packRootDir() {
+  return DIRS.packs;
+}
+
+/** borra la carpeta completa de un pack a partir de una ruta pública */
+export function removePackFolder(publicPath) {
+  if (!publicPath) return;
+  const rel = String(publicPath).replace(/^\/media\//, '');
+  let abs = path.resolve(MEDIA_DIR, rel);
+  if (!abs.startsWith(MEDIA_DIR)) return;
+  // sube hasta la carpeta "pack_..." dentro de /packs
+  while (abs && path.basename(abs) !== 'packs') {
+    if (/^pack_/.test(path.basename(abs))) break;
+    const parent = path.dirname(abs);
+    if (parent === abs) break;
+    abs = parent;
+  }
+  if (!/^pack_/.test(path.basename(abs))) return;
+  try { fs.rmSync(abs, { recursive: true, force: true }); } catch { /* ignora */ }
+}
+
 /** nombre de la carpeta propia del video (dentro de su sección) */
 export function videoFolderName({ id, isFetiche, collection }) {
   if (collection === 'hentai') return `hentai_${String(id).padStart(3, '0')}`;
@@ -98,8 +145,22 @@ export function removeVideoFolder(publicPath) {
 /** mueve un archivo temporal a su carpeta final y devuelve la ruta pública */
 export function moveFinal(file, destDir, finalName) {
   const abs = path.join(destDir, finalName);
-  fs.renameSync(file.path, abs);
+  moveFileSync(file.path, abs);
   return publicOf(abs);
+}
+
+/** rename con fallback a copia (por si origen y destino están en discos distintos). */
+export function moveFileSync(from, to) {
+  try {
+    fs.renameSync(from, to);
+  } catch (err) {
+    if (err && err.code === 'EXDEV') {
+      fs.copyFileSync(from, to);
+      try { fs.unlinkSync(from); } catch { /* ignore */ }
+    } else {
+      throw err;
+    }
+  }
 }
 
 /** borra un archivo público /media/... del disco */

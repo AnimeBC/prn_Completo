@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './subirvideos.module.css';
 import ListaVideos from './lista.js';
 import { API_URL, authHeaders, mediaUrl } from '@/_Extras/Api/api.js';
@@ -51,8 +51,19 @@ export default function SubirVideos() {
   const [msg, setMsg] = useState(null);
   const [formKey, setFormKey] = useState(0);
   const [listRefresh, setListRefresh] = useState(0);
+  const videoInputRef = useRef(null);
+  const thumbInputRef = useRef(null);
 
   const editing = editingId !== null;
+
+  /** Copia los archivos soltados al input real (así el navegador los reconoce). */
+  function syncInput(ref, files) {
+    try {
+      const dt = new DataTransfer();
+      for (const f of files) dt.items.add(f);
+      if (ref.current) ref.current.files = dt.files;
+    } catch { /* DataTransfer no soportado */ }
+  }
 
   useEffect(() => {
     fetch(`${API}/api/tags`).then((r) => (r.ok ? r.json() : { data: [] })).then((d) => setAllTags(d.data || [])).catch(() => {});
@@ -135,6 +146,7 @@ export default function SubirVideos() {
     const file = e.dataTransfer?.files?.[0];
     if (!file) return;
     if (file.type.startsWith('video/') || VIDEO_RE.test(file.name)) {
+      syncInput(videoInputRef, [file]);
       setVideoFromFile(file);
       setMsg(null);
     } else {
@@ -148,6 +160,7 @@ export default function SubirVideos() {
     const file = e.dataTransfer?.files?.[0];
     if (!file) return;
     if (file.type.startsWith('image/') || IMG_RE.test(file.name)) {
+      syncInput(thumbInputRef, [file]);
       setThumbFromFile(file);
       setMsg(null);
     } else {
@@ -394,7 +407,7 @@ export default function SubirVideos() {
                     </span>
                   )}
               </div>
-              <input className={styles.fileInput} type="file" accept="video/*" onChange={pickVideo} required={!editing} />
+              <input ref={videoInputRef} className={styles.fileInput} type="file" accept="video/*" onChange={pickVideo} />
               {videoFile && <span className={styles.fileMeta}>{videoFile.name} · {sizeLabel(videoFile.size)}</span>}
             </div>
 
@@ -416,7 +429,7 @@ export default function SubirVideos() {
                     </span>
                   )}
               </div>
-              <input className={styles.fileInput} type="file" accept="image/*" onChange={pickThumb} />
+              <input ref={thumbInputRef} className={styles.fileInput} type="file" accept="image/*" onChange={pickThumb} />
               {thumbFile && <span className={styles.fileMeta}>{thumbFile.name} · {sizeLabel(thumbFile.size)}</span>}
             </div>
           </div>

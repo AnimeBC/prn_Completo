@@ -30,7 +30,7 @@ const categorias = [
 ];
 
 // Rutas habilitadas al publicar; el resto muestra modal de mantenimiento.
-const ENABLED_ROUTES = ['/', '/videos', '/tendencias', '/fetiches', '/packs', '/comunidad', '/hentai'];
+const ENABLED_ROUTES = ['/', '/videos', '/tendencias', '/fetiches', '/packs', '/comunidad', '/hentai', '/favoritos', '/historial', '/me-gusta', '/perfil'];
 
 export default function HeaderLateralIzquierdo() {
   const { isOpen, close, openMaint } = useSidebar();

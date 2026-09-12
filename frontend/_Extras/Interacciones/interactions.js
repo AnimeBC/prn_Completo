@@ -46,3 +46,12 @@ export const reportVideo = (id, motivo, detalle) => post(`/api/videos/${id}/repo
 export const downloadVideo = (id) => post(`/api/videos/${id}/download`, { userKey: getUserKey() });
 export const shareVideo = (id, red) => post(`/api/videos/${id}/share`, { userKey: getUserKey(), red });
 export const followChannel = (channel) => post('/api/channels/follow', { userKey: getUserKey(), channel });
+
+/* ---------- packs ---------- */
+export const getPackInteractions = (id) =>
+  api(`/api/packs/${id}/interactions?userKey=${encodeURIComponent(getUserKey())}`);
+export const likePack = (id, tipo) => post(`/api/packs/${id}/like`, { userKey: getUserKey(), tipo });
+export const savePack = (id) => post(`/api/packs/${id}/save`, { userKey: getUserKey() });
+export const sharePack = (id, red) => post(`/api/packs/${id}/share`, { userKey: getUserKey(), red });
+export const viewPack = (id) => post(`/api/packs/${id}/view`, {});
+export const downloadPack = (id) => post(`/api/packs/${id}/download`, { userKey: getUserKey() });

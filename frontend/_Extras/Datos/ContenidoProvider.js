@@ -92,7 +92,12 @@ function mapPack(r, es) {
   const dsuf = es ? 'descargas' : 'downloads';
   return {
     id: r.id,
-    title: r.titulo,
+    slug: r.slug,
+    title: es
+      ? (r.titulo_es || r.titulo_en || r.titulo || `Pack #${r.id}`)
+      : (r.titulo_en || r.titulo_es || r.titulo || `Pack #${r.id}`),
+    titulo_es: r.titulo_es || r.titulo || '',
+    titulo_en: r.titulo_en || r.titulo || '',
     uploader: r.uploader,
     fotos: r.fotos,
     videos: r.videos,
@@ -100,6 +105,9 @@ function mapPack(r, es) {
     descargas: `${r.descargas || 0} ${dsuf}`,
     precio: r.precio,
     download: r.download,
+    thumb: r.thumb ? media(r.thumb) : '',
+    desc: es ? (r.desc_es || '') : (r.desc_en || r.desc_es || ''),
+    tags: r.tags || [],
   };
 }
 function mapCommunity(r, es) {

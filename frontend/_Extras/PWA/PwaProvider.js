@@ -13,6 +13,16 @@ export function PwaProvider({ children }) {
   // Registra el Service Worker (necesario para ser instalable)
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    // En desarrollo NO registres el SW: sirve chunks viejos desde caché y
+    // deja la app "congelada" mezclando HTML nuevo con JS viejo.
+    if (process.env.NODE_ENV !== 'production') {
+      navigator.serviceWorker.getRegistrations?.()
+        .then((regs) => regs.forEach((r) => r.unregister()))
+        .catch(() => {});
+      return;
+    }
+
     const onLoad = () => {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     };
