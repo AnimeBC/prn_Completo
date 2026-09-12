@@ -212,6 +212,10 @@ export default function SubirVideos() {
             : `Video #${editingId} actualizado.`,
         });
         setListRefresh((k) => k + 1);
+        if (processing) {
+          setTimeout(() => setListRefresh((k) => k + 1), 5000);
+          setTimeout(() => setListRefresh((k) => k + 1), 15000);
+        }
         resetForm();
       } else {
         const fd = new FormData();

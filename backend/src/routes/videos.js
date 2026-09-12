@@ -9,7 +9,7 @@ import {
 import { authRequired } from '../middleware/auth.js';
 import { slugify } from '../utils/slug.js';
 import { publishEvent, cacheDel } from '../db/redis.js';
-import { transcodeVideo, hasFFmpeg, fmtDuration } from '../services/transcode.js';
+import { transcodeVideo, hasFFmpeg, fmtDuration, probe } from '../services/transcode.js';
 
 const r = Router();
 
@@ -55,10 +55,11 @@ async function finishTranscode({ id, origPath, destDir }) {
 
     await query(
       `UPDATE videos
-          SET src = $1, descarga = $1, thumb = COALESCE($2, thumb),
+          SET src = COALESCE($1, src), descarga = COALESCE($1, descarga),
+              thumb = COALESCE($2, thumb),
               renditions = $3::jsonb, duracion = $4, updated_at = NOW()
         WHERE id = $5`,
-      [def?.src || '', thumb, JSON.stringify(list), fmtDuration(duration), id]
+      [def?.src || null, thumb, JSON.stringify(list), fmtDuration(duration), id]
     );
 
     fs.rm(origPath, { force: true }, () => {});
@@ -77,6 +78,16 @@ function splitTags(v) {
   if (!v) return [];
   const arr = Array.isArray(v) ? v : String(v).split(',');
   return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(0, 20);
+}
+
+/** Saca la duración real del archivo con ffprobe y la guarda. */
+async function setDurationFromFile(id, filePath) {
+  try {
+    const info = await probe(filePath);
+    if (info?.duration) {
+      await query('UPDATE videos SET duracion = $1 WHERE id = $2', [fmtDuration(info.duration), id]);
+    }
+  } catch { /* sin ffprobe: se queda la duración que mandó el cliente */ }
 }
 
 async function ensureCategoria(nombre) {
@@ -176,12 +187,15 @@ r.get('/', async (req, res, next) => {
 // GET /api/videos/:id
 r.get('/:id', async (req, res, next) => {
   try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ error: 'Video no encontrado' });
+
     const { rows } = await query(
       `SELECT v.*, fc.nombre AS fetiche_categoria
          FROM videos v
          LEFT JOIN fetiche_categorias fc ON fc.id = v.fetiche_categoria_id
         WHERE v.id = $1`,
-      [req.params.id]
+      [id]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Video no encontrado' });
     const tagMap = await tagsForVideos([rows[0].id]);
@@ -229,6 +243,7 @@ r.post('/upload', authRequired, upload.fields([{ name: 'video', maxCount: 1 }, {
     // carpeta propia del video: videos/video_011/  (o fetiches/fetiche_04/)
     const { destDir, origPath } = stageOriginal({ id, isFetiche: isF, collection: 'videos', videoFile });
     const src = publicOf(origPath);
+    await setDurationFromFile(id, origPath);
 
     // portada del usuario -> <carpeta>/thumbs/cover.<ext>
     let thumb = null;
@@ -262,12 +277,15 @@ r.post('/upload', authRequired, upload.fields([{ name: 'video', maxCount: 1 }, {
 r.post('/:id/media', authRequired, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumb', maxCount: 1 }]), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ error: 'Video no encontrado' });
     const cur = await query('SELECT id, src, thumb, is_fetiche FROM videos WHERE id = $1', [id]);
     if (!cur.rows[0]) return res.status(404).json({ error: 'Video no encontrado' });
 
     const videoFile = req.files?.video?.[0];
     const thumbFile = req.files?.thumb?.[0];
     if (!videoFile && !thumbFile) return res.status(400).json({ error: 'Adjunta el video o la portada' });
+
+    console.log(`[videos] media id=${id} video=${videoFile ? videoFile.originalname : '-'} thumb=${thumbFile ? thumbFile.originalname : '-'}`);
 
     const isF = cur.rows[0].is_fetiche;
 
@@ -281,6 +299,7 @@ r.post('/:id/media', authRequired, upload.fields([{ name: 'video', maxCount: 1 }
       stage = stageOriginal({ id, isFetiche: isF, collection: 'videos', videoFile });
       src = publicOf(stage.origPath);
       thumb = null;
+      await setDurationFromFile(id, stage.origPath);
     }
     if (thumbFile) {
       // carpeta raíz del video -> /thumbs/cover.<ext>
@@ -311,6 +330,7 @@ r.post('/:id/media', authRequired, upload.fields([{ name: 'video', maxCount: 1 }
 r.put('/:id', authRequired, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ error: 'Video no encontrado' });
     const b = req.body || {};
 
     const cur = await query('SELECT * FROM videos WHERE id = $1', [id]);

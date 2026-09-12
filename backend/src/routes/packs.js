@@ -173,7 +173,9 @@ r.post(
 // GET /api/packs/:id   (detalle + galería)
 r.get('/:id', async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT * FROM packs WHERE id = $1', [req.params.id]);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ error: 'Pack no encontrado' });
+    const { rows } = await query('SELECT * FROM packs WHERE id = $1', [id]);
     const pack = rows[0];
     if (!pack) return res.status(404).json({ error: 'Pack no encontrado' });
 
