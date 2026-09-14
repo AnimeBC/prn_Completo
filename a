@@ -1,0 +1,66 @@
+que fue perra te congelaste? xd
+
+ahroa intrudce esta mrd Sí. Esa es tu VAST Tag:
+
+https://s.magsrv.com/v1/vast.php?idz=6029702
+
+Y el ID de zona es 6029702.
+
+Lo importante: no necesitas cambiar esa URL. ExoClick explica que el VAST tag es precisamente la URL que tu reproductor utiliza para solicitar el anuncio; el reproductor recibe el creativo y los datos de tracking desde el servidor de anuncios.
+
+Para tu objetivo: post-roll
+
+Aquí está la buena noticia: In-Stream sí soporta post-roll. ExoClick documenta explícitamente las posiciones pre-roll, mid-roll y post-roll.
+
+Por tanto, en tu Next.js la lógica será básicamente:
+
+Usuario reproduce video
+        ↓
+video termina
+        ↓
+solicitar VAST de ExoClick
+        ↓
+si hay anuncio → reproducir anuncio
+si no hay anuncio → terminar normalmente
+
+No tienes que hacer que el VAST sea "post-roll" desde la URL. La posición la controla el reproductor/integración. 
+
+
+mi vaina auqi esta https://s.magsrv.com/v1/vast.php?idz=6029702
+
+ExoClick
+Dashboard
+Statistics
+Sites & Zones
+Payments
+Referral Program
+NeverBlock
+brayanjhoance
+
+ExoClick
+Sites
+Zones
+Pikantepe InStream - (in stream)Pikantepe
+Your Zone VAST Tag
+Please use this URL as the VAST tag.
+
+https://s.magsrv.com/v1/vast.php?idz=6029702
+file_copyCopy
+Client Hints Meta Tag
+ 
+(Optional)
+Adding this tag enables Client Hints, allowing the ad server to receive essential device and browser information for improved ad targeting, while reducing privacy concerns by limiting unnecessary user data exposure.
+info
+It is required only once per page for each relevant Ad Serving Domain. Note the relevant ad serving domain for this zone tag is https://s.magsrv.com.
+Learn More
+Please copy and paste the below code into the <head> section of your webpage where this zone is placed.
+
+<meta http-equiv="Delegate-CH" content="Sec-CH-UA https://s.magsrv.com; Sec-CH-UA-Mobile https://s.magsrv.com; Sec-CH-UA-Arch https://s.magsrv.com; Sec-CH-UA-Model https://s.magsrv.com; Sec-CH-UA-Platform https://s.magsrv.com; Sec-CH-UA-Platform-Version https://s.magsrv.com; Sec-CH-UA-Bitness https://s.magsrv.com; Sec-CH-UA-Full-Version-List https://s.magsrv.com; Sec-CH-UA-Full-Version https://s.magsrv.com;">
+file_copyCopy
+Ad serving domain updated: 14/09/2026
+Server Time 02:35:06 | September 14, 2026
+Powered By EXADS™ 
+
+te paso todo intrudcelo en todos los videos que hay en packs animes y videos http://localhost:3000/videos/10
+
+tu pueds hacerlo perrita vamos  vamos no la cagues ya esta configurado es amrd solo ponlo y que fucnione

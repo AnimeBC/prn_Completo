@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './reproductor.module.css';
+import VastPostRoll from '@/_Extras/Ads/VastPostRoll.js';
 
 const SPEEDS = [1, 1.25, 1.5, 2];
 
@@ -18,6 +19,7 @@ export default function Reproductor({ src = '/videos/1.mov', renditions = [], th
   const videoRef = useRef(null);
   const wrapRef = useRef(null);
   const resumeRef = useRef(null);
+  const adRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -180,6 +182,7 @@ export default function Reproductor({ src = '/videos/1.mov', renditions = [], th
           onDurationChange={(e) => syncDuration(e.currentTarget)}
           onCanPlay={(e) => { setVideoError(false); setWaiting(false); syncDuration(e.currentTarget); }}
           onError={() => { setVideoError(true); setWaiting(false); }}
+          onEnded={() => adRef.current?.request()}
         />
         {waiting && !videoError && (
           <div className={styles.spinnerOverlay} aria-hidden="true">
@@ -268,6 +271,7 @@ export default function Reproductor({ src = '/videos/1.mov', renditions = [], th
             </div>
         </div>
       </div>
+      <VastPostRoll ref={adRef} />
     </div>
   );
 }

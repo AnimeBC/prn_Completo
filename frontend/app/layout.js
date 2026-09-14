@@ -102,6 +102,11 @@ export default function RootLayout({ children }) {
             __html: `window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'G-C710M1Y33Q');`,
           }}
         />
+        {/* Client Hints para ExoClick (magsrv.com) */}
+        <meta
+          httpEquiv="Delegate-CH"
+          content="Sec-CH-UA https://s.magsrv.com; Sec-CH-UA-Mobile https://s.magsrv.com; Sec-CH-UA-Arch https://s.magsrv.com; Sec-CH-UA-Model https://s.magsrv.com; Sec-CH-UA-Platform https://s.magsrv.com; Sec-CH-UA-Platform-Version https://s.magsrv.com; Sec-CH-UA-Bitness https://s.magsrv.com; Sec-CH-UA-Full-Version-List https://s.magsrv.com; Sec-CH-UA-Full-Version https://s.magsrv.com;"
+        />
       </head>
       <body>
         {/* Google Tag Manager (noscript) */}

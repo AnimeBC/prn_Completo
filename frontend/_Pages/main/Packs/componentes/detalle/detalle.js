@@ -8,6 +8,7 @@ import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { channelSlug } from '@/_Extras/Canales/canal.js';
 import SecureImage from '@/_Extras/Imagen/SecureImage.js';
+import VastPostRoll from '@/_Extras/Ads/VastPostRoll.js';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import Comentarios from '@/_Pages/main/Videos/componentes/comentarios';
 import CompartirModal from '@/_Pages/main/Videos/componentes/compartir';
@@ -61,6 +62,7 @@ export default function PackDetalle({ packId }) {
   const [videoWaiting, setVideoWaiting] = useState(false);
   const viewerRef = useRef(null);
   const dragRef = useRef(null);
+  const adRef = useRef(null);
 
   const found = packs.find((p) => String(p.public_id) === String(packId));
 
@@ -303,6 +305,7 @@ export default function PackDetalle({ packId }) {
                   onCanPlay={() => setVideoWaiting(false)}
                   onLoadedData={() => setVideoWaiting(false)}
                   onError={() => setVideoWaiting(false)}
+                  onEnded={() => adRef.current?.request()}
                   onContextMenu={(e) => e.preventDefault()}
                 />
                 {videoWaiting && (
@@ -310,6 +313,7 @@ export default function PackDetalle({ packId }) {
                     <span className={styles.spinner} />
                   </div>
                 )}
+                <VastPostRoll ref={adRef} />
               </>
             )}
 
