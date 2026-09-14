@@ -1,10 +1,17 @@
 -- ============================================================
---  pikante pe — ESQUEMA COMPLETO (archivo único)
+--  pikante pe — ESQUEMA COMPLETO CONSOLIDADO (archivo único)
 --  Base: "pikantepe" (PostgreSQL)
---  IDEMPOTENTE: puedes ejecutarlo las veces que quieras.
---  Incluye: admins, videos, hentai, packs, comunidad, lives,
---           comentarios, usuarios (login/Google), reportes,
---           interacciones, i18n, packs (multi-idioma + galería).
+--
+--  Este archivo reemplaza a: tablas.sql, tablas2..tablas8 (unificados).
+--  IDEMPOTENTE: puedes ejecutarlo las veces que quieras, en una base
+--  nueva o existente, sin borrar datos.
+--
+--  Incluye: admins, usuarios (login/Google), códigos de verificación,
+--           videos, hentai, packs (multi-idioma + galería + tokens),
+--           comunidad, lives, comentarios reales, canales (perfiles
+--           públicos), reportes, interacciones e i18n.
+--
+--  Admin por defecto: admin / admin123  (o crea otro: npm run seed:admin)
 -- ============================================================
 
 -- ============================================================
@@ -143,6 +150,7 @@ CREATE INDEX IF NOT EXISTS idx_hentai_activo ON hentai(activo);
 -- ============================================================
 CREATE TABLE IF NOT EXISTS packs (
   id         SERIAL PRIMARY KEY,
+  public_id  VARCHAR(32),
   slug       VARCHAR(180),
   titulo     VARCHAR(160),
   titulo_es  VARCHAR(160),
@@ -152,6 +160,7 @@ CREATE TABLE IF NOT EXISTS packs (
   uploader   VARCHAR(120),
   thumb      VARCHAR(255),
   tags       TEXT[] DEFAULT '{}',
+  pack_dir   VARCHAR(255),
   fotos      INTEGER DEFAULT 0,
   videos     INTEGER DEFAULT 0,
   vistas     BIGINT  DEFAULT 0,
@@ -166,6 +175,7 @@ CREATE TABLE IF NOT EXISTS packs (
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS public_id VARCHAR(32);
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS slug      VARCHAR(180);
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS titulo_es VARCHAR(160);
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS titulo_en VARCHAR(160);
@@ -173,6 +183,7 @@ ALTER TABLE packs ADD COLUMN IF NOT EXISTS desc_es   TEXT;
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS desc_en   TEXT;
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS thumb     VARCHAR(255);
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS tags      TEXT[] DEFAULT '{}';
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS pack_dir  VARCHAR(255);
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS likes     INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS dislikes  INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS guardados INTEGER NOT NULL DEFAULT 0;
@@ -180,9 +191,11 @@ ALTER TABLE packs ALTER COLUMN titulo DROP NOT NULL;
 
 UPDATE packs SET titulo_es = COALESCE(titulo_es, titulo) WHERE titulo_es IS NULL;
 UPDATE packs SET titulo_en = COALESCE(titulo_en, titulo) WHERE titulo_en IS NULL;
+UPDATE packs SET public_id = encode(gen_random_bytes(16), 'hex') WHERE public_id IS NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_packs_slug   ON packs(slug);
-CREATE INDEX        IF NOT EXISTS idx_packs_activo ON packs(activo);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_packs_slug      ON packs(slug);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_packs_public_id ON packs(public_id);
+CREATE INDEX        IF NOT EXISTS idx_packs_activo    ON packs(activo);
 
 -- ============================================================
 -- 7) PACK_MEDIA (fotos y videos del pack, con calidades)
@@ -242,6 +255,20 @@ CREATE TABLE IF NOT EXISTS pack_shares (
 );
 CREATE INDEX IF NOT EXISTS idx_pack_shares_pack ON pack_shares(pack_id);
 
+-- Tokens de descarga por pack + usuario (se guarda el hash)
+CREATE TABLE IF NOT EXISTS pack_download_tokens (
+  id         SERIAL PRIMARY KEY,
+  pack_id    INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80) NOT NULL,
+  token_hash VARCHAR(128) NOT NULL UNIQUE,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  ip         VARCHAR(60),
+  UNIQUE (pack_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_pack_tokens_pack ON pack_download_tokens(pack_id);
+CREATE INDEX IF NOT EXISTS idx_pack_tokens_hash ON pack_download_tokens(token_hash);
+
 -- ============================================================
 -- 9) COMUNIDAD
 -- ============================================================
@@ -276,14 +303,31 @@ CREATE INDEX IF NOT EXISTS idx_lives_activo ON lives(activo);
 CREATE TABLE IF NOT EXISTS comments (
   id         SERIAL PRIMARY KEY,
   video_id   INTEGER REFERENCES videos(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80),
   usuario    VARCHAR(120) NOT NULL,
   texto      TEXT NOT NULL,
   likes      INTEGER DEFAULT 0,
   parent_id  INTEGER REFERENCES comments(id) ON DELETE CASCADE,
   activo     BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_comments_video ON comments(video_id);
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS user_key   VARCHAR(80);
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS idx_comments_video    ON comments(video_id);
+CREATE INDEX IF NOT EXISTS idx_comments_user_key ON comments(user_key);
+CREATE INDEX IF NOT EXISTS idx_comments_parent   ON comments(parent_id);
+
+-- Me gusta de comentarios (1 por comentario y usuario)
+CREATE TABLE IF NOT EXISTS comment_likes (
+  id         SERIAL PRIMARY KEY,
+  comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (comment_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_comment_likes_comment ON comment_likes(comment_id);
+CREATE INDEX IF NOT EXISTS idx_comment_likes_user    ON comment_likes(user_key);
 
 -- ============================================================
 -- 12) APORTANTES
@@ -315,6 +359,7 @@ ON CONFLICT (dni) DO NOTHING;
 CREATE TABLE IF NOT EXISTS users (
   id             SERIAL PRIMARY KEY,
   user_key       VARCHAR(80) UNIQUE,
+  usuario        VARCHAR(40),
   nombre         VARCHAR(120),
   email          VARCHAR(150) UNIQUE,
   password_hash  VARCHAR(255),
@@ -328,25 +373,33 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at     TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS usuario        VARCHAR(40);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN     NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS provider       VARCHAR(20) NOT NULL DEFAULT 'local';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id      VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login     TIMESTAMP;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL;
-CREATE INDEX        IF NOT EXISTS idx_users_email     ON users(email);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_usuario_lower ON users (lower(usuario)) WHERE usuario IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id     ON users(google_id) WHERE google_id IS NOT NULL;
+CREATE INDEX        IF NOT EXISTS idx_users_email         ON users(email);
 
--- tokens de verificación de correo
+-- tokens de verificación de correo (verify / reset / verify_code)
 CREATE TABLE IF NOT EXISTS email_tokens (
   id         SERIAL PRIMARY KEY,
   user_id    INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   email      VARCHAR(150) NOT NULL,
   token_hash VARCHAR(128) NOT NULL UNIQUE,
-  tipo       VARCHAR(20)  NOT NULL DEFAULT 'verify' CHECK (tipo IN ('verify','reset')),
+  tipo       VARCHAR(20)  NOT NULL DEFAULT 'verify' CHECK (tipo IN ('verify','reset','verify_code')),
   expires_at TIMESTAMP    NOT NULL,
   used_at    TIMESTAMP,
+  attempts   INTEGER      NOT NULL DEFAULT 0,
   created_at TIMESTAMP    NOT NULL DEFAULT NOW()
 );
+ALTER TABLE email_tokens ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;
+-- actualiza el CHECK en bases existentes para permitir 'verify_code'
+ALTER TABLE email_tokens DROP CONSTRAINT IF EXISTS email_tokens_tipo_check;
+ALTER TABLE email_tokens ADD CONSTRAINT email_tokens_tipo_check
+  CHECK (tipo IN ('verify', 'reset', 'verify_code'));
 CREATE INDEX IF NOT EXISTS idx_email_tokens_user ON email_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_email_tokens_hash ON email_tokens(token_hash);
 
@@ -356,18 +409,58 @@ CREATE INDEX IF NOT EXISTS idx_email_tokens_hash ON email_tokens(token_hash);
 CREATE TABLE IF NOT EXISTS channels (
   id          SERIAL PRIMARY KEY,
   nombre      VARCHAR(120) UNIQUE NOT NULL,
+  slug        VARCHAR(160) UNIQUE,
   descripcion TEXT,
   avatar      VARCHAR(255),
+  avatar_pos  VARCHAR(20) DEFAULT '50% 50%',
+  banner      VARCHAR(255),
+  banner_pos  VARCHAR(20) DEFAULT '50% 50%',
+  pais        VARCHAR(80),
+  verificado  BOOLEAN NOT NULL DEFAULT FALSE,
+  user_key    VARCHAR(80),
+  admin_id    INTEGER REFERENCES admins(id) ON DELETE SET NULL,
   seguidores  BIGINT NOT NULL DEFAULT 0,
   activo      BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS slug       VARCHAR(160);
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS avatar_pos VARCHAR(20) DEFAULT '50% 50%';
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS banner     VARCHAR(255);
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS banner_pos VARCHAR(20) DEFAULT '50% 50%';
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS pais       VARCHAR(80);
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS verificado BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS user_key   VARCHAR(80);
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS admin_id   INTEGER REFERENCES admins(id) ON DELETE SET NULL;
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS idx_channels_admin ON channels(admin_id);
 
 INSERT INTO channels (nombre) VALUES
   ('administrador pikante.pe'),
   ('Studio Kitsune'), ('Sakura Films'), ('Otaku Dreams'),
   ('NekoHouse'), ('Sensei Prod'), ('Hana Studio')
 ON CONFLICT (nombre) DO NOTHING;
+
+-- Asegura un canal por cada canal usado en los videos
+INSERT INTO channels (nombre)
+SELECT DISTINCT canal FROM videos
+ WHERE canal IS NOT NULL AND trim(canal) <> ''
+ON CONFLICT (nombre) DO NOTHING;
+
+-- slug legible (minúsculas, no-alfanumérico -> guion)
+UPDATE channels
+   SET slug = trim(both '-' from regexp_replace(lower(nombre), '[^a-z0-9]+', '-', 'g'))
+ WHERE slug IS NULL OR slug = '';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_channels_slug ON channels(slug);
+
+-- Canal oficial: verificado, avatar/descripción por defecto y dueño (admin)
+UPDATE channels
+   SET verificado  = TRUE,
+       avatar      = COALESCE(avatar, '/logo.png'),
+       descripcion = COALESCE(descripcion, 'Canal oficial de pikante pe. Subimos el mejor contenido picante para ti.'),
+       admin_id    = COALESCE(admin_id, (SELECT id FROM admins ORDER BY id LIMIT 1)),
+       updated_at  = NOW()
+ WHERE nombre ILIKE '%pikante%';
 
 -- ============================================================
 -- 15) INTERACCIONES DE VIDEO

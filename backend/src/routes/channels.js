@@ -61,6 +61,8 @@ async function channelStats(nombre) {
        (SELECT COUNT(*)::int FROM videos WHERE canal = $1 AND activo = TRUE) AS videos,
        (SELECT COALESCE(SUM(vistas), 0)::bigint FROM videos WHERE canal = $1 AND activo = TRUE) AS vistas,
        (SELECT COALESCE(SUM(likes), 0)::int FROM videos WHERE canal = $1 AND activo = TRUE) AS likes,
+       (SELECT COUNT(*)::int FROM packs WHERE uploader = $1 AND activo = TRUE) AS packs,
+       (SELECT COUNT(*)::int FROM hentai WHERE canal = $1 AND activo = TRUE) AS hentai,
        (SELECT COUNT(*)::int FROM subscriptions WHERE channel = $1) AS seguidores`,
     [nombre]
   );
@@ -273,6 +275,63 @@ r.get('/:slug/videos', async (req, res, next) => {
       sort,
       q,
     });
+  } catch (e) { next(e); }
+});
+
+// GET /api/channels/:slug/packs?page=&limit=  -> packs subidos por el canal
+r.get('/:slug/packs', async (req, res, next) => {
+  try {
+    const ch = await channelBySlug(req.params.slug);
+    if (!ch) return res.status(404).json({ error: 'Canal no encontrado' });
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(60, Math.max(1, Number(req.query.limit) || 24));
+    const offset = (page - 1) * limit;
+
+    const totalQ = await query(
+      'SELECT COUNT(*)::int AS n FROM packs WHERE uploader = $1 AND activo = TRUE',
+      [ch.nombre]
+    );
+    const { rows } = await query(
+      `SELECT id, public_id, slug, titulo_es, titulo_en, titulo, thumb, fotos, videos,
+              vistas, descargas, uploader, precio, download, created_at
+         FROM packs
+        WHERE uploader = $1 AND activo = TRUE
+        ORDER BY created_at DESC, id DESC
+        LIMIT $2 OFFSET $3`,
+      [ch.nombre, limit, offset]
+    );
+
+    const total = totalQ.rows[0].n;
+    res.json({ data: rows, page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) });
+  } catch (e) { next(e); }
+});
+
+// GET /api/channels/:slug/hentai?page=&limit=  -> animes subidos por el canal
+r.get('/:slug/hentai', async (req, res, next) => {
+  try {
+    const ch = await channelBySlug(req.params.slug);
+    if (!ch) return res.status(404).json({ error: 'Canal no encontrado' });
+
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(60, Math.max(1, Number(req.query.limit) || 24));
+    const offset = (page - 1) * limit;
+
+    const totalQ = await query(
+      'SELECT COUNT(*)::int AS n FROM hentai WHERE canal = $1 AND activo = TRUE',
+      [ch.nombre]
+    );
+    const { rows } = await query(
+      `SELECT id, titulo_es, titulo_en, desc_es, desc_en, thumb, src, duracion, vistas, created_at
+         FROM hentai
+        WHERE canal = $1 AND activo = TRUE
+        ORDER BY created_at DESC, id DESC
+        LIMIT $2 OFFSET $3`,
+      [ch.nombre, limit, offset]
+    );
+
+    const total = totalQ.rows[0].n;
+    res.json({ data: rows, page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) });
   } catch (e) { next(e); }
 });
 

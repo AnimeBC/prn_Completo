@@ -71,6 +71,11 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
   const [descOpen, setDescOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
 
+  const [lists, setLists] = useState({
+    packs: { data: [], total: 0, pages: 1, page: 1, loading: false, more: false, loaded: false },
+    anime: { data: [], total: 0, pages: 1, page: 1, loading: false, more: false, loaded: false },
+  });
+
   const firstRender = useRef(true);
 
   // perfil fresco (con following según la sesión)
@@ -116,6 +121,37 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
     if (firstRender.current) { firstRender.current = false; return; }
     fetchVideos({ pageToLoad: 1 });
   }, [fetchVideos]);
+
+  const loadExtras = useCallback(async (kind, pageToLoad = 1, append = false) => {
+    setLists((L) => ({ ...L, [kind]: { ...L[kind], loading: !append, more: append } }));
+    try {
+      const r = await fetch(`${API_URL}/api/channels/${slug}/${kind}?page=${pageToLoad}&limit=24`);
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) {
+        setLists((L) => ({
+          ...L,
+          [kind]: {
+            data: append ? [...L[kind].data, ...(j.data || [])] : (j.data || []),
+            total: j.total || 0,
+            pages: j.pages || 1,
+            page: pageToLoad,
+            loading: false,
+            more: false,
+            loaded: true,
+          },
+        }));
+      } else {
+        setLists((L) => ({ ...L, [kind]: { ...L[kind], loading: false, more: false, loaded: true } }));
+      }
+    } catch {
+      setLists((L) => ({ ...L, [kind]: { ...L[kind], loading: false, more: false, loaded: true } }));
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    if (tab !== 'videos' && !lists[tab].loaded) loadExtras(tab, 1, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   async function toggleFollow() {
     if (!authed) { setAuthOpen(true); return; }
@@ -174,6 +210,14 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
             <span>{fmtNum(channel?.seguidores)} {es ? 'suscriptores' : 'subscribers'}</span>
             <span className={styles.dot}>•</span>
             <span>{fmtNum(channel?.videos)} {es ? 'videos' : 'videos'}</span>
+            {channel?.packs > 0 && (<>
+              <span className={styles.dot}>•</span>
+              <span>{fmtNum(channel.packs)} packs</span>
+            </>)}
+            {channel?.hentai > 0 && (<>
+              <span className={styles.dot}>•</span>
+              <span>{fmtNum(channel.hentai)} anime</span>
+            </>)}
             <span className={styles.dot}>•</span>
             <span>{fmtNum(channel?.vistas)} {es ? 'vistas' : 'views'}</span>
           </p>
@@ -211,23 +255,32 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
         </button>
         <button
           type="button"
-          className={`${styles.tab} ${tab === 'playlists' ? styles.tabActive : ''}`}
-          onClick={() => setTab('playlists')}
+          className={`${styles.tab} ${tab === 'packs' ? styles.tabActive : ''}`}
+          onClick={() => setTab('packs')}
         >
-          {es ? 'Listas' : 'Playlists'}
+          {es ? 'Packs' : 'Packs'}
         </button>
         <button
           type="button"
-          className={styles.searchToggle}
-          onClick={() => setSearchOpen((v) => !v)}
-          aria-label={es ? 'Buscar en el canal' : 'Search in channel'}
-          aria-expanded={searchOpen}
+          className={`${styles.tab} ${tab === 'anime' ? styles.tabActive : ''}`}
+          onClick={() => setTab('anime')}
         >
-          <ion-icon name={searchOpen ? 'close-outline' : 'search-outline'} suppressHydrationWarning></ion-icon>
+          {es ? 'Anime' : 'Anime'}
         </button>
+        {tab === 'videos' && (
+          <button
+            type="button"
+            className={styles.searchToggle}
+            onClick={() => setSearchOpen((v) => !v)}
+            aria-label={es ? 'Buscar en el canal' : 'Search in channel'}
+            aria-expanded={searchOpen}
+          >
+            <ion-icon name={searchOpen ? 'close-outline' : 'search-outline'} suppressHydrationWarning></ion-icon>
+          </button>
+        )}
       </nav>
 
-      {searchOpen && (
+      {tab === 'videos' && searchOpen && (
         <div className={styles.searchBox}>
           <ion-icon name="search-outline" className={styles.searchIcon} suppressHydrationWarning></ion-icon>
           <input
@@ -314,11 +367,96 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
             </>
           )}
         </>
-      ) : (
-        <div className={styles.empty}>
-          <ion-icon name="albums-outline" suppressHydrationWarning></ion-icon>
-          <p>{es ? 'Este canal todavía no tiene listas.' : 'This channel has no playlists yet.'}</p>
+      ) : lists[tab].loading ? (
+        <div className={styles.loading}>
+          <ion-icon name="sync-outline" className={styles.spin} suppressHydrationWarning></ion-icon>
+          {es ? 'Cargando...' : 'Loading...'}
         </div>
+      ) : lists[tab].data.length === 0 ? (
+        <div className={styles.empty}>
+          <ion-icon name={tab === 'packs' ? 'cube-outline' : 'sparkles-outline'} suppressHydrationWarning></ion-icon>
+          <p>
+            {tab === 'packs'
+              ? (es ? 'Este canal aún no subió packs.' : 'This channel has not uploaded packs yet.')
+              : (es ? 'Este canal aún no subió anime.' : 'This channel has not uploaded anime yet.')}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className={styles.grid}>
+            {lists[tab].data.map((it) => {
+              if (tab === 'packs') {
+                const title = es
+                  ? (it.titulo_es || it.titulo_en || it.titulo)
+                  : (it.titulo_en || it.titulo_es || it.titulo);
+                return (
+                  <article
+                    key={it.id}
+                    className={styles.card}
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => router.push(`/packs/${it.public_id}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/packs/${it.public_id}`); } }}
+                  >
+                    <div className={styles.thumb}>
+                      {it.thumb
+                        ? <img className={styles.packThumb} src={resolveImg(it.thumb)} alt="" loading="lazy" />
+                        : <span className={styles.thumbEmpty}><ion-icon name="cube-outline" suppressHydrationWarning></ion-icon></span>}
+                      <span className={styles.packBadge}>PACK</span>
+                    </div>
+                    <div className={styles.cardInfo}>
+                      <h3 className={styles.cardTitle}>{title}</h3>
+                      <p className={styles.cardMeta}>
+                        {it.fotos} {es ? 'fotos' : 'photos'} • {it.videos} {es ? 'videos' : 'videos'}
+                      </p>
+                      <p className={styles.cardMeta}>{fmtNum(it.vistas)} {es ? 'vistas' : 'views'}</p>
+                    </div>
+                  </article>
+                );
+              }
+              const title = es ? (it.titulo_es || it.titulo_en) : (it.titulo_en || it.titulo_es);
+              return (
+                <article
+                  key={it.id}
+                  className={styles.card}
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => router.push(`/hentai/${it.id}`)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/hentai/${it.id}`); } }}
+                >
+                  <div className={styles.thumb}>
+                    <Preview src={resolveImg(it.src)} thumb={resolveImg(it.thumb)}>
+                      <span className={styles.duration}>
+                        <ion-icon name="time-outline" suppressHydrationWarning></ion-icon>
+                        {it.duracion || '00:00'}
+                      </span>
+                    </Preview>
+                  </div>
+                  <div className={styles.cardInfo}>
+                    <h3 className={styles.cardTitle}>{title}</h3>
+                    <p className={styles.cardMeta}>
+                      {fmtNum(it.vistas)} {es ? 'vistas' : 'views'} • {relTime(it.created_at, es)}
+                    </p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          {lists[tab].page < lists[tab].pages && (
+            <div className={styles.moreWrap}>
+              <button
+                type="button"
+                className={styles.moreBtn}
+                onClick={() => loadExtras(tab, lists[tab].page + 1, true)}
+                disabled={lists[tab].more}
+              >
+                <ion-icon name={lists[tab].more ? 'sync-outline' : 'chevron-down-outline'} className={lists[tab].more ? styles.spin : ''} suppressHydrationWarning></ion-icon>
+                {lists[tab].more ? (es ? 'Cargando…' : 'Loading…') : (es ? 'Cargar más' : 'Load more')}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       <AuthModal open={authOpen} reason="follow" onClose={() => setAuthOpen(false)} />

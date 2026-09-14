@@ -1,12 +1,14 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './packs.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 
 export default function Packs() {
   const trackRef = useRef(null);
+  const router = useRouter();
   const { t } = useLanguage();
   const { packs } = useContenido();
   const [canLeft, setCanLeft] = useState(false);
@@ -49,8 +51,23 @@ export default function Packs() {
       <div className={styles.viewport}>
         <div className={styles.track} ref={trackRef}>
           {packs.map((pack) => (
-            <article key={pack.id} className={styles.card}>
+            <article
+              key={pack.id}
+              className={styles.card}
+              role="link"
+              tabIndex={0}
+              onClick={() => router.push(`/packs/${pack.public_id}`)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  router.push(`/packs/${pack.public_id}`);
+                }
+              }}
+            >
               <div className={styles.thumb}>
+                {pack.thumb
+                  ? <img className={styles.thumbImg} src={pack.thumb} alt="" loading="lazy" />
+                  : <span className={styles.thumbEmpty}><ion-icon name="cube-outline" suppressHydrationWarning></ion-icon></span>}
                 <span className={styles.packBadge}>
                   <ion-icon name="cube-outline" className={styles.packBadgeIcon} suppressHydrationWarning></ion-icon>
                   PACK

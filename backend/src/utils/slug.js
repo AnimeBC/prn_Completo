@@ -11,8 +11,8 @@ export function slugify(text = '') {
 }
 
 /**
- * slug de canal. Debe coincidir con el backfill de tablas5.sql y con
- * channelSlug() del frontend (si no, los perfiles públicos no resuelven).
+ * slug de canal. Debe coincidir con el backfill de tablas_limpias.sql y
+ * con channelSlug() del frontend (si no, los perfiles públicos no resuelven).
  */
 export function channelSlug(name = '') {
   return String(name)

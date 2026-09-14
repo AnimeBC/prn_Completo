@@ -39,9 +39,11 @@ function updateLike(list, id, myLike, likes) {
   }));
 }
 
-export default function Comentarios({ videoId }) {
+export default function Comentarios({ videoId, packId }) {
   const { t, locale } = useLanguage();
   const es = locale !== 'en';
+
+  const base = packId ? `/api/packs/${packId}/comments` : `/api/videos/${videoId}/comments`;
 
   const [comments, setComments] = useState([]);
   const [total, setTotal] = useState(0);
@@ -59,7 +61,7 @@ export default function Comentarios({ videoId }) {
 
   const loadComments = useCallback(async () => {
     try {
-      const r = await fetch(`${API_URL}/api/videos/${videoId}/comments?userKey=${encodeURIComponent(key)}&sort=${sort}`);
+      const r = await fetch(`${API_URL}${base}?userKey=${encodeURIComponent(key)}&sort=${sort}`);
       const j = await r.json().catch(() => ({}));
       setComments(j.data || []);
       setTotal(j.total || 0);
@@ -68,7 +70,7 @@ export default function Comentarios({ videoId }) {
     } finally {
       setLoading(false);
     }
-  }, [videoId, key, sort]);
+  }, [base, key, sort]);
 
   useEffect(() => { setLoading(true); loadComments(); }, [loadComments]);
 
@@ -79,7 +81,7 @@ export default function Comentarios({ videoId }) {
     setBusy(true);
     setError('');
     try {
-      const r = await fetch(`${API_URL}/api/videos/${videoId}/comments`, {
+      const r = await fetch(`${API_URL}${base}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userKey: key, texto: body, parent_id: parentId }),

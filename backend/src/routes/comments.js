@@ -21,6 +21,11 @@ async function getAccount(userKey) {
   return rows[0] || null;
 }
 
+async function getPackId(publicId) {
+  const { rows } = await query('SELECT id FROM packs WHERE public_id = $1 LIMIT 1', [String(publicId)]);
+  return rows[0]?.id || null;
+}
+
 function publicComment(c) {
   return {
     id: c.id,
@@ -40,43 +45,88 @@ function publicComment(c) {
   };
 }
 
-// GET /api/videos/:id/comments?userKey=&sort=top|new  -> árbol de comentarios
+async function selectComments(where, params, userKey) {
+  return query(
+    `SELECT c.id, c.video_id, c.parent_id, c.texto, c.usuario, c.created_at, c.user_key,
+            u.nombre AS u_nombre, u.usuario AS u_usuario, u.avatar AS u_avatar,
+            u.email_verified AS u_verified,
+            (SELECT COUNT(*)::int FROM comment_likes cl WHERE cl.comment_id = c.id) AS likes,
+            EXISTS(SELECT 1 FROM comment_likes cl WHERE cl.comment_id = c.id AND cl.user_key = $${params.length + 1}) AS my_like
+       FROM comments c
+       LEFT JOIN users u ON u.user_key = c.user_key
+      WHERE ${where} AND c.activo = TRUE
+      ORDER BY c.created_at DESC`,
+    [...params, userKey]
+  );
+}
+
+function buildTree(rows, userKey, sort) {
+  const list = rows.map((c) => ({ ...publicComment(c), mine: !!userKey && c.user_key === userKey }));
+  const byId = new Map(list.map((c) => [c.id, { ...c, replies: [] }]));
+  const roots = [];
+  for (const c of byId.values()) {
+    if (c.parent_id && byId.has(c.parent_id)) byId.get(c.parent_id).replies.push(c);
+    else roots.push(c);
+  }
+  roots.sort((a, b) => (
+    sort === 'new'
+      ? new Date(b.created_at) - new Date(a.created_at)
+      : b.likes - a.likes || new Date(b.created_at) - new Date(a.created_at)
+  ));
+  return { data: roots, total: list.length };
+}
+
+async function createComment({ videoId = null, targetType, targetId, req }) {
+  const userKey = normalizeUserKey(req.body?.userKey);
+  const texto = String(req.body?.texto || '').trim().slice(0, 2000);
+  const rawParent = req.body?.parent_id ? Number(req.body.parent_id) : null;
+  const parentId = rawParent || null;
+  if (!texto) return { error: { status: 400, body: { error: 'El comentario no puede estar vacío' } } };
+
+  const user = await getAccount(userKey);
+  if (!user || !user.email_verified) {
+    return { error: { status: 401, body: { error: 'Inicia sesión para comentar', code: 'auth_required' } } };
+  }
+
+  if (parentId) {
+    const p = await query(
+      'SELECT id FROM comments WHERE id = $1 AND target_type = $2 AND target_id = $3 AND activo = TRUE',
+      [parentId, targetType, targetId]
+    );
+    if (!p.rows[0]) return { error: { status: 400, body: { error: 'El comentario a responder no existe' } } };
+  }
+
+  const name = String(user.nombre || user.usuario || 'Usuario').slice(0, 120);
+  const { rows } = await query(
+    `INSERT INTO comments (video_id, target_type, target_id, usuario, texto, parent_id, user_key)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id, video_id, parent_id, texto, created_at`,
+    [videoId, targetType, targetId, name, texto, parentId, userKey]
+  );
+
+  await publishEvent('comment_created', { targetType, targetId });
+
+  return {
+    data: {
+      ...rows[0],
+      likes: 0,
+      my_like: false,
+      mine: true,
+      author: { name, usuario: user.usuario || null, avatar: user.avatar || null, verified: true },
+      replies: [],
+    },
+  };
+}
+
+// GET /api/videos/:id/comments?userKey=&sort=top|new
 r.get('/videos/:id/comments', async (req, res, next) => {
   try {
     const videoId = Number(req.params.id);
     if (!videoId) return res.status(400).json({ error: 'Video inválido' });
-
     const userKey = normalizeUserKey(req.query.userKey);
     const sort = req.query.sort === 'new' ? 'new' : 'top';
-
-    const { rows } = await query(
-      `SELECT c.id, c.video_id, c.parent_id, c.texto, c.usuario, c.created_at, c.user_key,
-              u.nombre AS u_nombre, u.usuario AS u_usuario, u.avatar AS u_avatar,
-              u.email_verified AS u_verified,
-              (SELECT COUNT(*)::int FROM comment_likes cl WHERE cl.comment_id = c.id) AS likes,
-              EXISTS(SELECT 1 FROM comment_likes cl WHERE cl.comment_id = c.id AND cl.user_key = $2) AS my_like
-         FROM comments c
-         LEFT JOIN users u ON u.user_key = c.user_key
-        WHERE c.video_id = $1 AND c.activo = TRUE
-        ORDER BY c.created_at DESC`,
-      [videoId, userKey]
-    );
-
-    const list = rows.map((c) => ({ ...publicComment(c), mine: !!userKey && c.user_key === userKey }));
-    const byId = new Map(list.map((c) => [c.id, { ...c, replies: [] }]));
-    const roots = [];
-    for (const c of byId.values()) {
-      if (c.parent_id && byId.has(c.parent_id)) byId.get(c.parent_id).replies.push(c);
-      else roots.push(c);
-    }
-
-    roots.sort((a, b) => (
-      sort === 'new'
-        ? new Date(b.created_at) - new Date(a.created_at)
-        : b.likes - a.likes || new Date(b.created_at) - new Date(a.created_at)
-    ));
-
-    res.json({ data: roots, total: list.length });
+    const { rows } = await selectComments('c.video_id = $1', [videoId], userKey);
+    res.json(buildTree(rows, userKey, sort));
   } catch (e) { next(e); }
 });
 
@@ -85,41 +135,32 @@ r.post('/videos/:id/comments', async (req, res, next) => {
   try {
     const videoId = Number(req.params.id);
     if (!videoId) return res.status(400).json({ error: 'Video inválido' });
+    const out = await createComment({ videoId, targetType: 'video', targetId: videoId, req });
+    if (out.error) return res.status(out.error.status).json(out.error.body);
+    res.status(201).json(out.data);
+  } catch (e) { next(e); }
+});
 
-    const userKey = normalizeUserKey(req.body?.userKey);
-    const texto = String(req.body?.texto || '').trim().slice(0, 2000);
-    const rawParent = req.body?.parent_id ? Number(req.body.parent_id) : null;
-    const parentId = rawParent || null;
-    if (!texto) return res.status(400).json({ error: 'El comentario no puede estar vacío' });
+// GET /api/packs/:publicId/comments?userKey=&sort=top|new
+r.get('/packs/:publicId/comments', async (req, res, next) => {
+  try {
+    const packId = await getPackId(req.params.publicId);
+    if (!packId) return res.status(404).json({ error: 'Pack no encontrado' });
+    const userKey = normalizeUserKey(req.query.userKey);
+    const sort = req.query.sort === 'new' ? 'new' : 'top';
+    const { rows } = await selectComments("c.target_type = 'pack' AND c.target_id = $1", [packId], userKey);
+    res.json(buildTree(rows, userKey, sort));
+  } catch (e) { next(e); }
+});
 
-    const user = await getAccount(userKey);
-    if (!user || !user.email_verified) {
-      return res.status(401).json({ error: 'Inicia sesión para comentar', code: 'auth_required' });
-    }
-
-    if (parentId) {
-      const p = await query('SELECT id FROM comments WHERE id = $1 AND video_id = $2 AND activo = TRUE', [parentId, videoId]);
-      if (!p.rows[0]) return res.status(400).json({ error: 'El comentario a responder no existe' });
-    }
-
-    const name = String(user.nombre || user.usuario || 'Usuario').slice(0, 120);
-    const { rows } = await query(
-      `INSERT INTO comments (video_id, usuario, texto, parent_id, user_key)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, video_id, parent_id, texto, created_at`,
-      [videoId, name, texto, parentId, userKey]
-    );
-
-    await publishEvent('comment_created', { videoId });
-
-    res.status(201).json({
-      ...rows[0],
-      likes: 0,
-      my_like: false,
-      mine: true,
-      author: { name, usuario: user.usuario || null, avatar: user.avatar || null, verified: true },
-      replies: [],
-    });
+// POST /api/packs/:publicId/comments  { userKey, texto, parent_id }
+r.post('/packs/:publicId/comments', async (req, res, next) => {
+  try {
+    const packId = await getPackId(req.params.publicId);
+    if (!packId) return res.status(404).json({ error: 'Pack no encontrado' });
+    const out = await createComment({ targetType: 'pack', targetId: packId, req });
+    if (out.error) return res.status(out.error.status).json(out.error.body);
+    res.status(201).json(out.data);
   } catch (e) { next(e); }
 });
 

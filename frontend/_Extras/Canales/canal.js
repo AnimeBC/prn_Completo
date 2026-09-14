@@ -1,6 +1,6 @@
 'use client';
 
-/** slug de canal (debe coincidir con channelSlug() del backend y tablas5.sql). */
+/** slug de canal (debe coincidir con channelSlug() del backend y tablas_limpias.sql). */
 export function channelSlug(name) {
   return String(name || '')
     .normalize('NFD')

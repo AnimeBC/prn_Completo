@@ -6,7 +6,9 @@ import { authRequired } from '../middleware/auth.js';
 const r = Router();
 
 async function getVideo(id) {
-  const { rows } = await query('SELECT id, canal, vistas FROM videos WHERE id = $1', [id]);
+  const vid = Number.parseInt(String(id), 10);
+  if (!Number.isInteger(vid) || vid <= 0) return null;
+  const { rows } = await query('SELECT id, canal, vistas FROM videos WHERE id = $1', [vid]);
   return rows[0] || null;
 }
 

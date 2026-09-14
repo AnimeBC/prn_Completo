@@ -96,7 +96,7 @@ async function main() {
     console.error('\n[admin.js] ERROR:', err.message);
     if (err.code === 'ECONNREFUSED') console.error('  → PostgreSQL no está corriendo o DB_HOST/DB_PORT incorrectos.');
     if (err.code === '3D000') console.error('  → La base de datos "' + cfg.database + '" no existe. Créala: CREATE DATABASE pikantepe;');
-    if (err.code === '42P01') console.error('  → La tabla "admins" no existe. Ejecuta primero sql/tablas.sql en pgAdmin.');
+    if (err.code === '42P01') console.error('  → La tabla "admins" no existe. Ejecuta primero sql/tablas_limpias.sql en pgAdmin.');
     process.exitCode = 1;
   } finally {
     if (client) client.release();

@@ -7,7 +7,7 @@ En pgAdmin crea la base:
 ```sql
 CREATE DATABASE pikantepe;
 ```
-Luego abre `sql/tablas.sql` (versión **única, actualizada e idempotente**) y pega TODO en el **Query Tool** de la base `pikantepe` y ejecuta.
+Luego abre `sql/tablas_limpias.sql` (versión **única, actualizada e idempotente**) y pega TODO en el **Query Tool** de la base `pikantepe` y ejecuta.
 Ese único archivo crea/actualiza **todo**:
 - tablas base (admins, fetiche_categorias, tags, videos, video_tags, hentai, packs, community, lives, comments, aportantes)
 - calidades por video (`renditions`)
@@ -106,7 +106,7 @@ docker run -d --name pikantepe-redis -p 6379:6379 redis:8
 - `GET  /api/languages` · `GET /api/i18n/:lang` · `PUT /api/i18n/:lang` (Bearer) — traducciones en BD
 
 ### SQL
-- `sql/tablas.sql` → **todo en uno** (tablas base + calidades + interacciones + perfiles/canales + i18n + seeds + 10 videos)
+- `sql/tablas_limpias.sql` → **todo en uno** (tablas base + calidades + interacciones + perfiles/canales + i18n + seeds + 10 videos)
 
 ## Media (`media_completa/`) — una carpeta por video con sus calidades
 Los archivos subidos se guardan **fuera** de `backend` y `frontend`, en la raíz del proyecto.
@@ -142,12 +142,12 @@ si no, se usa `thumbs/poster.jpg` generado por FFmpeg.
 - FFmpeg viene incluido con `ffmpeg-static` (no necesitas instalarlo en el sistema). Si el
   paquete no está instalado, se guarda el original y se avisa.
 
-La columna `renditions` y todo lo demás se crea con `backend/sql/tablas.sql` (un solo archivo).
+La columna `renditions` y todo lo demás se crea con `backend/sql/tablas_limpias.sql` (un solo archivo).
 
 ## Estructura
 ```
 backend/
-  sql/tablas.sql
+  sql/tablas_limpias.sql
   src/
     server.js
     app.js
