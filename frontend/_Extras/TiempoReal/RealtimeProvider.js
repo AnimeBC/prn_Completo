@@ -5,6 +5,17 @@ import { useRouter } from 'next/navigation';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+// Eventos que NO deben refrescar los server components: son interacciones del
+// propio usuario (like, guardar, seguir, comentar...) y ya se actualizan en el
+// cliente. Refrescarlos reiniciaba el reproductor (parecía una recarga).
+const NO_REFRESH = new Set([
+  'video_like', 'video_save', 'video_report', 'video_download', 'channel_follow',
+  'pack_like', 'pack_save', 'pack_download',
+  'comment_created', 'comment_like', 'comment_deleted',
+  'user_profile', 'user_register', 'user_verified', 'user_migrate',
+  'user_google_login', 'admin_login',
+]);
+
 const RealtimeContext = createContext({ connected: false, lastEvent: null });
 
 /**
@@ -37,8 +48,8 @@ export function RealtimeProvider({ children }) {
         const data = JSON.parse(e.data);
         setLastEvent(data);
         window.dispatchEvent(new CustomEvent('pikantepe:change', { detail: data }));
-        // refresca datos de los server components
-        router.refresh();
+        // refresca datos de los server components (solo cambios de contenido)
+        if (!NO_REFRESH.has(data?.type)) router.refresh();
       } catch {
         /* mensaje no JSON */
       }

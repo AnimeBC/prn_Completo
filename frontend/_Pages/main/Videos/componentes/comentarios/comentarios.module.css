@@ -395,3 +395,83 @@
     height: 32px;
   }
 }
+
+/* ===== Comentarios reales ===== */
+.avatarImg {
+  object-fit: cover;
+  overflow: hidden;
+}
+
+.verified {
+  font-size: 13px;
+  color: var(--primary, #F20D16);
+  flex-shrink: 0;
+}
+
+.deleteBtn {
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.deleteBtn:hover {
+  color: var(--primary, #F20D16);
+}
+
+.replyBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: #ff6b6b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.loading,
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 0;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 13px;
+}
+
+.empty ion-icon,
+.loading ion-icon {
+  font-size: 26px;
+  color: var(--primary, #F20D16);
+}
+
+.empty p {
+  margin: 0;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+[data-theme="light"] .deleteBtn:hover {
+  color: var(--primary, #F20D16);
+}
+
