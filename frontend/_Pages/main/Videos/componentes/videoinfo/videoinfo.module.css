@@ -170,6 +170,12 @@
   flex-shrink: 0;
 }
 
+.avatarImg {
+  object-fit: cover;
+  cursor: pointer;
+  display: block;
+}
+
 .channelName {
   display: flex;
   align-items: center;

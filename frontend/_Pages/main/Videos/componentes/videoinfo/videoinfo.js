@@ -10,9 +10,9 @@ import ReportModal from '@/_Pages/main/Videos/componentes/reportar';
 import AuthModal from '@/_Pages/main/Auth/AuthModal';
 import DescargaModal from '@/_Pages/main/Packs/componentes/descarga';
 import { SMARTLINK_URL } from '@/_Pages/main/Home/componentes/anuncio/ads.js';
-import { API_URL } from '@/_Extras/Api/api.js';
+import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
-import { canalUrl } from '@/_Extras/Canales/canal.js';
+import { canalUrl, channelSlug } from '@/_Extras/Canales/canal.js';
 import {
   getInteractions,
   viewVideo,
@@ -48,11 +48,24 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
   const { authed } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
   const [authReason, setAuthReason] = useState('like');
+  const [channelAvatar, setChannelAvatar] = useState('');
 
   function requireAuth(reason) {
     setAuthReason(reason);
     setAuthOpen(true);
   }
+
+  // Foto del canal (perfil público) para mostrarla junto al nombre
+  useEffect(() => {
+    const name = info.channel;
+    if (!name) return;
+    let alive = true;
+    fetch(`${API_URL}/api/channels/${encodeURIComponent(channelSlug(name))}`)
+      .then((r) => r.json().catch(() => ({})))
+      .then((j) => { if (alive && j?.channel) setChannelAvatar(j.channel.avatar || ''); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [info.channel]);
 
   useEffect(() => {
     let alive = true;
@@ -106,7 +119,16 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
 
       <div className={styles.channelRow}>
         <div className={styles.channel}>
-          <div className={styles.avatar} />
+          {channelAvatar ? (
+            <img
+              className={`${styles.avatar} ${styles.avatarImg}`}
+              src={channelAvatar.startsWith('/media/') ? mediaUrl(channelAvatar) : channelAvatar}
+              alt={info.channel}
+              onClick={() => router.push(canalUrl(info.channel))}
+            />
+          ) : (
+            <div className={styles.avatar} onClick={() => router.push(canalUrl(info.channel))} />
+          )}
           <div>
             <div className={styles.channelName}>
               <button

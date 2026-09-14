@@ -217,6 +217,7 @@ export default function MiPerfil() {
         <button
           type="button"
           className={styles.bannerBtn}
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); bannerFileRef.current?.click(); }}
         >
           <ion-icon name={bannerBusy ? 'sync-outline' : 'image-outline'} className={bannerBusy ? styles.spin : ''} suppressHydrationWarning></ion-icon>
