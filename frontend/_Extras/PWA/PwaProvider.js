@@ -23,12 +23,29 @@ export function PwaProvider({ children }) {
       return;
     }
 
+    // Si un SW nuevo toma el control (actualización), recarga UNA vez para
+    // descartar el HTML/RSC viejo cacheado. No recarga en la primera instalación.
+    const hadController = !!navigator.serviceWorker.controller;
+    let refreshing = false;
+    const onControllerChange = () => {
+      if (!hadController || refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+
     const onLoad = () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.register('/sw.js')
+        .then((reg) => { reg.update?.().catch(() => {}); })
+        .catch(() => {});
     };
     if (document.readyState === 'complete') onLoad();
     else window.addEventListener('load', onLoad, { once: true });
-    return () => window.removeEventListener('load', onLoad);
+
+    return () => {
+      window.removeEventListener('load', onLoad);
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+    };
   }, []);
 
   // Captura el evento de instalación (Android/Chrome/Edge)

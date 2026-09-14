@@ -9,6 +9,9 @@ export const metadata = {
   alternates: { canonical: '/videos' },
 };
 
+// Nunca cachear esta página (se servía un HTML/RSC viejo desde el navegador).
+export const dynamic = 'force-dynamic';
+
 export default function VideosPage() {
   return (
     <div className={styles.layout}>
