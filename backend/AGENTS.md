@@ -21,4 +21,5 @@
 - Contraseñas con bcrypt (`bcryptjs`). El seed de admin usa `crypt(..., gen_salt('bf'))` de pgcrypto.
 - CORS con `FRONTEND_URL` (default `http://localhost:3000`).
 - No hardcodear credenciales: usar `.env`.
+- **Nunca leer ni abrir `backend/.env`** (tiene credenciales reales). Trabajar siempre con **`backend/.env.example`**: si falta una variable, agrégala ahí con un placeholder y avisa al usuario para que la ponga en `.env`. Nunca imprimir ni commitear secretos.
 - Respuestas de error JSON `{ error: "..." }`.

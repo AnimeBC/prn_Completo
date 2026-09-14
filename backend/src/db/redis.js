@@ -67,3 +67,18 @@ export async function cacheDel(pattern) {
     }
   } catch { /* ignore */ }
 }
+
+/**
+ * Rate limit simple con Redis (ventana fija).
+ * Devuelve { allowed, count }. Si Redis no está conectado, deja pasar.
+ */
+export async function rateLimit(key, limit, windowSeconds) {
+  try {
+    if (!connected) return { allowed: true, count: 0 };
+    const count = await redis.incr(key);
+    if (count === 1) await redis.expire(key, windowSeconds);
+    return { allowed: count <= limit, count };
+  } catch {
+    return { allowed: true, count: 0 };
+  }
+}

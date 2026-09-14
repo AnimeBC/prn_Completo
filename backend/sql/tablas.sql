@@ -1,3 +1,13 @@
+-- ============================================================
+--  pikante pe — ESQUEMA COMPLETO (archivo único)
+--  Base: "pikantepe" (PostgreSQL)
+--  IDEMPOTENTE: puedes ejecutarlo las veces que quieras.
+--  Incluye: admins, videos, hentai, packs, comunidad, lives,
+--           comentarios, usuarios (login/Google), reportes,
+--           interacciones, i18n, packs (multi-idioma + galería).
+-- ============================================================
+
+-- ============================================================
 -- 0) EXTENSIONES Y FUNCIONES
 -- ============================================================
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -129,26 +139,136 @@ ALTER TABLE hentai ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAUL
 CREATE INDEX IF NOT EXISTS idx_hentai_activo ON hentai(activo);
 
 -- ============================================================
--- 6) PACKS
+-- 6) PACKS (multi-idioma ES/EN + portada + contadores)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS packs (
   id         SERIAL PRIMARY KEY,
-  titulo     VARCHAR(160) NOT NULL,
+  public_id  VARCHAR(32),
+  slug       VARCHAR(180),
+  titulo     VARCHAR(160),
+  titulo_es  VARCHAR(160),
+  titulo_en  VARCHAR(160),
+  desc_es    TEXT,
+  desc_en    TEXT,
   uploader   VARCHAR(120),
+  thumb      VARCHAR(255),
+  tags       TEXT[] DEFAULT '{}',
+  pack_dir   VARCHAR(255),
   fotos      INTEGER DEFAULT 0,
   videos     INTEGER DEFAULT 0,
-  vistas     BIGINT DEFAULT 0,
-  descargas  BIGINT DEFAULT 0,
+  vistas     BIGINT  DEFAULT 0,
+  descargas  BIGINT  DEFAULT 0,
+  likes      INTEGER NOT NULL DEFAULT 0,
+  dislikes   INTEGER NOT NULL DEFAULT 0,
+  guardados  INTEGER NOT NULL DEFAULT 0,
   precio     VARCHAR(40) DEFAULT 'S/ 0.00',
   download   VARCHAR(255) DEFAULT '#',
   activo     BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_packs_activo ON packs(activo);
+
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS slug      VARCHAR(180);
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS public_id VARCHAR(32);
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS titulo_es VARCHAR(160);
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS titulo_en VARCHAR(160);
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS desc_es   TEXT;
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS desc_en   TEXT;
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS thumb     VARCHAR(255);
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS tags      TEXT[] DEFAULT '{}';
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS pack_dir  VARCHAR(255);
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS likes     INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS dislikes  INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE packs ADD COLUMN IF NOT EXISTS guardados INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE packs ALTER COLUMN titulo DROP NOT NULL;
+
+UPDATE packs SET titulo_es = COALESCE(titulo_es, titulo) WHERE titulo_es IS NULL;
+UPDATE packs SET titulo_en = COALESCE(titulo_en, titulo) WHERE titulo_en IS NULL;
+
+-- public_id aleatorio (32 hex) para todos los packs
+UPDATE packs SET public_id = encode(gen_random_bytes(16), 'hex') WHERE public_id IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_packs_slug      ON packs(slug);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_packs_public_id ON packs(public_id);
+CREATE INDEX        IF NOT EXISTS idx_packs_activo    ON packs(activo);
 
 -- ============================================================
--- 7) COMUNIDAD
+-- 7) PACK_MEDIA (fotos y videos del pack, con calidades)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS pack_media (
+  id         SERIAL PRIMARY KEY,
+  pack_id    INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+  tipo       VARCHAR(10) NOT NULL CHECK (tipo IN ('foto','video')),
+  src        VARCHAR(255) NOT NULL,
+  thumb      VARCHAR(255),
+  orden      INTEGER NOT NULL DEFAULT 0,
+  renditions JSONB NOT NULL DEFAULT '[]'::jsonb,
+  duracion   VARCHAR(20) DEFAULT '00:00',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+ALTER TABLE pack_media ADD COLUMN IF NOT EXISTS renditions JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE pack_media ADD COLUMN IF NOT EXISTS duracion   VARCHAR(20) DEFAULT '00:00';
+CREATE INDEX IF NOT EXISTS idx_pack_media_pack ON pack_media(pack_id);
+CREATE INDEX IF NOT EXISTS idx_pack_media_tipo ON pack_media(pack_id, tipo);
+
+-- ============================================================
+-- 8) PACK_DOWNLOADS / LIKES / SAVES / SHARES
+-- ============================================================
+CREATE TABLE IF NOT EXISTS pack_downloads (
+  id         SERIAL PRIMARY KEY,
+  pack_id    INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pack_downloads_pack ON pack_downloads(pack_id);
+
+CREATE TABLE IF NOT EXISTS pack_likes (
+  id         SERIAL PRIMARY KEY,
+  pack_id    INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80) NOT NULL,
+  tipo       VARCHAR(10) NOT NULL CHECK (tipo IN ('like','dislike')),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (pack_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_pack_likes_pack ON pack_likes(pack_id);
+
+CREATE TABLE IF NOT EXISTS pack_saves (
+  id         SERIAL PRIMARY KEY,
+  pack_id    INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (pack_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_pack_saves_pack ON pack_saves(pack_id);
+
+CREATE TABLE IF NOT EXISTS pack_shares (
+  id         SERIAL PRIMARY KEY,
+  pack_id    INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+  red        VARCHAR(40),
+  user_key   VARCHAR(80),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pack_shares_pack ON pack_shares(pack_id);
+
+-- ============================================================
+-- 8b) PACK_DOWNLOAD_TOKENS (token de descarga por pack + usuario)
+--     Un solo token activo por (pack, user_key). Se guarda el hash.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS pack_download_tokens (
+  id         SERIAL PRIMARY KEY,
+  pack_id    INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80) NOT NULL,
+  token_hash VARCHAR(128) NOT NULL UNIQUE,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  ip         VARCHAR(60),
+  UNIQUE (pack_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_pack_tokens_pack ON pack_download_tokens(pack_id);
+CREATE INDEX IF NOT EXISTS idx_pack_tokens_hash ON pack_download_tokens(token_hash);
+
+-- ============================================================
+-- 9) COMUNIDAD
 -- ============================================================
 CREATE TABLE IF NOT EXISTS community (
   id         SERIAL PRIMARY KEY,
@@ -163,7 +283,7 @@ CREATE TABLE IF NOT EXISTS community (
 CREATE INDEX IF NOT EXISTS idx_community_activo ON community(activo);
 
 -- ============================================================
--- 8) LIVES
+-- 10) LIVES
 -- ============================================================
 CREATE TABLE IF NOT EXISTS lives (
   id         SERIAL PRIMARY KEY,
@@ -176,7 +296,7 @@ CREATE TABLE IF NOT EXISTS lives (
 CREATE INDEX IF NOT EXISTS idx_lives_activo ON lives(activo);
 
 -- ============================================================
--- 9) COMENTARIOS
+-- 11) COMENTARIOS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS comments (
   id         SERIAL PRIMARY KEY,
@@ -191,7 +311,7 @@ CREATE TABLE IF NOT EXISTS comments (
 CREATE INDEX IF NOT EXISTS idx_comments_video ON comments(video_id);
 
 -- ============================================================
--- 10) APORTANTES
+-- 12) APORTANTES
 -- ============================================================
 CREATE TABLE IF NOT EXISTS aportantes (
   id                SERIAL PRIMARY KEY,
@@ -215,22 +335,48 @@ VALUES ('71923609', 'JHON ANDERSON CURASMA CASAVILCA', NULL, 'HUANCAVELICA', 'HU
 ON CONFLICT (dni) DO NOTHING;
 
 -- ============================================================
--- 11) PERFILES DE USUARIO
+-- 13) USUARIOS (perfil / login correo + Google)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
-  id            SERIAL PRIMARY KEY,
-  user_key      VARCHAR(80) UNIQUE,
-  nombre        VARCHAR(120),
-  email         VARCHAR(150) UNIQUE,
-  password_hash VARCHAR(255),
-  avatar        VARCHAR(255),
-  rol           VARCHAR(30) NOT NULL DEFAULT 'user',
-  created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at    TIMESTAMP NOT NULL DEFAULT NOW()
+  id             SERIAL PRIMARY KEY,
+  user_key       VARCHAR(80) UNIQUE,
+  nombre         VARCHAR(120),
+  email          VARCHAR(150) UNIQUE,
+  password_hash  VARCHAR(255),
+  avatar         VARCHAR(255),
+  rol            VARCHAR(30) NOT NULL DEFAULT 'user',
+  provider       VARCHAR(20) NOT NULL DEFAULT 'local',
+  google_id      VARCHAR(255),
+  email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  last_login     TIMESTAMP,
+  created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN     NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS provider       VARCHAR(20) NOT NULL DEFAULT 'local';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id      VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login     TIMESTAMP;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE google_id IS NOT NULL;
+CREATE INDEX        IF NOT EXISTS idx_users_email     ON users(email);
+
+-- tokens de verificación de correo
+CREATE TABLE IF NOT EXISTS email_tokens (
+  id         SERIAL PRIMARY KEY,
+  user_id    INTEGER      NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email      VARCHAR(150) NOT NULL,
+  token_hash VARCHAR(128) NOT NULL UNIQUE,
+  tipo       VARCHAR(20)  NOT NULL DEFAULT 'verify' CHECK (tipo IN ('verify','reset')),
+  expires_at TIMESTAMP    NOT NULL,
+  used_at    TIMESTAMP,
+  created_at TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_email_tokens_user ON email_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_tokens_hash ON email_tokens(token_hash);
+
 -- ============================================================
--- 12) CANALES (autores) + seguidores
+-- 14) CANALES (autores) + seguidores
 -- ============================================================
 CREATE TABLE IF NOT EXISTS channels (
   id          SERIAL PRIMARY KEY,
@@ -249,7 +395,7 @@ INSERT INTO channels (nombre) VALUES
 ON CONFLICT (nombre) DO NOTHING;
 
 -- ============================================================
--- 13) INTERACCIONES DE VIDEO
+-- 15) INTERACCIONES DE VIDEO
 -- ============================================================
 CREATE TABLE IF NOT EXISTS video_likes (
   id         SERIAL PRIMARY KEY,
@@ -279,15 +425,6 @@ CREATE TABLE IF NOT EXISTS saved_videos (
 );
 CREATE INDEX IF NOT EXISTS idx_saved_video ON saved_videos(video_id);
 
-CREATE TABLE IF NOT EXISTS reports (
-  id         SERIAL PRIMARY KEY,
-  video_id   INTEGER REFERENCES videos(id) ON DELETE CASCADE,
-  user_key   VARCHAR(80),
-  motivo     VARCHAR(80),
-  detalle    TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
 CREATE TABLE IF NOT EXISTS downloads (
   id         SERIAL PRIMARY KEY,
   video_id   INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
@@ -304,9 +441,6 @@ CREATE TABLE IF NOT EXISTS shares (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- ============================================================
--- 14) SUSCRIPCIONES (seguir canal)
--- ============================================================
 CREATE TABLE IF NOT EXISTS subscriptions (
   id         SERIAL PRIMARY KEY,
   channel    VARCHAR(120) NOT NULL,
@@ -317,7 +451,61 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE INDEX IF NOT EXISTS idx_subs_channel ON subscriptions(channel);
 
 -- ============================================================
--- 15) IDIOMAS + TRADUCCIONES (i18n)
+-- 16) REPORTES (motivos + gestión)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS reports (
+  id          SERIAL PRIMARY KEY,
+  video_id    INTEGER REFERENCES videos(id) ON DELETE CASCADE,
+  user_key    VARCHAR(80),
+  motivo      VARCHAR(80),
+  motivo_slug VARCHAR(60),
+  detalle     TEXT,
+  estado      VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+  revisado_en TIMESTAMP,
+  revisado_por INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+  nota_admin  TEXT,
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS estado      VARCHAR(20) NOT NULL DEFAULT 'pendiente';
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS motivo_slug VARCHAR(60);
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS revisado_en TIMESTAMP;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS revisado_por INTEGER REFERENCES admins(id) ON DELETE SET NULL;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS nota_admin  TEXT;
+CREATE INDEX IF NOT EXISTS idx_reports_video  ON reports(video_id);
+CREATE INDEX IF NOT EXISTS idx_reports_estado ON reports(estado);
+
+CREATE TABLE IF NOT EXISTS report_motivos (
+  id     SERIAL PRIMARY KEY,
+  slug   VARCHAR(60)  UNIQUE NOT NULL,
+  nombre VARCHAR(120) NOT NULL,
+  activo BOOLEAN      NOT NULL DEFAULT TRUE
+);
+
+INSERT INTO report_motivos (slug, nombre) VALUES
+  ('spam',            'Spam o publicidad'),
+  ('menores',         'Contenido con menores de edad'),
+  ('violencia',       'Violencia o agresión'),
+  ('derechos',        'Derechos de autor'),
+  ('contenido_ilegal','Contenido ilegal'),
+  ('falso',           'Información falsa o engañosa'),
+  ('otro',            'Otro motivo')
+ON CONFLICT (slug) DO NOTHING;
+
+-- ============================================================
+-- 17) ÍNDICES por user_key (perfil: guardados, likes, historial,
+--     descargas y suscripciones)
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_video_likes_user    ON video_likes(user_key);
+CREATE INDEX IF NOT EXISTS idx_saved_videos_user   ON saved_videos(user_key);
+CREATE INDEX IF NOT EXISTS idx_downloads_user      ON downloads(user_key);
+CREATE INDEX IF NOT EXISTS idx_video_views_user    ON video_views(user_key);
+CREATE INDEX IF NOT EXISTS idx_subs_user           ON subscriptions(user_key);
+CREATE INDEX IF NOT EXISTS idx_pack_likes_user     ON pack_likes(user_key);
+CREATE INDEX IF NOT EXISTS idx_pack_saves_user     ON pack_saves(user_key);
+CREATE INDEX IF NOT EXISTS idx_pack_downloads_user ON pack_downloads(user_key);
+
+-- ============================================================
+-- 18) IDIOMAS + TRADUCCIONES (i18n)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS languages (
   code   VARCHAR(5) PRIMARY KEY,
@@ -359,11 +547,41 @@ INSERT INTO translations (lang, key, value) VALUES
   ('es','comentarios.comentar','Comentar'), ('en','comentarios.comentar','Comment'),
   ('es','compartir.titulo','Compartir'),   ('en','compartir.titulo','Share'),
   ('es','compartir.copiar','Copiar enlace'), ('en','compartir.copiar','Copy link'),
-  ('es','compartir.copiado','¡Copiado!'),  ('en','compartir.copiado','Copied!')
+  ('es','compartir.copiado','¡Copiado!'),  ('en','compartir.copiado','Copied!'),
+  ('es','packs.titulo','Packs populares'),            ('en','packs.titulo','Popular packs'),
+  ('es','packs.subtitulo','Todos los Packs'),         ('en','packs.subtitulo','All packs'),
+  ('es','packs.buscar','Buscar por nombre o persona...'), ('en','packs.buscar','Search by name or person...'),
+  ('es','packs.limpiar','Limpiar búsqueda'),          ('en','packs.limpiar','Clear search'),
+  ('es','packs.topDescargados','Los 10 más descargados'), ('en','packs.topDescargados','Top 10 downloads'),
+  ('es','packs.resultados','Resultados'),             ('en','packs.resultados','Results'),
+  ('es','packs.todosPacks','Todos los packs'),        ('en','packs.todosPacks','All packs'),
+  ('es','packs.borrarFiltros','Borrar filtros'),      ('en','packs.borrarFiltros','Clear filters'),
+  ('es','packs.sinResultados','No hay packs con esos filtros por ahora.'), ('en','packs.sinResultados','No packs match those filters yet.'),
+  ('es','packs.optDescMas','Más descargados'),        ('en','packs.optDescMas','Most downloaded'),
+  ('es','packs.optDescMenos','Menos descargados'),    ('en','packs.optDescMenos','Least downloaded'),
+  ('es','packs.optBusqMas','Más buscados'),           ('en','packs.optBusqMas','Most searched'),
+  ('es','packs.optBusqMenos','Menos buscados'),       ('en','packs.optBusqMenos','Least searched'),
+  ('es','packs.optNuevos','Nuevos primero'),          ('en','packs.optNuevos','Newest first'),
+  ('es','packs.optAntiguos','Antiguos primero'),      ('en','packs.optAntiguos','Oldest first'),
+  ('es','packs.optTodas','Todas'),                    ('en','packs.optTodas','All'),
+  ('es','packs.optGrandes','Grandes (+30 fotos)'),    ('en','packs.optGrandes','Large (+30 photos)'),
+  ('es','packs.optCompletos','Completos (+3 videos)'),('en','packs.optCompletos','Complete (+3 videos)'),
+  ('es','packs.imagen','Imagen de pack'),             ('en','packs.imagen','Pack image'),
+  ('es','packs.badge','PACK'),                        ('en','packs.badge','PACK'),
+  ('es','packs.relacionados','Packs relacionados'),   ('en','packs.relacionados','Related packs'),
+  ('es','packs.descargasTitulo','Descargas del pack'),('en','packs.descargasTitulo','Pack downloads'),
+  ('es','packs.descargarTodo','Descargar todo (ZIP)'),('en','packs.descargarTodo','Download all (ZIP)'),
+  ('es','packs.soloFotos','Solo fotos'),              ('en','packs.soloFotos','Photos only'),
+  ('es','packs.soloVideos','Solo videos'),            ('en','packs.soloVideos','Videos only'),
+  ('es','packs.sinArchivos','Este pack todavía no tiene archivos.'), ('en','packs.sinArchivos','This pack has no files yet.'),
+  ('es','packs.volver','Volver al pack'),             ('en','packs.volver','Back to pack'),
+  ('es','packs.descargar','Descargar'),               ('en','packs.descargar','Download'),
+  ('es','packs.incluye','Incluye'),                   ('en','packs.incluye','Includes'),
+  ('es','descarga.cerrar','Cerrar'),                  ('en','descarga.cerrar','Close')
 ON CONFLICT (lang, key) DO UPDATE SET value = EXCLUDED.value;
 
 -- ============================================================
--- 16) TRIGGERS updated_at
+-- 19) TRIGGERS updated_at
 -- ============================================================
 DROP TRIGGER IF EXISTS trg_admins_updated ON admins;
 CREATE TRIGGER trg_admins_updated BEFORE UPDATE ON admins
@@ -386,7 +604,7 @@ CREATE TRIGGER trg_aportantes_updated BEFORE UPDATE ON aportantes
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ============================================================
--- 17) SEED: categorías de fetiche + tags base
+-- 20) SEED: categorías de fetiche + tags base
 -- ============================================================
 INSERT INTO fetiche_categorias (nombre, slug) VALUES
   ('Japonesa', 'japonesa'), ('Orgía', 'orgia'), ('Viral', 'viral'),
@@ -402,7 +620,7 @@ INSERT INTO tags (nombre, slug) VALUES
 ON CONFLICT (nombre) DO NOTHING;
 
 -- ============================================================
--- 18) DATOS DE EJEMPLO: 10 videos (sin archivo; súbelos desde el admin)
+-- 21) SEED: videos de ejemplo (sin archivo; súbelos desde el admin)
 -- ============================================================
 CREATE OR REPLACE FUNCTION _seed_video(
   p_titulo_es   TEXT,
@@ -510,6 +728,31 @@ SELECT _seed_video('Obligada :(', 'Forced :(',
 DROP FUNCTION IF EXISTS _seed_video(TEXT, TEXT, TEXT, TEXT, TEXT, BIGINT, BOOLEAN, TEXT, BOOLEAN, TEXT[]);
 
 -- ============================================================
--- FIN — Base lista. Admin: admin / admin123
+-- 22) SEED: packs de ejemplo (multi-idioma)
+-- ============================================================
+INSERT INTO packs (slug, titulo_es, titulo_en, uploader, fotos, videos, desc_es, desc_en, tags, precio, download, thumb)
+VALUES
+  ('pack-verano-peru',
+   'Pack de Verano - Perú', 'Summer Pack - Peru',
+   'Canal Picante', 45, 4,
+   'Playita, bikinis y mucho sol. Pack completo de verano.',
+   'Beach, bikinis and lots of sun. Complete summer pack.',
+   ARRAY['playa','verano','latina'], 'S/ 15.00', '#', NULL),
+  ('pack-hentai-neko',
+   'Pack Hentai Neko', 'Hentai Neko Pack',
+   'Studio Kitsune', 32, 3,
+   'Colección neko con estilo anime, exclusiva.',
+   'Exclusive neko collection in anime style.',
+   ARRAY['hentai','neko','anime'], 'S/ 12.00', '#', NULL),
+  ('pack-fetiche-latex',
+   'Pack Fetiche Látex', 'Latex Fetish Pack',
+   'NekoHouse', 28, 2,
+   'Body de látex y sesiones intensas.',
+   'Latex bodysuit and intense sessions.',
+   ARRAY['latex','fetiche'], 'S/ 18.00', '#', NULL)
+ON CONFLICT (slug) DO NOTHING;
+
+-- ============================================================
+-- FIN — Base completa. Admin: admin / admin123
 -- (o crea otro con: npm run seed:admin)
 -- ============================================================

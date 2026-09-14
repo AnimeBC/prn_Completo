@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import sv from '@/_Pages/admin/SubirVideos/subirvideos.module.css';
 import ls from '@/_Pages/admin/SubirVideos/lista.module.css';
+import sp from './subirpacks.module.css';
 import { API_URL, authHeaders, mediaUrl } from '@/_Extras/Api/api.js';
 
 const API = API_URL;
@@ -25,7 +26,6 @@ export default function SubirPacks() {
   const [descEn, setDescEn] = useState('');
   const [uploader, setUploader] = useState('administrador pikante.pe');
   const [precio, setPrecio] = useState('S/ 0.00');
-  const [download, setDownload] = useState('');
   const [tagsEs, setTagsEs] = useState([]);
   const [tagsEn, setTagsEn] = useState([]);
   const [newTagEs, setNewTagEs] = useState('');
@@ -33,13 +33,11 @@ export default function SubirPacks() {
 
   const [thumbFile, setThumbFile] = useState(null);
   const [thumbPreview, setThumbPreview] = useState('');
-  const [videoFiles, setVideoFiles] = useState([]);
-  const [imageFiles, setImageFiles] = useState([]);
-  const [drag, setDrag] = useState('');
+  const [videoFiles, setVideoFiles] = useState([]);   // File[]
+  const [imageFiles, setImageFiles] = useState([]);   // { file, url }[]
+  const [drag, setDrag] = useState(false);
 
-  const thumbInputRef = useRef(null);
-  const videosInputRef = useRef(null);
-  const imagesInputRef = useRef(null);
+  const allInputRef = useRef(null);
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -88,10 +86,11 @@ export default function SubirPacks() {
 
   function resetForm() {
     setTitleEs(''); setTitleEn(''); setDescEs(''); setDescEn('');
-    setUploader('administrador pikante.pe'); setPrecio('S/ 0.00'); setDownload('');
+    setUploader('administrador pikante.pe'); setPrecio('S/ 0.00');
     setTagsEs([]); setTagsEn([]); setNewTagEs(''); setNewTagEn('');
     if (thumbPreview) URL.revokeObjectURL(thumbPreview);
     setThumbFile(null); setThumbPreview('');
+    imageFiles.forEach((x) => URL.revokeObjectURL(x.url));
     setVideoFiles([]); setImageFiles([]);
     setFormKey((k) => k + 1);
     setMsg(null);
@@ -107,62 +106,48 @@ export default function SubirPacks() {
     setThumbPreview(file ? URL.createObjectURL(file) : '');
   }
 
-  function pickThumb(e) {
-    setThumb(e.target.files?.[0] || null);
-  }
-
-  function pickVideos(e) {
-    const list = Array.from(e.target.files || []).filter((f) => f.type.startsWith('video/') || VIDEO_RE.test(f.name));
-    setVideoFiles(list);
-  }
-
-  function pickImages(e) {
-    const list = Array.from(e.target.files || []).filter((f) => f.type.startsWith('image/') || IMG_RE.test(f.name));
-    setImageFiles(list);
-  }
-
-  /** Copia los archivos soltados al input real (para que el navegador los envíe). */
-  function syncInput(ref, files) {
-    try {
-      const dt = new DataTransfer();
-      for (const f of files) dt.items.add(f);
-      if (ref.current) ref.current.files = dt.files;
-    } catch { /* DataTransfer no soportado */ }
-  }
-
-  function onDropFiles(kind, e) {
-    e.preventDefault();
-    setDrag('');
-    const files = Array.from(e.dataTransfer?.files || []);
-    if (!files.length) return;
-    if (kind === 'thumb') {
-      const f = files[0];
-      if (!(f.type.startsWith('image/') || IMG_RE.test(f.name))) { setMsg({ type: 'err', text: 'Suelta una imagen (png/jpg/webp).' }); return; }
-      syncInput(thumbInputRef, [f]);
-      setThumb(f);
-      setMsg(null);
-    } else if (kind === 'videos') {
-      const vids = files.filter((f) => f.type.startsWith('video/') || VIDEO_RE.test(f.name));
-      if (!vids.length) { setMsg({ type: 'err', text: 'Suelta archivos de video (mp4/mov/webm/mkv).' }); return; }
-      syncInput(videosInputRef, vids);
-      setVideoFiles(vids);
-      setMsg(null);
-    } else {
-      const imgs = files.filter((f) => f.type.startsWith('image/') || IMG_RE.test(f.name));
-      if (!imgs.length) { setMsg({ type: 'err', text: 'Suelta imágenes (png/jpg/webp).' }); return; }
-      syncInput(imagesInputRef, imgs);
-      setImageFiles(imgs);
-      setMsg(null);
+  /** Clasifica y agrega archivos sueltos (varios de golpe: fotos y videos). */
+  function addFiles(list) {
+    const arr = Array.from(list || []);
+    if (!arr.length) return;
+    const vids = arr.filter((f) => f.type.startsWith('video/') || VIDEO_RE.test(f.name));
+    const imgs = arr.filter((f) => f.type.startsWith('image/') || IMG_RE.test(f.name));
+    if (!vids.length && !imgs.length) {
+      setMsg({ type: 'err', text: 'Suelta imágenes o videos.' });
+      return;
     }
+
+    const vKeys = new Set(videoFiles.map((f) => `${f.name}_${f.size}`));
+    const newVids = vids.filter((f) => !vKeys.has(`${f.name}_${f.size}`));
+
+    const iKeys = new Set(imageFiles.map((x) => `${x.file.name}_${x.file.size}`));
+    const newImgs = imgs
+      .filter((f) => !iKeys.has(`${f.name}_${f.size}`))
+      .map((f) => ({ file: f, url: URL.createObjectURL(f) }));
+
+    if (newVids.length) setVideoFiles((cur) => [...cur, ...newVids]);
+    if (newImgs.length) {
+      setImageFiles((cur) => [...cur, ...newImgs]);
+      if (!thumbFile) setThumb(newImgs[0].file); // primera imagen = portada
+    }
+    setMsg(null);
   }
 
-  function dragProps(kind) {
-    return {
-      onDragOver: (e) => { e.preventDefault(); setDrag(kind); },
-      onDragEnter: (e) => { e.preventDefault(); setDrag(kind); },
-      onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDrag(''); },
-      onDrop: (e) => onDropFiles(kind, e),
-    };
+  function pickAll(e) {
+    addFiles(e.target.files);
+    e.target.value = '';
+  }
+
+  function removeImage(url) {
+    const item = imageFiles.find((x) => x.url === url);
+    if (item) URL.revokeObjectURL(item.url);
+    const next = imageFiles.filter((x) => x.url !== url);
+    setImageFiles(next);
+    if (item && thumbFile === item.file) setThumb(next[0]?.file || null);
+  }
+
+  function removeVideo(key) {
+    setVideoFiles((cur) => cur.filter((f) => `${f.name}_${f.size}` !== key));
   }
 
   async function onSubmit(e) {
@@ -179,11 +164,10 @@ export default function SubirPacks() {
       fd.append('descEn', descEn || descEs);
       fd.append('uploader', uploader);
       fd.append('precio', precio);
-      fd.append('download', download);
       fd.append('tags', [...tagsEs, ...tagsEn].join(', '));
       if (thumbFile) fd.append('thumb', thumbFile);
       videoFiles.forEach((f) => fd.append('videos', f));
-      imageFiles.forEach((f) => fd.append('images', f));
+      imageFiles.forEach((x) => fd.append('images', x.file));
 
       const res = await fetch(`${API}/api/packs/upload`, {
         method: 'POST',
@@ -211,11 +195,11 @@ export default function SubirPacks() {
   async function doAction(kind, p) {
     try {
       if (kind === 'restore') {
-        await fetch(`${API}/api/packs/${p.id}/restore`, { method: 'POST', headers: authHeaders() });
+        await fetch(`${API}/api/packs/${p.public_id}/restore`, { method: 'POST', headers: authHeaders() });
       } else if (kind === 'trash') {
-        await fetch(`${API}/api/packs/${p.id}`, { method: 'DELETE', headers: authHeaders() });
+        await fetch(`${API}/api/packs/${p.public_id}`, { method: 'DELETE', headers: authHeaders() });
       } else if (kind === 'permanent') {
-        await fetch(`${API}/api/packs/${p.id}/permanent`, { method: 'DELETE', headers: authHeaders() });
+        await fetch(`${API}/api/packs/${p.public_id}/permanent`, { method: 'DELETE', headers: authHeaders() });
       }
       loadPacks(qRef.current, tab, page);
     } catch (err) {
@@ -284,7 +268,9 @@ export default function SubirPacks() {
 
           <div className={sv.field}>
             <label className={sv.label}>Link de descarga</label>
-            <input className={sv.input} placeholder="https://... (o # si no hay)" value={download} onChange={(e) => setDownload(e.target.value)} />
+            <span className={sv.tagsHint}>
+              Se genera automáticamente con la URL del pack: <b>https://www.pikantepe.com/packs/&lt;id&gt;</b>
+            </span>
           </div>
 
           <div>
@@ -328,45 +314,64 @@ export default function SubirPacks() {
             </div>
           </div>
 
-          <div className={sv.files}>
-            <div className={`${sv.fileBox} ${thumbFile ? sv.filled : ''} ${drag === 'thumb' ? sv.dropActive : ''}`} {...dragProps('thumb')}>
-              <span className={sv.fileLabel}>Portada / Thumb (imagen)</span>
-              <div className={sv.preview}>
-                {thumbPreview
-                  ? <img className={sv.previewImg} src={thumbPreview} alt="preview" />
-                  : <span className={sv.previewEmpty}><ion-icon name="image-outline" suppressHydrationWarning></ion-icon>Elige o arrastra la portada</span>}
-              </div>
-              <input ref={thumbInputRef} className={sv.fileInput} type="file" accept="image/*" onChange={pickThumb} />
-              {thumbFile && <span className={sv.fileMeta}>{thumbFile.name} · {sizeLabel(thumbFile.size)}</span>}
+          <div className={sp.filesWrap}>
+            <div
+              className={`${sp.dropzone} ${drag ? sp.dropActive : ''}`}
+              onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+              onDragEnter={(e) => { e.preventDefault(); setDrag(true); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDrag(false); }}
+              onDrop={(e) => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer?.files); }}
+            >
+              <ion-icon name="cloud-upload-outline" suppressHydrationWarning></ion-icon>
+              <strong>Arrastra aquí todas las fotos y videos</strong>
+              <span>O haz clic para seleccionarlos. Se clasifican solos y la primera imagen será la portada.</span>
+              <input ref={allInputRef} className={sp.dropInput} type="file" accept="image/*,video/*" multiple onChange={pickAll} />
             </div>
 
-            <div className={`${sv.fileBox} ${videoFiles.length ? sv.filled : ''} ${drag === 'videos' ? sv.dropActive : ''}`} {...dragProps('videos')}>
-              <span className={sv.fileLabel}>Videos del pack (varios)</span>
-              <div className={sv.preview}>
-                <span className={sv.previewEmpty}>
-                  <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
-                  {videoFiles.length ? `${videoFiles.length} video(s) seleccionado(s)` : 'Selecciona o arrastra uno o varios videos'}
-                </span>
+            {(imageFiles.length > 0 || videoFiles.length > 0) && (
+              <div className={sp.summary}>
+                <ion-icon name="checkmark-circle" suppressHydrationWarning></ion-icon>
+                {imageFiles.length} imagen(es) · {videoFiles.length} video(s)
               </div>
-              <input ref={videosInputRef} className={sv.fileInput} type="file" accept="video/*" multiple onChange={pickVideos} />
-              {videoFiles.length > 0 && (
-                <span className={sv.fileMeta}>{videoFiles.map((f) => f.name).join(', ').slice(0, 120)}</span>
-              )}
-            </div>
+            )}
 
-            <div className={`${sv.fileBox} ${imageFiles.length ? sv.filled : ''} ${drag === 'images' ? sv.dropActive : ''}`} {...dragProps('images')}>
-              <span className={sv.fileLabel}>Imágenes / Fotos del pack (varias)</span>
-              <div className={sv.preview}>
-                <span className={sv.previewEmpty}>
-                  <ion-icon name="images-outline" suppressHydrationWarning></ion-icon>
-                  {imageFiles.length ? `${imageFiles.length} imagen(es) seleccionada(s)` : 'Selecciona o arrastra una o varias imágenes'}
-                </span>
+            {thumbPreview && (
+              <div className={sp.coverBox}>
+                <span className={sv.fileLabel}>Portada (haz clic en una imagen para cambiarla)</span>
+                <img className={sp.coverImg} src={thumbPreview} alt="portada" />
               </div>
-              <input ref={imagesInputRef} className={sv.fileInput} type="file" accept="image/*" multiple onChange={pickImages} />
-              {imageFiles.length > 0 && (
-                <span className={sv.fileMeta}>{imageFiles.map((f) => f.name).join(', ').slice(0, 120)}</span>
-              )}
-            </div>
+            )}
+
+            {imageFiles.length > 0 && (
+              <div className={sp.section}>
+                <span className={sv.fileLabel}>Imágenes / Fotos ({imageFiles.length})</span>
+                <div className={sp.grid}>
+                  {imageFiles.map((x) => (
+                    <div key={x.url} className={`${sp.thumb} ${thumbFile === x.file ? sp.cover : ''}`}>
+                      <img className={sp.thumbImg} src={x.url} alt="" onClick={() => setThumb(x.file)} />
+                      {thumbFile === x.file && <span className={sp.coverBadge}>Portada</span>}
+                      <button type="button" className={sp.removeBtn} onClick={() => removeImage(x.url)} aria-label="Quitar">×</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {videoFiles.length > 0 && (
+              <div className={sp.section}>
+                <span className={sv.fileLabel}>Videos ({videoFiles.length})</span>
+                <ul className={sp.videoList}>
+                  {videoFiles.map((f) => (
+                    <li key={`${f.name}_${f.size}`} className={sp.videoItem}>
+                      <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
+                      <span className={sp.videoName}>{f.name}</span>
+                      <span className={sp.videoSize}>{sizeLabel(f.size)}</span>
+                      <button type="button" className={sp.removeBtnInline} onClick={() => removeVideo(`${f.name}_${f.size}`)} aria-label="Quitar">×</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           <div className={sv.actions}>

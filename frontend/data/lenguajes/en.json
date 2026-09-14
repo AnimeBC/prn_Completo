@@ -194,7 +194,15 @@
     "optCompletos": "Complete (+3 videos)",
     "imagen": "Pack image",
     "badge": "PACK",
-    "relacionados": "Related packs"
+    "relacionados": "Related packs",
+    "descargasTitulo": "Pack downloads",
+    "descargarTodo": "Download all (ZIP)",
+    "soloFotos": "Photos only",
+    "soloVideos": "Videos only",
+    "sinArchivos": "This pack has no files yet.",
+    "volver": "Back to pack",
+    "descargar": "Download",
+    "incluye": "Includes"
   },
   "ageGate": {
     "titulo": "Adults only",

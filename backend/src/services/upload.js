@@ -19,6 +19,7 @@ export const DIRS = {
   fetiches: path.join(MEDIA_DIR, 'fetiches'),
   hentai: path.join(MEDIA_DIR, 'hentai'),
   packs: path.join(MEDIA_DIR, 'packs'),
+  avatars: path.join(MEDIA_DIR, 'avatars'),
   tmp: path.join(MEDIA_DIR, '_tmp'),
 };
 
@@ -105,6 +106,41 @@ export function removePackFolder(publicPath) {
     abs = parent;
   }
   if (!/^pack_/.test(path.basename(abs))) return;
+  try { fs.rmSync(abs, { recursive: true, force: true }); } catch { /* ignora */ }
+}
+
+/** Multer para foto de perfil: 1 imagen. */
+export const avatarUpload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter(req, file, cb) {
+    const bad = (msg) => { const e = new Error(msg); e.status = 400; return cb(e); };
+    if (!imageMime.includes(file.mimetype) && !file.originalname.match(/\.(png|jpg|jpeg|webp|avif)$/i)) {
+      return bad('Formato de imagen no permitido (png/jpg/webp/avif)');
+    }
+    cb(null, true);
+  },
+});
+
+/** carpeta del usuario para su foto: user_<key> */
+export function avatarFolderName(userKey) {
+  const s = String(userKey || 'user').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'user';
+  return `user_${s}`;
+}
+
+/** borra la carpeta de avatar del usuario (solo si es local /media/avatars/...) */
+export function removeAvatarFolder(publicPath) {
+  if (!publicPath || !String(publicPath).startsWith('/media/avatars/')) return;
+  const rel = String(publicPath).replace(/^\/media\//, '');
+  let abs = path.resolve(MEDIA_DIR, rel);
+  if (!abs.startsWith(MEDIA_DIR)) return;
+  while (abs && path.basename(abs) !== 'avatars') {
+    if (/^user_/.test(path.basename(abs))) break;
+    const parent = path.dirname(abs);
+    if (parent === abs) break;
+    abs = parent;
+  }
+  if (!/^user_/.test(path.basename(abs))) return;
   try { fs.rmSync(abs, { recursive: true, force: true }); } catch { /* ignora */ }
 }
 

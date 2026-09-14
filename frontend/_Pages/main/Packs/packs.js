@@ -214,11 +214,11 @@ export default function PacksClient() {
         className={styles.card}
         role="link"
         tabIndex={0}
-        onClick={() => goPack(pack.id)}
+        onClick={() => goPack(pack.public_id)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            goPack(pack.id);
+            goPack(pack.public_id);
           }
         }}
       >

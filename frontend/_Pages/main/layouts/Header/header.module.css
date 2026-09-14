@@ -171,7 +171,11 @@
   gap: 8px;
   cursor: pointer;
   padding: 6px 12px;
+  border: none;
   border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
   transition: background-color 0.2s ease;
   flex-shrink: 0;
 }
@@ -193,6 +197,160 @@
   font-family: sans-serif;
   white-space: nowrap;
   transition: color 0.3s ease;
+}
+
+/* ===== Perfil (avatar + menú) ===== */
+.profileWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.profileAvatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--primary, #F20D16);
+  flex-shrink: 0;
+}
+
+.profileInitial {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary, #F20D16);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.profileChevron {
+  font-size: 14px;
+  color: var(--text-secondary, #A1A1AA);
+  transition: transform 0.15s ease;
+}
+
+.profileMenuOpen {
+  background-color: var(--bg-card, #1A1A1E);
+}
+
+.profileMenuOpen .profileChevron {
+  transform: rotate(180deg);
+}
+
+.profileDropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 120;
+  min-width: 240px;
+  padding: 8px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 12px;
+  background: var(--bg-card, #0D0D0F);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+  animation: profileDropIn 0.14s ease;
+}
+
+@keyframes profileDropIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.profileHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+.profileHeadAvatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--primary, #F20D16);
+  flex-shrink: 0;
+}
+
+.profileHeadInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.profileHeadName {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+.profileHeadMail {
+  font-size: 12px;
+  color: var(--text-secondary, #A1A1AA);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+
+.profileSep {
+  height: 1px;
+  margin: 6px 0;
+  background: var(--border, #27272A);
+}
+
+.profileItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-primary, #FFFFFF);
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.profileItem ion-icon {
+  font-size: 18px;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+.profileItem:hover {
+  background: var(--bg-surface, #18181B);
+  color: var(--primary, #F20D16);
+}
+
+.profileItem:hover ion-icon {
+  color: var(--primary, #F20D16);
+}
+
+.profileItemDanger {
+  color: #ef4444;
+}
+
+.profileItemDanger ion-icon {
+  color: #ef4444;
+}
+
+.profileItemDanger:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
 }
 
 /* Theme Button */
@@ -506,14 +664,21 @@
 
   .profileMenu {
     display: flex;
-    width: 34px;
+    width: auto;
     height: 34px;
-    padding: 0;
+    padding: 0 4px;
+    gap: 2px;
     justify-content: center;
   }
 
   .profileLabel {
     display: none;
+  }
+
+  /* el chevron se mantiene visible para indicar el desglose */
+  .profileChevron {
+    display: block;
+    font-size: 13px;
   }
 
   .searchWrapper {

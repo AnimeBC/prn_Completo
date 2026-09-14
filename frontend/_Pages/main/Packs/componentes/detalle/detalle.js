@@ -37,7 +37,7 @@ export default function PackDetalle({ packId }) {
   const [shareOpen, setShareOpen] = useState(false);
   const [stats, setStats] = useState(EMPTY_STATS);
 
-  const found = packs.find((p) => String(p.id) === String(packId));
+  const found = packs.find((p) => String(p.public_id) === String(packId));
   const pack = found || {
     id: packId ?? '',
     title: `Pack #${packId ?? ''}`,
@@ -50,44 +50,44 @@ export default function PackDetalle({ packId }) {
 
   // Al abrir: cuenta la vista y trae likes/guardados
   useEffect(() => {
-    if (!found?.id) return;
+    if (!found?.public_id) return;
     let alive = true;
-    viewPack(found.id);
-    getPackInteractions(found.id).then((d) => { if (alive && d) setStats((s) => ({ ...s, ...d })); });
+    viewPack(found.public_id);
+    getPackInteractions(found.public_id).then((d) => { if (alive && d) setStats((s) => ({ ...s, ...d })); });
     return () => { alive = false; };
-  }, [found?.id]);
+  }, [found?.public_id]);
 
   async function toggleLike() {
-    if (!found?.id) return;
-    const d = await likePack(found.id, stats.myVote === 'like' ? 'none' : 'like');
+    if (!found?.public_id) return;
+    const d = await likePack(found.public_id, stats.myVote === 'like' ? 'none' : 'like');
     if (d) setStats((s) => ({ ...s, ...d }));
   }
 
   async function toggleDislike() {
-    if (!found?.id) return;
-    const d = await likePack(found.id, stats.myVote === 'dislike' ? 'none' : 'dislike');
+    if (!found?.public_id) return;
+    const d = await likePack(found.public_id, stats.myVote === 'dislike' ? 'none' : 'dislike');
     if (d) setStats((s) => ({ ...s, ...d }));
   }
 
   async function toggleSave() {
-    if (!found?.id) return;
-    const d = await savePack(found.id);
+    if (!found?.public_id) return;
+    const d = await savePack(found.public_id);
     if (d) setStats((s) => ({ ...s, ...d }));
   }
 
   function openShare() {
-    if (found?.id) sharePack(found.id, 'modal');
+    if (found?.public_id) sharePack(found.public_id, 'modal');
     setShareOpen(true);
   }
 
   async function registrarDescarga() {
-    if (!found?.id) return;
-    const d = await downloadPack(found.id);
+    if (!found?.public_id) return;
+    const d = await downloadPack(found.public_id);
     if (d) setStats((s) => ({ ...s, downloads: d.descargas }));
   }
 
   const relacionados = packs
-    .filter((p) => String(p.id) !== String(packId))
+    .filter((p) => String(p.public_id) !== String(packId))
     .sort((a, b) => parseNum(b.descargas) - parseNum(a.descargas))
     .slice(0, 6);
 
@@ -224,11 +224,11 @@ export default function PackDetalle({ packId }) {
               className={styles.card}
               role="link"
               tabIndex={0}
-              onClick={() => goPack(r.id)}
+              onClick={() => goPack(r.public_id)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  goPack(r.id);
+                  goPack(r.public_id);
                 }
               }}
             >

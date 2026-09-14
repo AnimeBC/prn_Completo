@@ -60,6 +60,9 @@ export default function PerfilClient() {
   const [form, setForm] = useState({ nombre: '', email: '', avatar: '' });
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarDrag, setAvatarDrag] = useState(false);
+  const avatarInputRef = useRef(null);
 
   const [lists, setLists] = useState({});
   const [listLoading, setListLoading] = useState(false);
@@ -80,6 +83,7 @@ export default function PerfilClient() {
   const [regMsg, setRegMsg] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
   const [verifyNotice, setVerifyNotice] = useState('');
+  const [authTab, setAuthTab] = useState('login'); // móvil: 'login' | 'register'
 
   const [googleCred, setGoogleCred] = useState('');
 
@@ -104,6 +108,7 @@ export default function PerfilClient() {
         email: j.user?.email || '',
         avatar: j.user?.avatar || '',
       });
+      try { window.dispatchEvent(new Event('pkp:me')); } catch { /* noop */ }
     } catch {
       setError(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
     } finally {
@@ -145,10 +150,22 @@ export default function PerfilClient() {
       ['g_id_login', 'g_id_register'].forEach((id) => {
         const el = document.getElementById(id);
         if (el && !el.dataset.rendered) {
+          const w = Math.min(400, Math.max(200, Math.round(el.clientWidth || 300)));
           window.google.accounts.id.renderButton(el, {
-            theme: 'outline', size: 'large', width: 300, text: 'continue_with', logo_alignment: 'left',
+            theme: 'outline', size: 'large', width: w, text: 'continue_with', logo_alignment: 'left',
           });
           el.dataset.rendered = '1';
+          // estira el iframe real para que TODO el botón sea clickeable
+          const stretch = () => {
+            el.querySelectorAll('div, iframe').forEach((n) => {
+              n.style.setProperty('width', '100%', 'important');
+              n.style.setProperty('min-width', '100%', 'important');
+              n.style.setProperty('max-width', 'none', 'important');
+              n.style.setProperty('height', '100%', 'important');
+            });
+          };
+          stretch();
+          setTimeout(stretch, 400);
         }
       });
     }
@@ -255,12 +272,58 @@ export default function PerfilClient() {
       }
       setUser(j.user || user);
       setStats(j.stats || stats);
+      try { window.dispatchEvent(new Event('pkp:me')); } catch { /* noop */ }
       setSaveMsg(es ? 'Perfil actualizado ✓' : 'Profile updated ✓');
     } catch {
       setSaveMsg(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
     } finally {
       setSaving(false);
     }
+  }
+
+  async function uploadAvatar(file) {
+    if (!file) return;
+    if (!(file.type.startsWith('image/') || /\.(png|jpe?g|webp|avif)$/i.test(file.name))) {
+      setSaveMsg(es ? 'Solo imágenes (JPG/PNG/WebP).' : 'Images only (JPG/PNG/WebP).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setSaveMsg(es ? 'La imagen no debe pesar más de 5 MB.' : 'Image must be under 5 MB.');
+      return;
+    }
+    setAvatarBusy(true);
+    setSaveMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('userKey', userKey);
+      fd.append('avatar', file);
+      const r = await fetch(`${API_URL}/api/auth/profile/avatar`, { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setSaveMsg(j.error || (es ? 'No se pudo subir la imagen' : 'Could not upload the image'));
+        return;
+      }
+      setUser(j.user || user);
+      setForm((f) => ({ ...f, avatar: j.user?.avatar || j.avatar || '' }));
+      try { window.dispatchEvent(new Event('pkp:me')); } catch { /* noop */ }
+      setSaveMsg(es ? 'Foto de perfil actualizada ✓' : 'Profile photo updated ✓');
+    } catch {
+      setSaveMsg(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
+  function onPickAvatar(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    uploadAvatar(file);
+  }
+
+  function onDropAvatar(e) {
+    e.preventDefault();
+    setAvatarDrag(false);
+    uploadAvatar(e.dataTransfer?.files?.[0]);
   }
 
   async function doRegister(e) {
@@ -377,6 +440,14 @@ export default function PerfilClient() {
 
   return (
     <main className={styles.main}>
+      <input
+        ref={avatarInputRef}
+        className={styles.avatarInput}
+        type="file"
+        accept="image/*"
+        onChange={onPickAvatar}
+      />
+
       {error && (
         <div className={styles.error}>
           <ion-icon name="alert-circle-outline" suppressHydrationWarning></ion-icon>
@@ -399,8 +470,17 @@ export default function PerfilClient() {
         <div className={styles.heroGlow} aria-hidden="true" />
         <div className={styles.avatarWrap}>
           {avatarSrc
-            ? <img className={styles.avatarImg} src={avatarSrc} alt={user?.nombre || 'avatar'} />
+            ? <img className={styles.avatarImg} src={avatarSrc} alt="" />
             : <span className={styles.avatarInitial}>{initial}</span>}
+          <button
+            type="button"
+            className={styles.avatarEdit}
+            onClick={() => avatarInputRef.current?.click()}
+            aria-label={es ? 'Cambiar foto de perfil' : 'Change profile photo'}
+            title={es ? 'Cambiar foto de perfil' : 'Change profile photo'}
+          >
+            <ion-icon name="camera-outline" suppressHydrationWarning></ion-icon>
+          </button>
         </div>
         <div className={styles.heroInfo}>
           <div className={styles.heroTopLine}>
@@ -450,9 +530,33 @@ export default function PerfilClient() {
             </div>
           </div>
 
+          {/* En móvil: navegación con botones (primero Iniciar sesión) */}
+          <div className={styles.authTabs} role="tablist" aria-label={es ? 'Acceso' : 'Access'}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={authTab === 'login'}
+              className={`${styles.authTab} ${authTab === 'login' ? styles.authTabActive : ''}`}
+              onClick={() => setAuthTab('login')}
+            >
+              <ion-icon name="log-in-outline" suppressHydrationWarning></ion-icon>
+              {es ? 'Iniciar sesión' : 'Sign in'}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={authTab === 'register'}
+              className={`${styles.authTab} ${authTab === 'register' ? styles.authTabActive : ''}`}
+              onClick={() => setAuthTab('register')}
+            >
+              <ion-icon name="person-add-outline" suppressHydrationWarning></ion-icon>
+              {es ? 'Crear cuenta' : 'Create account'}
+            </button>
+          </div>
+
           <div className={styles.authGrid}>
           {/* Iniciar sesión */}
-          <div className={styles.authCard}>
+          <div className={`${styles.authCard} ${authTab !== 'login' ? styles.authCardHidden : ''}`}>
             <h2 className={styles.authTitle}>{es ? 'Iniciar sesión' : 'Sign in'}</h2>
             <p className={styles.authSub}>{es ? 'Bienvenido de nuevo' : 'Welcome back'}</p>
 
@@ -502,13 +606,21 @@ export default function PerfilClient() {
             <div className={styles.divider}>
               <span>{es ? 'o continúa con' : 'or continue with'}</span>
             </div>
-            <div id="g_id_login" className={styles.googleWrap} />
-            {!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
-              <button className={styles.googleBtn} type="button" onClick={() => setLogMsg(es ? 'Google no configurado (falta NEXT_PUBLIC_GOOGLE_CLIENT_ID).' : 'Google not configured.')}>
+            <div className={styles.googleWrap}>
+              <button
+                className={styles.googleBtn}
+                type="button"
+                onClick={() => {
+                  if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+                    setLogMsg(es ? 'Google no configurado (falta NEXT_PUBLIC_GOOGLE_CLIENT_ID).' : 'Google not configured.');
+                  }
+                }}
+              >
                 <GoogleIcon />
-                {es ? 'Continuar con Google' : 'Continue with Google'}
+                <span>{es ? 'Continuar con Google' : 'Continue with Google'}</span>
               </button>
-            )}
+              <div id="g_id_login" className={styles.gsiMount} aria-hidden="true" />
+            </div>
 
             <div className={styles.badges}>
               {verifiedBadge('shield-checkmark-outline', es ? 'Mayor 18' : '18+', true)}
@@ -517,7 +629,7 @@ export default function PerfilClient() {
           </div>
 
           {/* Crear cuenta */}
-          <div className={styles.authCard}>
+          <div className={`${styles.authCard} ${authTab !== 'register' ? styles.authCardHidden : ''}`}>
             <h2 className={styles.authTitle}>{es ? 'Crear cuenta' : 'Create account'}</h2>
             <p className={styles.authSub}>{es ? 'Únete a la comunidad' : 'Join the community'}</p>
 
@@ -576,13 +688,21 @@ export default function PerfilClient() {
             <div className={styles.divider}>
               <span>{es ? 'o continúa con' : 'or continue with'}</span>
             </div>
-            <div id="g_id_register" className={styles.googleWrap} />
-            {!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
-              <button className={styles.googleBtn} type="button" onClick={() => setRegMsg(es ? 'Google no configurado (falta NEXT_PUBLIC_GOOGLE_CLIENT_ID).' : 'Google not configured.')}>
+            <div className={styles.googleWrap}>
+              <button
+                className={styles.googleBtn}
+                type="button"
+                onClick={() => {
+                  if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+                    setRegMsg(es ? 'Google no configurado (falta NEXT_PUBLIC_GOOGLE_CLIENT_ID).' : 'Google not configured.');
+                  }
+                }}
+              >
                 <GoogleIcon />
-                {es ? 'Continuar con Google' : 'Continue with Google'}
+                <span>{es ? 'Continuar con Google' : 'Continue with Google'}</span>
               </button>
-            )}
+              <div id="g_id_register" className={styles.gsiMount} aria-hidden="true" />
+            </div>
 
             <div className={styles.badges}>
               {verifiedBadge('shield-checkmark-outline', es ? 'Mayor 18' : '18+', true)}
@@ -628,7 +748,12 @@ export default function PerfilClient() {
       {tab === 'perfil' && (
         authed ? (
         <div className={styles.panels}>
-          <form className={styles.card} onSubmit={saveProfile}>
+          <form
+            className={styles.card}
+            onSubmit={saveProfile}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => e.preventDefault()}
+          >
             <h3 className={styles.cardTitle}>
               <ion-icon name="create-outline" suppressHydrationWarning></ion-icon>
               {es ? 'Editar perfil' : 'Edit profile'}
@@ -660,17 +785,54 @@ export default function PerfilClient() {
               </label>
             )}
 
-            <label className={styles.field}>
-              <span className={styles.label}>{es ? 'Avatar (URL de imagen)' : 'Avatar (image URL)'}</span>
-              <input
-                className={styles.input}
-                type="text"
-                maxLength={255}
-                placeholder="https://..."
-                value={form.avatar}
-                onChange={(e) => setForm({ ...form, avatar: e.target.value })}
-              />
-            </label>
+            <div className={styles.field}>
+              <span className={styles.label}>{es ? 'Foto de perfil' : 'Profile photo'}</span>
+
+              <div
+                className={`${styles.avatarDrop} ${avatarDrag ? styles.avatarDropActive : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => avatarInputRef.current?.click()}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); avatarInputRef.current?.click(); } }}
+                onDragOver={(e) => { e.preventDefault(); setAvatarDrag(true); }}
+                onDragEnter={(e) => { e.preventDefault(); setAvatarDrag(true); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setAvatarDrag(false); }}
+                onDrop={onDropAvatar}
+              >
+                {avatarSrc ? (
+                  <img className={styles.avatarDropImg} src={avatarSrc} alt="foto de perfil" />
+                ) : (
+                  <>
+                    <ion-icon name="cloud-upload-outline" className={styles.avatarDropIcon} suppressHydrationWarning></ion-icon>
+                    <strong className={styles.avatarDropTitle}>
+                      {es ? 'Arrastra tu foto aquí' : 'Drag your photo here'}
+                    </strong>
+                    <span className={styles.avatarDropText}>
+                      {es ? 'o haz clic para elegir · JPG/PNG · máx 5 MB' : 'or click to choose · JPG/PNG · max 5 MB'}
+                    </span>
+                  </>
+                )}
+
+                <span className={styles.avatarDropOverlay}>
+                  {avatarSrc
+                    ? (es ? 'Cambiar foto' : 'Change photo')
+                    : avatarDrag
+                      ? (es ? 'Suelta la imagen' : 'Drop the image')
+                      : (es ? 'Elegir imagen' : 'Choose image')}
+                </span>
+
+                {avatarBusy && (
+                  <span className={styles.avatarDropBusy}>
+                    <ion-icon name="sync-outline" suppressHydrationWarning></ion-icon>
+                    {es ? 'Subiendo…' : 'Uploading…'}
+                  </span>
+                )}
+              </div>
+
+              <span className={styles.avatarHint}>
+                {es ? 'La imagen se recorta cuadrada automáticamente (como Facebook).' : 'The image is cropped square automatically (like Facebook).'}
+              </span>
+            </div>
 
             {saveMsg && (
               <p className={saveMsg.includes('✓') ? styles.okMsg : styles.msgError}>{saveMsg}</p>

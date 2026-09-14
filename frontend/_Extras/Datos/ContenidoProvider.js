@@ -92,6 +92,7 @@ function mapPack(r, es) {
   const dsuf = es ? 'descargas' : 'downloads';
   return {
     id: r.id,
+    public_id: r.public_id,
     slug: r.slug,
     title: es
       ? (r.titulo_es || r.titulo_en || r.titulo || `Pack #${r.id}`)

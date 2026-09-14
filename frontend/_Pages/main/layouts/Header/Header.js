@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import styles from './header.module.css';
 import { useTheme } from '@/_Extras/CambiodeColor/ThemeProvider.js';
 import { useSidebar } from '@/app/sidebarContext.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
+import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
 
 const filters = [
   { value: 'recientes', label: 'filtros.recientes' },
@@ -19,7 +20,8 @@ const filters = [
 export default function Header() {
   const { isDark, toggleTheme } = useTheme();
   const { isOpen, toggle: toggleSidebar } = useSidebar();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const es = locale !== 'en';
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -27,6 +29,55 @@ export default function Header() {
   const [showResults, setShowResults] = useState(false);
   const searchRef = useRef(null);
   const router = useRouter();
+  const pathname = usePathname();
+
+  const [me, setMe] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const profileRef = useRef(null);
+  const authed = !!(me && me.email_verified);
+  const initial = (me?.nombre || me?.email || '?').trim().charAt(0).toUpperCase();
+
+  // Perfil del usuario (se refresca al iniciar sesión, subir foto, etc.)
+  useEffect(() => {
+    let alive = true;
+    async function loadMe() {
+      try {
+        const key = getUserKey();
+        if (!key) { if (alive) setMe(null); return; }
+        const r = await fetch(`${API_URL}/api/auth/profile?userKey=${encodeURIComponent(key)}`);
+        const j = await r.json().catch(() => ({}));
+        if (alive) setMe(j.user || null);
+      } catch { if (alive) setMe(null); }
+    }
+    loadMe();
+    const onChange = () => loadMe();
+    window.addEventListener('pkp:me', onChange);
+    window.addEventListener('pikantepe:change', onChange);
+    return () => {
+      alive = false;
+      window.removeEventListener('pkp:me', onChange);
+      window.removeEventListener('pikantepe:change', onChange);
+    };
+  }, []);
+
+  // Cierra el menú del perfil al hacer clic fuera o cambiar de página
+  useEffect(() => {
+    function onDoc(e) {
+      if (profileRef.current && !profileRef.current.contains(e.target)) setMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
+
+  function handleLogout() {
+    try { localStorage.removeItem('pkp_user_key'); } catch { /* noop */ }
+    setMe(null);
+    setMenuOpen(false);
+    try { window.dispatchEvent(new Event('pkp:me')); } catch { /* noop */ }
+    router.push('/');
+  }
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -70,10 +121,6 @@ export default function Header() {
     setSearchOpen(false);
     setShowResults(false);
     router.push(`/videos/${id}`);
-  }
-
-  function handleProfileClick() {
-    router.push('/perfil');
   }
 
   function renderResults() {
@@ -166,9 +213,69 @@ export default function Header() {
 
           <div className={styles.divider}></div>
 
-          <div className={styles.profileMenu} onClick={handleProfileClick}>
-            <ion-icon name="person-circle-outline" className={styles.profileIcon} suppressHydrationWarning></ion-icon>
-            <span className={styles.profileLabel}>{t('header.miPerfil')}</span>
+          <div className={styles.profileWrap} ref={profileRef}>
+            <button
+              type="button"
+              className={`${styles.profileMenu} ${menuOpen ? styles.profileMenuOpen : ''}`}
+              onClick={() => (authed ? setMenuOpen((o) => !o) : handleProfileClick())}
+              aria-haspopup={authed ? 'menu' : undefined}
+              aria-expanded={authed ? menuOpen : undefined}
+            >
+              {authed ? (
+                <>
+                  {me.avatar
+                    ? <img src={mediaUrl(me.avatar)} alt="" className={styles.profileAvatar} />
+                    : <span className={styles.profileInitial}>{initial}</span>}
+                  <span className={styles.profileLabel}>{me.nombre || t('header.miPerfil')}</span>
+                  <ion-icon name="chevron-down-outline" className={styles.profileChevron} suppressHydrationWarning></ion-icon>
+                </>
+              ) : (
+                <>
+                  <ion-icon name="person-circle-outline" className={styles.profileIcon} suppressHydrationWarning></ion-icon>
+                  <span className={styles.profileLabel}>{t('header.miPerfil')}</span>
+                </>
+              )}
+            </button>
+
+            {authed && menuOpen && (
+              <div className={styles.profileDropdown} role="menu">
+                <div className={styles.profileHead}>
+                  {me.avatar
+                    ? <img src={mediaUrl(me.avatar)} alt="" className={styles.profileHeadAvatar} />
+                    : <span className={styles.profileInitial}>{initial}</span>}
+                  <div className={styles.profileHeadInfo}>
+                    <strong className={styles.profileHeadName}>{me.nombre || (es ? 'Usuario' : 'User')}</strong>
+                    <span className={styles.profileHeadMail}>{me.email || ''}</span>
+                  </div>
+                </div>
+
+                <div className={styles.profileSep} />
+
+                <button className={styles.profileItem} type="button" role="menuitem" onClick={() => { setMenuOpen(false); router.push('/perfil'); }}>
+                  <ion-icon name="person-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Mi Perfil' : 'My Profile'}
+                </button>
+                <button className={styles.profileItem} type="button" role="menuitem" onClick={() => { setMenuOpen(false); router.push('/favoritos'); }}>
+                  <ion-icon name="bookmark-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Guardados' : 'Saved'}
+                </button>
+                <button className={styles.profileItem} type="button" role="menuitem" onClick={() => { setMenuOpen(false); router.push('/me-gusta'); }}>
+                  <ion-icon name="thumbs-up-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Me gusta' : 'Likes'}
+                </button>
+                <button className={styles.profileItem} type="button" role="menuitem" onClick={() => { setMenuOpen(false); router.push('/historial'); }}>
+                  <ion-icon name="time-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Historial' : 'History'}
+                </button>
+
+                <div className={styles.profileSep} />
+
+                <button className={`${styles.profileItem} ${styles.profileItemDanger}`} type="button" role="menuitem" onClick={handleLogout}>
+                  <ion-icon name="log-out-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Cerrar sesión' : 'Sign out'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </header>

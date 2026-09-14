@@ -109,7 +109,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
   flex-shrink: 0;
   box-shadow: 0 0 0 4px rgba(242, 13, 22, 0.12);
 }
@@ -118,6 +118,31 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 50%;
+}
+
+.avatarEdit {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg-card, #0D0D0F);
+  border-radius: 50%;
+  background: var(--primary, #F20D16);
+  color: #FFFFFF;
+  font-size: 15px;
+  cursor: pointer;
+  z-index: 2;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.avatarEdit:hover {
+  transform: scale(1.08);
+  background: var(--primary-hover, #FF1A1A);
 }
 
 .avatarInitial {
@@ -275,6 +300,38 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 32px;
+}
+
+/* Móvil: navegación con botones (oculta en desktop) */
+.authTabs {
+  display: none;
+}
+
+.authTab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 14px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 10px;
+  background: var(--bg-card, #0D0D0F);
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.authTabActive {
+  background: var(--primary, #F20D16);
+  border-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+}
+
+.authCardHidden {
+  /* solo se oculta en móvil (ver media query) */
 }
 
 .authCard {
@@ -442,40 +499,68 @@
 }
 
 .googleWrap {
-  display: flex;
-  justify-content: center;
-  min-height: 0;
+  position: relative;
+  width: 100%;
+  height: 44px;
 }
 
-.googleWrap:empty {
-  display: none;
+/* El botón real de Google (iframe) queda invisible encima: el clic lo recibe él. */
+.gsiMount {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  cursor: pointer;
 }
 
+.gsiMount > div,
+.gsiMount iframe,
+.gsiMount div {
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  display: block !important;
+}
+
+/* Botón con diseño propio (debajo, visible a través del iframe transparente) */
 .googleBtn {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   width: 100%;
-  height: 42px;
-  border: 1px solid #27272a;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-primary);
+  height: 100%;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 10px;
+  background: var(--bg-surface, #18181B);
+  color: var(--text-primary, #FFFFFF);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.12s ease;
 }
 
-.googleBtn:hover {
-  border-color: #52525b;
-  background: rgba(255, 255, 255, 0.03);
+.googleWrap:hover .googleBtn {
+  border-color: var(--primary, #F20D16);
+  background: rgba(242, 13, 22, 0.08);
+}
+
+.googleWrap:active .googleBtn {
+  transform: scale(0.99);
 }
 
 .googleIcon {
   width: 18px;
   height: 18px;
+  flex-shrink: 0;
 }
 
 .badges {
@@ -873,4 +958,129 @@
   .heroName {
     font-size: 19px;
   }
+
+  /* Auth como navegación con botones: primero Iniciar sesión.
+     Ambas tarjetas van en la misma celda → el alto es el del más grande
+     y la página no salta al cambiar de pestaña. */
+  .authTabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .authTab {
+    flex: 1;
+  }
+
+  .authGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .authCard {
+    grid-area: 1 / 1;
+  }
+
+  .authCardHidden {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+/* ===== Foto de perfil (arrastrar / soltar, tipo Facebook) ===== */
+.avatarDrop {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 190px;
+  padding: 20px;
+  border: 2px dashed var(--border, #27272A);
+  border-radius: 14px;
+  background: var(--bg-surface, #18181B);
+  color: var(--text-secondary, #A1A1AA);
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.avatarDrop:hover {
+  border-color: var(--primary, #F20D16);
+}
+
+.avatarDropActive {
+  border-color: var(--primary, #F20D16);
+  background: rgba(242, 13, 22, 0.08);
+}
+
+.avatarDropIcon {
+  font-size: 34px;
+  color: var(--primary, #F20D16);
+}
+
+.avatarDropTitle {
+  font-size: 15px;
+  color: var(--text-primary, #FFFFFF);
+}
+
+.avatarDropText {
+  font-size: 12.5px;
+}
+
+.avatarDropImg {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--primary, #F20D16);
+  box-shadow: 0 0 0 4px rgba(242, 13, 22, 0.15);
+}
+
+.avatarDropOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.avatarDrop:hover .avatarDropOverlay {
+  opacity: 1;
+}
+
+.avatarDropBusy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.avatarDropBusy ion-icon {
+  animation: perfilSpin 1s linear infinite;
+}
+
+.avatarHint {
+  display: block;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+.avatarInput {
+  display: none;
 }

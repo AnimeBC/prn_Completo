@@ -44,7 +44,7 @@ export default async function sitemap() {
   }));
 
   const packRoutes = (data.packs || []).map((p) => ({
-    url: `${BASE}/packs/${p.id}`,
+    url: `${BASE}/packs/${p.public_id || p.id}`,
     lastModified: new Date(),
     changeFrequency: 'weekly',
     priority: 0.6,

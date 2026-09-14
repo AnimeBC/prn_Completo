@@ -148,3 +148,39 @@ export async function transcodeImage({ inputPath, destDir }) {
   if (!renditions.length) renditions.push(original);
   return { renditions, original: originalName };
 }
+
+/** Tamaños de avatar (cuadrados), de mayor a menor. */
+export const AVATAR_SIZES = [400, 200, 96];
+
+/**
+ * Recorta la imagen en cuadrado (cover, tipo Facebook) y genera las calidades
+ * del avatar dentro de destDir/calidades. Devuelve { renditions, main }.
+ */
+export async function transcodeAvatar({ inputPath, destDir }) {
+  fs.mkdirSync(destDir, { recursive: true });
+
+  const ext = (path.extname(inputPath) || '.jpg').toLowerCase();
+  const originalName = `original${ext}`;
+  fs.copyFileSync(inputPath, path.join(destDir, originalName));
+
+  if (!hasFFmpeg) return { renditions: [], main: originalName };
+
+  const qualDir = path.join(destDir, 'calidades');
+  fs.mkdirSync(qualDir, { recursive: true });
+
+  const renditions = [];
+  for (const s of AVATAR_SIZES) {
+    const file = `${s}.jpg`;
+    try {
+      await run(FFMPEG, [
+        '-y', '-i', inputPath,
+        '-vf', `scale=${s}:${s}:force_original_aspect_ratio=increase,crop=${s}:${s}`,
+        '-q:v', '3',
+        path.join(qualDir, file),
+      ]);
+      renditions.push({ size: s, file: `calidades/${file}` });
+    } catch { /* ignora esta calidad */ }
+  }
+
+  return { renditions, main: renditions.find((r) => r.size === 400)?.file || originalName };
+}

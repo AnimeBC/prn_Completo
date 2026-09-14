@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
+import path from 'node:path';
+import fs from 'node:fs';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../db/pool.js';
@@ -7,6 +9,8 @@ import { env } from '../config/env.js';
 import { authRequired } from '../middleware/auth.js';
 import { publishEvent, cacheDel } from '../db/redis.js';
 import { sendMail, verificationEmailHtml } from '../services/mailer.js';
+import { avatarUpload, avatarFolderName, removeAvatarFolder, publicOf, DIRS } from '../services/upload.js';
+import { transcodeAvatar } from '../services/transcode.js';
 
 const r = Router();
 
@@ -257,6 +261,32 @@ r.put('/profile', async (req, res, next) => {
     await publishEvent('user_profile', { userKey });
 
     res.json({ ok: true, user: publicUser(user), stats: await getUserStats(userKey) });
+  } catch (e) { next(e); }
+});
+
+// POST /api/auth/profile/avatar  (multipart: avatar)  { userKey }
+r.post('/profile/avatar', avatarUpload.single('avatar'), async (req, res, next) => {
+  try {
+    const userKey = normalizeUserKey(req.body?.userKey || req.query.userKey);
+    if (!userKey) return res.status(400).json({ error: 'userKey inválido' });
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Adjunta una imagen' });
+
+    const user = await ensureUser(userKey);
+    removeAvatarFolder(user.avatar);
+
+    const destDir = path.join(DIRS.avatars, avatarFolderName(userKey));
+    const { renditions, main } = await transcodeAvatar({ inputPath: file.path, destDir });
+    fs.rm(file.path, { force: true }, () => {});
+
+    const chosen = (renditions || []).find((x) => x.size === 400) || (renditions || [])[0];
+    const avatarPublic = publicOf(path.join(destDir, chosen ? chosen.file : main));
+
+    await query('UPDATE users SET avatar = $1, updated_at = NOW() WHERE user_key = $2', [avatarPublic, userKey]);
+    await publishEvent('user_profile', { userKey });
+
+    const fresh = await findUserByKey(userKey);
+    res.json({ ok: true, user: publicUser(fresh), avatar: avatarPublic });
   } catch (e) { next(e); }
 });
 
