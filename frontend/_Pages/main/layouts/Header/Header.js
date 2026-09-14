@@ -7,7 +7,7 @@ import { useTheme } from '@/_Extras/CambiodeColor/ThemeProvider.js';
 import { useSidebar } from '@/app/sidebarContext.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
-import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
+import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 
 const filters = [
   { value: 'recientes', label: 'filtros.recientes' },
@@ -31,34 +31,10 @@ export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [me, setMe] = useState(null);
+  const { user: me, authed, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const profileRef = useRef(null);
-  const authed = !!(me && me.email_verified);
   const initial = (me?.nombre || me?.email || '?').trim().charAt(0).toUpperCase();
-
-  // Perfil del usuario (se refresca al iniciar sesión, subir foto, etc.)
-  useEffect(() => {
-    let alive = true;
-    async function loadMe() {
-      try {
-        const key = getUserKey();
-        if (!key) { if (alive) setMe(null); return; }
-        const r = await fetch(`${API_URL}/api/auth/profile?userKey=${encodeURIComponent(key)}`);
-        const j = await r.json().catch(() => ({}));
-        if (alive) setMe(j.user || null);
-      } catch { if (alive) setMe(null); }
-    }
-    loadMe();
-    const onChange = () => loadMe();
-    window.addEventListener('pkp:me', onChange);
-    window.addEventListener('pikantepe:change', onChange);
-    return () => {
-      alive = false;
-      window.removeEventListener('pkp:me', onChange);
-      window.removeEventListener('pikantepe:change', onChange);
-    };
-  }, []);
 
   // Cierra el menú del perfil al hacer clic fuera o cambiar de página
   useEffect(() => {
@@ -72,10 +48,8 @@ export default function Header() {
   useEffect(() => { setMenuOpen(false); }, [pathname]);
 
   function handleLogout() {
-    try { localStorage.removeItem('pkp_user_key'); } catch { /* noop */ }
-    setMe(null);
+    logout();
     setMenuOpen(false);
-    try { window.dispatchEvent(new Event('pkp:me')); } catch { /* noop */ }
     router.push('/');
   }
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import styles from './comentarios.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
-import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
+import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import AuthModal from '@/_Pages/main/Auth/AuthModal';
 
 function timeAgo(dateStr, es) {
@@ -50,14 +50,12 @@ export default function Comentarios({ videoId }) {
   const [replyTo, setReplyTo] = useState(null);
   const [replyDraft, setReplyDraft] = useState('');
   const [openReplies, setOpenReplies] = useState({});
-  const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [error, setError] = useState('');
 
-  const key = typeof window !== 'undefined' ? getUserKey() : '';
-  const authed = !!(me && me.email_verified);
+  const { user: me, authed, userKey: key } = useAuth();
 
   const loadComments = useCallback(async () => {
     try {
@@ -72,23 +70,7 @@ export default function Comentarios({ videoId }) {
     }
   }, [videoId, key, sort]);
 
-  const loadMe = useCallback(async () => {
-    if (!key) return;
-    try {
-      const r = await fetch(`${API_URL}/api/auth/profile?userKey=${encodeURIComponent(key)}`);
-      const j = await r.json().catch(() => ({}));
-      setMe(j.user || null);
-    } catch { /* noop */ }
-  }, [key]);
-
   useEffect(() => { setLoading(true); loadComments(); }, [loadComments]);
-  useEffect(() => { loadMe(); }, [loadMe]);
-
-  useEffect(() => {
-    const onChange = () => loadMe();
-    window.addEventListener('pkp:me', onChange);
-    return () => window.removeEventListener('pkp:me', onChange);
-  }, [loadMe]);
 
   async function submit(texto, parentId = null) {
     if (!authed) { setAuthOpen(true); return; }

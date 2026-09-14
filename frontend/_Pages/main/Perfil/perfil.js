@@ -6,9 +6,8 @@ import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
 import { verifyField } from '@/_Extras/Auth/availability.js';
+import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import MisVideos from '@/_Pages/main/MisVideos/misVideos.js';
-
-const USER_KEY_STORAGE = 'pkp_user_key';
 
 const TABS = [
   { id: 'perfil', icon: 'person-outline', label: ['Perfil', 'Profile'] },
@@ -53,6 +52,7 @@ const availIcon = (a) => (a.state === 'ok' ? 'checkmark-circle-outline' : a.stat
 export default function PerfilClient() {
   const { locale } = useLanguage();
   const es = locale !== 'en';
+  const { setAccount, logout: authLogout } = useAuth();
 
   const [userKey, setUserKey] = useState('');
   const [user, setUser] = useState(null);
@@ -216,7 +216,7 @@ export default function PerfilClient() {
         return;
       }
       const key = j.user?.user_key || userKey;
-      try { localStorage.setItem(USER_KEY_STORAGE, key); } catch { /* noop */ }
+      setAccount(j.user || { user_key: key });
       setUserKey(key);
       setUser(j.user || null);
       setStats(j.stats || EMPTY_STATS);
@@ -392,6 +392,7 @@ export default function PerfilClient() {
       if (!r.ok) { setCodeMsg(j.error || (es ? 'No se pudo verificar el código' : 'Could not verify the code')); return; }
       setPendingEmail('');
       setCodeVal('');
+      setAccount(j.user || { user_key: userKey });
       setUser(j.user || null);
       setStats(j.stats || EMPTY_STATS);
       setTab('perfil');
@@ -420,7 +421,7 @@ export default function PerfilClient() {
         return;
       }
       const key = j.user?.user_key || userKey;
-      try { localStorage.setItem(USER_KEY_STORAGE, key); } catch { /* noop */ }
+      setAccount(j.user || { user_key: key });
       setUserKey(key);
       setUser(j.user || null);
       setStats(j.stats || EMPTY_STATS);
@@ -453,7 +454,7 @@ export default function PerfilClient() {
   }
 
   function logout() {
-    try { localStorage.removeItem(USER_KEY_STORAGE); } catch { /* noop */ }
+    authLogout();
     const key = getUserKey();
     setUserKey(key);
     setLists({});

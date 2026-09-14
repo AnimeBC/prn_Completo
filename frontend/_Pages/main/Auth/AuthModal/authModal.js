@@ -7,8 +7,7 @@ import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL } from '@/_Extras/Api/api.js';
 import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
 import { verifyField } from '@/_Extras/Auth/availability.js';
-
-const USER_KEY_STORAGE = 'pkp_user_key';
+import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 
 const REASONS = {
   like: { es: 'Para votar necesitas iniciar sesión', en: 'Sign in to vote' },
@@ -32,6 +31,7 @@ export default function AuthModal({ open, onClose, reason = 'default' }) {
   const { isDark } = useTheme();
   const { locale } = useLanguage();
   const es = locale !== 'en';
+  const { setAccount } = useAuth();
 
   const [tab, setTab] = useState('login'); // login | register
   const [step, setStep] = useState('form'); // form | code
@@ -58,11 +58,8 @@ export default function AuthModal({ open, onClose, reason = 'default' }) {
   const subtitle = (REASONS[reason] || REASONS.default)[es ? 'es' : 'en'];
   const logoSrc = isDark ? '/logo.png' : '/logo_oscuro.png';
 
-  function finishAndClose(userKey) {
-    try {
-      if (userKey) localStorage.setItem(USER_KEY_STORAGE, userKey);
-      window.dispatchEvent(new Event('pkp:me'));
-    } catch { /* noop */ }
+  function finishAndClose(userObj) {
+    setAccount(userObj || { user_key: guestKey });
     onClose();
   }
 
@@ -145,7 +142,7 @@ export default function AuthModal({ open, onClose, reason = 'default' }) {
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok) { setMsg(j.error || (es ? 'No se pudo entrar con Google' : 'Google sign-in failed')); return; }
-        finishAndClose(j.user?.user_key);
+        finishAndClose(j.user);
       } catch {
         setMsg(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
       } finally {
@@ -171,7 +168,7 @@ export default function AuthModal({ open, onClose, reason = 'default' }) {
         setMsg(j.error || (es ? 'No se pudo iniciar sesión' : 'Sign-in failed'));
         return;
       }
-      finishAndClose(j.user?.user_key);
+      finishAndClose(j.user);
     } catch {
       setMsg(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
     } finally {
@@ -221,7 +218,7 @@ export default function AuthModal({ open, onClose, reason = 'default' }) {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg(j.error || (es ? 'No se pudo verificar el código' : 'Could not verify the code')); return; }
-      finishAndClose(j.user?.user_key || guestKey);
+      finishAndClose(j.user || { user_key: guestKey });
     } catch {
       setMsg(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
     } finally {

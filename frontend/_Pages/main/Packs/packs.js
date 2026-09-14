@@ -86,6 +86,8 @@ export default function PacksClient() {
   const [canRight, setCanRight] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const rowRef = useRef(null);
+  const didInitRef = useRef(false);
+  const prevQsRef = useRef('');
 
   // Lee los valores iniciales para links compartidos y los mantiene sincronizados.
   useEffect(() => {
@@ -102,9 +104,13 @@ export default function PacksClient() {
     if (c) setCategoria(findOption(OPT_CATEGORIA, c, OPT_CATEGORIA[0]));
     const pg = Number(p.get('page'));
     if (Number.isInteger(pg) && pg >= 1) setPage(pg);
+    prevQsRef.current = window.location.search.slice(1);
+    didInitRef.current = true;
   }, []);
 
+  // Escribe la URL solo si cambió y no es el primer mount (rompe el loop infinito).
   useEffect(() => {
+    if (!didInitRef.current) return;
     const timer = setTimeout(() => {
       const p = new URLSearchParams();
       if (query.trim()) p.set('q', query.trim());
@@ -114,6 +120,8 @@ export default function PacksClient() {
       if (categoria.value !== OPT_CATEGORIA[0].value) p.set('categoria', categoria.value);
       if (page > 1) p.set('page', String(page));
       const qs = p.toString();
+      if (qs === prevQsRef.current) return;
+      prevQsRef.current = qs;
       router.replace(qs ? `/packs?${qs}` : '/packs', { scroll: false });
     }, 400);
     return () => clearTimeout(timer);

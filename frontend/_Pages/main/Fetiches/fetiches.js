@@ -102,6 +102,8 @@ export default function FetichesClient() {
   const rowRef = useRef(null);
   const tabsRef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
+  const didInitRef = useRef(false);
+  const prevQsRef = useRef('');
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -113,7 +115,6 @@ export default function FetichesClient() {
 
   const perRowGroup = isMobile ? 4 : 8;
 
-  // Querys propias de fetiches (distintas al buscador global del header).
   // Lee los valores iniciales para links compartidos y los mantiene sincronizados.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -127,9 +128,13 @@ export default function FetichesClient() {
     if (d && DROP_DURACION.includes(d)) setDuracion(d);
     const pg = Number(p.get('page'));
     if (Number.isInteger(pg) && pg >= 1) setPage(pg);
+    prevQsRef.current = window.location.search.slice(1);
+    didInitRef.current = true;
   }, []);
 
+  // Escribe la URL solo si cambió y no es el primer mount (rompe el loop infinito).
   useEffect(() => {
+    if (!didInitRef.current) return;
     const t = setTimeout(() => {
       const p = new URLSearchParams();
       if (query.trim()) p.set('q', query.trim());
@@ -138,6 +143,8 @@ export default function FetichesClient() {
       if (duracion !== DROP_DURACION[0]) p.set('duracion', duracion);
       if (page > 1) p.set('page', String(page));
       const qs = p.toString();
+      if (qs === prevQsRef.current) return;
+      prevQsRef.current = qs;
       router.replace(qs ? `/fetiches?${qs}` : '/fetiches', { scroll: false });
     }, 400);
     return () => clearTimeout(t);

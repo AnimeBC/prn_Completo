@@ -10,6 +10,7 @@ import AuthModal from '@/_Pages/main/Auth/AuthModal';
 import DescargaModal from '@/_Pages/main/Packs/componentes/descarga';
 import { SMARTLINK_URL } from '@/_Pages/main/Home/componentes/anuncio/ads.js';
 import { API_URL } from '@/_Extras/Api/api.js';
+import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import {
   getInteractions,
   viewVideo,
@@ -17,7 +18,6 @@ import {
   saveVideo,
   downloadVideo,
   followChannel,
-  getUserKey,
 } from '@/_Extras/Interacciones/interactions.js';
 
 function formatCount(n) {
@@ -42,32 +42,9 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
 
   const [stats, setStats] = useState({ likes: 0, dislikes: 0, views: 0, subscribers: 0, myVote: null, saved: false, following: false, reported: false });
 
-  const [authed, setAuthed] = useState(false);
+  const { authed } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
   const [authReason, setAuthReason] = useState('like');
-
-  // ¿Hay cuenta (correo verificado o Google)? Like y Seguir requieren cuenta.
-  useEffect(() => {
-    let alive = true;
-    async function loadMe() {
-      try {
-        const key = getUserKey();
-        if (!key) { if (alive) setAuthed(false); return; }
-        const r = await fetch(`${API_URL}/api/auth/profile?userKey=${encodeURIComponent(key)}`);
-        const j = await r.json().catch(() => ({}));
-        if (alive) setAuthed(!!(j.user && j.user.email_verified));
-      } catch { if (alive) setAuthed(false); }
-    }
-    loadMe();
-    const onChange = () => loadMe();
-    window.addEventListener('pkp:me', onChange);
-    window.addEventListener('pikantepe:change', onChange);
-    return () => {
-      alive = false;
-      window.removeEventListener('pkp:me', onChange);
-      window.removeEventListener('pikantepe:change', onChange);
-    };
-  }, []);
 
   function requireAuth(reason) {
     setAuthReason(reason);
