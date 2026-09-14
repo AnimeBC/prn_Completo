@@ -7,13 +7,27 @@ import {
   videoFolderName, videoRootDir, publicOf, removeVideoFolder, moveFileSync,
 } from '../services/upload.js';
 import { authRequired } from '../middleware/auth.js';
-import { slugify } from '../utils/slug.js';
+import { slugify, channelSlug } from '../utils/slug.js';
 import { publishEvent, cacheDel } from '../db/redis.js';
 import { transcodeVideo, hasFFmpeg, fmtDuration, probe } from '../services/transcode.js';
 
 const r = Router();
 
 const VIDEO_EXT = /\.(mp4|mov|webm|mkv|avi)$/i;
+
+/** Asegura que exista el canal (perfil público) para un video. */
+async function ensureChannel(nombre, adminId = null) {
+  const name = String(nombre || '').trim();
+  if (!name) return;
+  const slug = channelSlug(name);
+  await query(
+    `INSERT INTO channels (nombre, slug, admin_id) VALUES ($1, $2, $3)
+     ON CONFLICT (nombre) DO UPDATE
+       SET slug = COALESCE(channels.slug, EXCLUDED.slug),
+           admin_id = COALESCE(channels.admin_id, EXCLUDED.admin_id)`,
+    [name, slug, adminId]
+  );
+}
 
 /**
  * Mueve el archivo temporal a la carpeta propia del video y fija src inicial.
@@ -239,6 +253,9 @@ r.post('/upload', authRequired, upload.fields([{ name: 'video', maxCount: 1 }, {
       ]
     );
     const id = ins.rows[0].id;
+
+    // asegura el canal para el perfil público
+    await ensureChannel('administrador pikante.pe', req.admin?.id);
 
     // carpeta propia del video: videos/video_011/  (o fetiches/fetiche_04/)
     const { destDir, origPath } = stageOriginal({ id, isFetiche: isF, collection: 'videos', videoFile });

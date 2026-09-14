@@ -7,6 +7,7 @@ import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
 import { verifyField } from '@/_Extras/Auth/availability.js';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
+import ImageCropModal from '@/_Extras/Imagen/ImageCropModal.js';
 import MisVideos from '@/_Pages/main/MisVideos/misVideos.js';
 
 const TABS = [
@@ -66,6 +67,7 @@ export default function PerfilClient() {
   const [saveMsg, setSaveMsg] = useState('');
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarDrag, setAvatarDrag] = useState(false);
+  const [cropFile, setCropFile] = useState(null);
   const avatarInputRef = useRef(null);
 
   const [lists, setLists] = useState({});
@@ -334,13 +336,14 @@ export default function PerfilClient() {
   function onPickAvatar(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
-    uploadAvatar(file);
+    if (file) setCropFile(file);
   }
 
   function onDropAvatar(e) {
     e.preventDefault();
     setAvatarDrag(false);
-    uploadAvatar(e.dataTransfer?.files?.[0]);
+    const file = e.dataTransfer?.files?.[0];
+    if (file) setCropFile(file);
   }
 
   async function doRegister(e) {
@@ -501,6 +504,20 @@ export default function PerfilClient() {
         type="file"
         accept="image/*"
         onChange={onPickAvatar}
+      />
+
+      <ImageCropModal
+        open={!!cropFile}
+        file={cropFile}
+        shape="circle"
+        title={es ? 'Ajusta tu foto de perfil' : 'Adjust your profile photo'}
+        subtitle={es ? 'Arrastra y usa el zoom para encuadrarla.' : 'Drag and zoom to frame it.'}
+        onCancel={() => setCropFile(null)}
+        onSave={(blob) => {
+          const f = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+          setCropFile(null);
+          uploadAvatar(f);
+        }}
       />
 
       {error && (

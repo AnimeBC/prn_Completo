@@ -59,8 +59,21 @@
 }
 
 .channel {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
   font-size: 11px;
   color: var(--text-secondary, #A1A1AA);
+  cursor: pointer;
+  text-align: left;
+}
+
+.channel:hover {
+  color: var(--primary, #F20D16);
+  text-decoration: underline;
 }
 
 .meta {

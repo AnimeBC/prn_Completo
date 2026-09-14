@@ -73,6 +73,21 @@ r.get('/me', authRequired, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /api/auth/mail-test  (Bearer)  { to }  -> envía un correo de prueba
+r.post('/mail-test', authRequired, async (req, res, next) => {
+  try {
+    const to = String(req.body?.to || env.mail.user || '').trim();
+    if (!to) return res.status(400).json({ error: 'Indica un correo destino' });
+    const out = await sendMail({
+      to,
+      subject: 'Prueba SMTP - pikante pe',
+      html: '<p>Correo de prueba de pikante pe. Si lo recibes, el SMTP ya funciona.</p>',
+      text: 'Correo de prueba de pikante pe. Si lo recibes, el SMTP ya funciona.',
+    });
+    res.json({ ok: !!out.ok, to, error: out.error || null });
+  } catch (e) { next(e); }
+});
+
 // ============================================================
 // PERFIL DE USUARIO (clientes, no admins)
 // Identificación por user_key (dispositivo), igual que interacciones.
@@ -403,6 +418,7 @@ r.post('/profile/register', async (req, res, next) => {
       ok: true,
       needs_verification: true,
       mail_sent: !!mail.ok,
+      mail_error: mail.ok ? null : (mail.error || 'unknown'),
       user: publicUser(user),
       stats: await getUserStats(userKey),
     });

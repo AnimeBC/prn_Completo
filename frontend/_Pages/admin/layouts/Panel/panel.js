@@ -8,6 +8,7 @@ import { useTheme } from '@/_Extras/CambiodeColor/ThemeProvider.js';
 
 const NAV = [
   { href: '/admin', label: 'Panel', icon: 'speedometer-outline' },
+  { href: '/admin/miperfil', label: 'Mi perfil', icon: 'person-circle-outline' },
   { href: '/admin/subirvideos', label: 'Subir video', icon: 'videocam-outline' },
   { href: '/admin/subirhentai', label: 'Subir hentai', icon: 'images-outline' },
   { href: '/admin/subirpacks', label: 'Agregar pack', icon: 'cube-outline' },

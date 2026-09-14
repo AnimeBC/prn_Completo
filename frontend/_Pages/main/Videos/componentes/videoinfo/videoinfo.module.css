@@ -179,6 +179,22 @@
   color: var(--text-primary, #FFFFFF);
 }
 
+.channelLink {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.channelLink:hover {
+  color: var(--primary, #F20D16);
+  text-decoration: underline;
+}
+
 .verified {
   font-size: 14px;
   color: var(--primary, #F20D16);

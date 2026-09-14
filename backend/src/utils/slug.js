@@ -9,3 +9,18 @@ export function slugify(text = '') {
     .replace(/-+/g, '-')
     .slice(0, 80);
 }
+
+/**
+ * slug de canal. Debe coincidir con el backfill de tablas5.sql y con
+ * channelSlug() del frontend (si no, los perfiles públicos no resuelven).
+ */
+export function channelSlug(name = '') {
+  return String(name)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 160);
+}

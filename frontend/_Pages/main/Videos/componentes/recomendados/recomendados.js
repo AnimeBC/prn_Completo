@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './recomendados.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
+import { canalUrl } from '@/_Extras/Canales/canal.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
 
 const BATCH = 5;
@@ -104,7 +105,13 @@ export default function Recomendados({ currentId }) {
               </div>
               <div className={styles.cardInfo}>
                 <h4 className={styles.cardTitle}>{video.title}</h4>
-                <span className={styles.channel}>{video.channel}</span>
+                <button
+                  type="button"
+                  className={styles.channel}
+                  onClick={(e) => { e.stopPropagation(); router.push(canalUrl(video.channel)); }}
+                >
+                  {video.channel}
+                </button>
                 <span className={styles.meta}>{video.views} • {video.time}</span>
               </div>
             </div>

@@ -20,6 +20,7 @@ export const DIRS = {
   hentai: path.join(MEDIA_DIR, 'hentai'),
   packs: path.join(MEDIA_DIR, 'packs'),
   avatars: path.join(MEDIA_DIR, 'avatars'),
+  channels: path.join(MEDIA_DIR, 'channels'),
   tmp: path.join(MEDIA_DIR, '_tmp'),
 };
 
@@ -126,6 +127,15 @@ export const avatarUpload = multer({
 export function avatarFolderName(userKey) {
   const s = String(userKey || 'user').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'user';
   return `user_${s}`;
+}
+
+/** carpeta propia de un canal: channel_<id> */
+export function channelFolderName(id) {
+  return `channel_${String(id).padStart(3, '0')}`;
+}
+
+export function channelRootDir() {
+  return DIRS.channels;
 }
 
 /** borra la carpeta de avatar del usuario (solo si es local /media/avatars/...) */

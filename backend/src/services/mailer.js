@@ -16,17 +16,25 @@ let loadFailed = false;
 async function getTransporter() {
   if (transporter) return transporter;
   if (loadFailed) return null;
-  if (!env.mail.user || !env.mail.pass) return null;
+  if (!env.mail.user || !env.mail.pass) {
+    console.warn('[mail] sin configurar: faltan GMAIL_USER / GMAIL_APP_PASSWORD en backend/.env');
+    return null;
+  }
 
   try {
     const mod = await import('nodemailer');
     const nodemailer = mod.default || mod;
+    // La contraseña de aplicación de Google se muestra con espacios; se usan sin espacios.
+    const pass = String(env.mail.pass).replace(/\s+/g, '');
     transporter = nodemailer.createTransport({
       host: env.mail.host,
       port: env.mail.port,
       secure: env.mail.port === 465,
-      auth: { user: env.mail.user, pass: env.mail.pass },
+      auth: { user: env.mail.user, pass },
     });
+    transporter.verify()
+      .then(() => console.log('[mail] SMTP listo:', env.mail.user))
+      .catch((err) => console.error('[mail] SMTP verify falló:', err.message));
     return transporter;
   } catch (err) {
     loadFailed = true;

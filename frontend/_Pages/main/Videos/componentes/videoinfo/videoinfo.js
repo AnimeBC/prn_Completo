@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './videoinfo.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
@@ -11,6 +12,7 @@ import DescargaModal from '@/_Pages/main/Packs/componentes/descarga';
 import { SMARTLINK_URL } from '@/_Pages/main/Home/componentes/anuncio/ads.js';
 import { API_URL } from '@/_Extras/Api/api.js';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
+import { canalUrl } from '@/_Extras/Canales/canal.js';
 import {
   getInteractions,
   viewVideo,
@@ -29,6 +31,7 @@ function formatCount(n) {
 
 export default function VideoInfo({ videoId, info: infoProp = null, src = '/videos/1.mov' }) {
   const { t } = useLanguage();
+  const router = useRouter();
   const { videos } = useContenido();
   const INFO = Object.fromEntries(
     videos.map((v) => [v.id, { title: v.title, views: v.viewsFull, date: v.date, channel: v.channel, since: v.since, tags: v.tags, desc: v.desc }])
@@ -106,7 +109,13 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
           <div className={styles.avatar} />
           <div>
             <div className={styles.channelName}>
-              <span>{info.channel}</span>
+              <button
+                type="button"
+                className={styles.channelLink}
+                onClick={() => router.push(canalUrl(info.channel))}
+              >
+                {info.channel}
+              </button>
               <ion-icon name="checkmark-circle" className={styles.verified} suppressHydrationWarning></ion-icon>
             </div>
             <span className={styles.channelSince}>
