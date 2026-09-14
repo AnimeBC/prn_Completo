@@ -24,20 +24,23 @@ export default function Footer() {
         </div>
 
         <nav className={styles.nav} aria-label="Legal">
-          <a className={styles.link} href="/contrato.html" target="_blank" rel="noopener">
+          <a className={styles.link} href="/legal#terminos">
             {es ? 'Términos' : 'Terms'}
           </a>
-          <a className={styles.link} href="/contrato.html" target="_blank" rel="noopener">
+          <a className={styles.link} href="/legal#privacidad">
             {es ? 'Privacidad' : 'Privacy'}
           </a>
-          <a className={styles.link} href="/contrato.html" target="_blank" rel="noopener">
+          <a className={styles.link} href="/legal#cookies">
             Cookies
           </a>
-          <a className={styles.link} href="/contrato.html" target="_blank" rel="noopener">
+          <a className={styles.link} href="/legal#dmca">
             DMCA
           </a>
-          <a className={styles.link} href="mailto:admin@pikantepe.com">
-            admin@pikantepe.com
+          <a className={styles.link} href="/legal#aviso">
+            {es ? '+18 · No CP' : '+18 · No CSAM'}
+          </a>
+          <a className={styles.link} href="mailto:pikantepe.com@gmail.com">
+            pikantepe.com@gmail.com
           </a>
         </nav>
       </div>

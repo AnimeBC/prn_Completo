@@ -16,10 +16,12 @@
 - No instalar deps automáticamente — mostrar `npm install` para que el usuario lo ejecute.
 - Estructura: `src/server.js` (entry), `src/app.js`, `src/config/env.js`, `src/db/pool.js`, `src/routes/`, `src/middleware/`, `src/utils/`.
 - Base de datos: `pikantepe` en PostgreSQL (`localhost:5432`, user `postgres`, pass `123456`).
-- El SQL de creación de tablas vive en `backend/sql/tablas.sql` (copiar/pegar en pgAdmin).
+- El SQL de creación de tablas vive en `backend/sql/tablas.sql` (base; copiar/pegar en pgAdmin).
+- **Cada cambio NUEVO de esquema va en un archivo SQL nuevo**: `tablas2.sql`, `tablas3.sql`, `tablas4.sql`, etc. **No editar `tablas.sql` ni los archivos anteriores**; solo agregar el incremento en el siguiente número. Cada archivo debe ser seguro (solo `ADD COLUMN IF NOT EXISTS` / `CREATE TABLE IF NOT EXISTS`), sin borrar datos. Ejecutar en orden: `tablas.sql` → `tablas2.sql` → `tablas3.sql` …
 - Autenticación admin: `POST /api/auth/login` → JWT; rutas protegidas con `authRequired`.
 - Contraseñas con bcrypt (`bcryptjs`). El seed de admin usa `crypt(..., gen_salt('bf'))` de pgcrypto.
 - CORS con `FRONTEND_URL` (default `http://localhost:3000`).
 - No hardcodear credenciales: usar `.env`.
+- **No usar emojis** en mensajes, respuestas, logs ni código. Usar texto plano.
 - **Nunca leer ni abrir `backend/.env`** (tiene credenciales reales). Trabajar siempre con **`backend/.env.example`**: si falta una variable, agrégala ahí con un placeholder y avisa al usuario para que la ponga en `.env`. Nunca imprimir ni commitear secretos.
 - Respuestas de error JSON `{ error: "..." }`.

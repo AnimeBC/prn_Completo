@@ -8,7 +8,7 @@ import { query } from '../db/pool.js';
 import { env } from '../config/env.js';
 import { authRequired } from '../middleware/auth.js';
 import { publishEvent, cacheDel } from '../db/redis.js';
-import { sendMail, verificationEmailHtml } from '../services/mailer.js';
+import { sendMail, verificationCodeEmailHtml } from '../services/mailer.js';
 import { avatarUpload, avatarFolderName, removeAvatarFolder, publicOf, DIRS } from '../services/upload.js';
 import { transcodeAvatar } from '../services/transcode.js';
 
@@ -80,6 +80,7 @@ r.get('/me', authRequired, async (req, res, next) => {
 
 const USER_KEY_RE = /^[A-Za-z0-9_.:-]{4,80}$/;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const USUARIO_RE = /^[A-Za-z0-9_.-]{3,30}$/;
 
 function normalizeUserKey(value) {
   const key = String(value || '').trim();
@@ -90,34 +91,64 @@ function sha256(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
-function randomToken() {
-  return crypto.randomBytes(32).toString('hex');
-}
-
-/** Crea un token de verificación, invalida los anteriores y lo guarda hasheado. */
-async function issueVerifyToken(user) {
+/** Crea un código de 6 dígitos, invalida los anteriores y lo guarda hasheado. */
+async function issueCode(user) {
   await query(
-    `DELETE FROM email_tokens WHERE user_id = $1 AND tipo = 'verify' AND used_at IS NULL`,
+    `DELETE FROM email_tokens WHERE user_id = $1 AND tipo = 'verify_code'`,
     [user.id]
   );
-  const token = randomToken();
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
   await query(
     `INSERT INTO email_tokens (user_id, email, token_hash, tipo, expires_at)
-     VALUES ($1, $2, $3, 'verify', NOW() + INTERVAL '24 hours')`,
-    [user.id, user.email, sha256(token)]
+     VALUES ($1, $2, $3, 'verify_code', NOW() + INTERVAL '15 minutes')`,
+    [user.id, user.email, sha256(code)]
   );
-  return token;
+  return code;
 }
 
 async function sendVerification(user) {
-  const token = await issueVerifyToken(user);
-  const link = `${env.app.publicUrl}/api/auth/verify-email?token=${token}`;
+  const code = await issueCode(user);
   return sendMail({
     to: user.email,
-    subject: 'Verifica tu correo — pikante pe',
-    html: verificationEmailHtml({ nombre: user.nombre, link }),
-    text: `Verifica tu correo de pikante pe: ${link}`,
+    subject: 'Tu código de verificación — pikante pe',
+    html: verificationCodeEmailHtml({ nombre: user.nombre, code }),
+    text: `Tu código de verificación de pikante pe es: ${code} (válido 15 minutos).`,
   });
+}
+
+/**
+ * Revisa si un usuario/email ya existen. `selfKey` excluye la propia cuenta
+ * (para poder editar sin que choque consigo misma).
+ */
+async function availability({ usuario, email, selfKey }) {
+  const out = {};
+  if (usuario !== undefined) {
+    const u = String(usuario || '').trim().toLowerCase();
+    if (!u) out.usuario = { available: false, reason: 'empty' };
+    else if (!USUARIO_RE.test(u)) out.usuario = { available: false, reason: 'invalid' };
+    else {
+      const { rows } = await query(
+        `SELECT user_key FROM users
+          WHERE lower(usuario) = $1 AND ($2::text IS NULL OR user_key <> $2) LIMIT 1`,
+        [u, selfKey]
+      );
+      out.usuario = rows[0] ? { available: false, reason: 'taken' } : { available: true, reason: null };
+    }
+  }
+  if (email !== undefined) {
+    const e = String(email || '').trim().toLowerCase();
+    if (!e) out.email = { available: false, reason: 'empty' };
+    else if (!EMAIL_RE.test(e)) out.email = { available: false, reason: 'invalid' };
+    else {
+      const { rows } = await query(
+        `SELECT user_key FROM users
+          WHERE lower(email) = $1 AND ($2::text IS NULL OR user_key <> $2) LIMIT 1`,
+        [e, selfKey]
+      );
+      out.email = rows[0] ? { available: false, reason: 'taken' } : { available: true, reason: null };
+    }
+  }
+  return out;
 }
 
 async function getUserStats(userKey) {
@@ -138,6 +169,7 @@ function publicUser(u) {
     id: u.id,
     user_key: u.user_key,
     nombre: u.nombre,
+    usuario: u.usuario || null,
     email: u.email,
     avatar: u.avatar,
     rol: u.rol,
@@ -150,7 +182,7 @@ function publicUser(u) {
 
 async function findUserByKey(userKey) {
   const { rows } = await query(
-    `SELECT id, user_key, nombre, email, avatar, rol, provider, email_verified, created_at,
+    `SELECT id, user_key, nombre, usuario, email, avatar, rol, provider, email_verified, created_at,
             (password_hash IS NOT NULL) AS has_password
        FROM users WHERE user_key = $1`,
     [userKey]
@@ -222,26 +254,55 @@ r.get('/profile', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// PUT /api/auth/profile  { userKey, nombre, email, avatar }
+// GET /api/auth/check?usuario=&email=&userKey=  -> disponibilidad en tiempo real
+r.get('/check', async (req, res, next) => {
+  try {
+    const selfKey = normalizeUserKey(req.query.userKey);
+    const hasUsuario = req.query.usuario !== undefined;
+    const hasEmail = req.query.email !== undefined;
+    if (!hasUsuario && !hasEmail) return res.status(400).json({ error: 'Nada que verificar' });
+
+    const out = await availability({
+      usuario: hasUsuario ? req.query.usuario : undefined,
+      email: hasEmail ? req.query.email : undefined,
+      selfKey,
+    });
+    res.json({ ok: true, ...out });
+  } catch (e) { next(e); }
+});
+
+// PUT /api/auth/profile  { userKey, nombre, usuario, email, avatar }
 r.put('/profile', async (req, res, next) => {
   try {
-    const { userKey: rawKey, nombre, email, avatar } = req.body || {};
+    const { userKey: rawKey, nombre, usuario, email, avatar } = req.body || {};
     const userKey = normalizeUserKey(rawKey);
     if (!userKey) return res.status(400).json({ error: 'userKey inválido' });
 
     await ensureUser(userKey);
 
     const cleanNombre = nombre === undefined ? null : (String(nombre).trim().slice(0, 120) || null);
+    const cleanUsuario = usuario === undefined ? null : (String(usuario).trim().toLowerCase().slice(0, 40) || null);
     const cleanEmail = email === undefined ? null : (String(email).trim().toLowerCase().slice(0, 150) || null);
     const cleanAvatar = avatar === undefined ? null : (String(avatar).trim().slice(0, 255) || null);
 
+    if (cleanUsuario && !USUARIO_RE.test(cleanUsuario)) {
+      return res.status(400).json({ error: 'Nombre de usuario inválido (3-30: letras, números, . _ -)' });
+    }
     if (cleanEmail && !EMAIL_RE.test(cleanEmail)) {
       return res.status(400).json({ error: 'Correo inválido' });
     }
 
+    if (cleanUsuario) {
+      const taken = await query(
+        `SELECT user_key FROM users WHERE lower(usuario) = $1 AND user_key <> $2 LIMIT 1`,
+        [cleanUsuario, userKey]
+      );
+      if (taken.rows[0]) return res.status(409).json({ error: 'Ese nombre de usuario ya está en uso' });
+    }
+
     if (cleanEmail) {
       const taken = await query(
-        'SELECT user_key FROM users WHERE email = $1 AND user_key <> $2 LIMIT 1',
+        'SELECT user_key FROM users WHERE lower(email) = $1 AND user_key <> $2 LIMIT 1',
         [cleanEmail, userKey]
       );
       if (taken.rows[0]) return res.status(409).json({ error: 'Ese correo ya está en uso' });
@@ -249,12 +310,13 @@ r.put('/profile', async (req, res, next) => {
 
     await query(
       `UPDATE users SET
-         nombre = COALESCE($2, nombre),
-         email  = COALESCE($3, email),
-         avatar = COALESCE($4, avatar),
+         nombre  = COALESCE($2, nombre),
+         usuario = COALESCE($5, usuario),
+         email   = COALESCE($3, email),
+         avatar  = COALESCE($4, avatar),
          updated_at = NOW()
        WHERE user_key = $1`,
-      [userKey, cleanNombre, cleanEmail, cleanAvatar]
+      [userKey, cleanNombre, cleanEmail, cleanAvatar, cleanUsuario]
     );
 
     const user = await findUserByKey(userKey);
@@ -290,33 +352,46 @@ r.post('/profile/avatar', avatarUpload.single('avatar'), async (req, res, next) 
   } catch (e) { next(e); }
 });
 
-// POST /api/auth/profile/register  { userKey, nombre, email, password }
+// POST /api/auth/profile/register  { userKey, nombre, usuario, email, password }
 r.post('/profile/register', async (req, res, next) => {
   try {
-    const { userKey: rawKey, nombre, email, password } = req.body || {};
+    const { userKey: rawKey, nombre, usuario, email, password } = req.body || {};
     const userKey = normalizeUserKey(rawKey);
     if (!userKey) return res.status(400).json({ error: 'userKey inválido' });
 
     const cleanEmail = String(email || '').trim().toLowerCase();
+    const cleanUsuario = String(usuario || '').trim().toLowerCase();
     if (!EMAIL_RE.test(cleanEmail)) return res.status(400).json({ error: 'Correo inválido' });
     if (!password || String(password).length < 6) {
       return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
     }
+    if (cleanUsuario && !USUARIO_RE.test(cleanUsuario)) {
+      return res.status(400).json({ error: 'Nombre de usuario inválido (3-30: letras, números, . _ -)' });
+    }
 
     const taken = await query(
-      'SELECT user_key FROM users WHERE email = $1 AND user_key <> $2 LIMIT 1',
+      'SELECT user_key FROM users WHERE lower(email) = $1 AND user_key <> $2 LIMIT 1',
       [cleanEmail, userKey]
     );
     if (taken.rows[0]) return res.status(409).json({ error: 'Ese correo ya está registrado' });
+
+    if (cleanUsuario) {
+      const takenU = await query(
+        `SELECT user_key FROM users WHERE lower(usuario) = $1 AND user_key <> $2 LIMIT 1`,
+        [cleanUsuario, userKey]
+      );
+      if (takenU.rows[0]) return res.status(409).json({ error: 'Ese nombre de usuario ya está en uso' });
+    }
 
     await ensureUser(userKey);
     const hash = await bcrypt.hash(String(password), 10);
     await query(
       `UPDATE users SET email = $2, password_hash = $3, provider = 'local',
               email_verified = FALSE,
+              usuario = COALESCE(NULLIF($5, ''), usuario),
               nombre = COALESCE(NULLIF($4, ''), nombre), updated_at = NOW()
         WHERE user_key = $1`,
-      [userKey, cleanEmail, hash, String(nombre || '').trim().slice(0, 120)]
+      [userKey, cleanEmail, hash, String(nombre || '').trim().slice(0, 120), cleanUsuario]
     );
 
     const user = await findUserByKey(userKey);
@@ -346,6 +421,52 @@ r.post('/profile/resend-verification', async (req, res, next) => {
 
     const mail = await sendVerification(user);
     res.json({ ok: true, mail_sent: !!mail.ok });
+  } catch (e) { next(e); }
+});
+
+// POST /api/auth/profile/verify-code  { userKey, code }  -> activa la cuenta
+r.post('/profile/verify-code', async (req, res, next) => {
+  try {
+    const userKey = normalizeUserKey(req.body?.userKey);
+    if (!userKey) return res.status(400).json({ error: 'userKey inválido' });
+
+    const code = String(req.body?.code || '').trim();
+    if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'El código debe tener 6 dígitos', code: 'code_invalid' });
+
+    const user = await findUserByKey(userKey);
+    if (!user) return res.status(404).json({ error: 'Cuenta no encontrada' });
+    if (user.email_verified) return res.json({ ok: true, already_verified: true, user: publicUser(user), stats: await getUserStats(userKey) });
+
+    const { rows } = await query(
+      `SELECT id, attempts, expires_at
+         FROM email_tokens
+        WHERE user_id = $1 AND tipo = 'verify_code' AND used_at IS NULL
+        ORDER BY created_at DESC LIMIT 1`,
+      [user.id]
+    );
+    const t = rows[0];
+    if (!t || new Date(t.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'El código expiró. Solicita uno nuevo.', code: 'code_expired' });
+    }
+    if (t.attempts >= 5) {
+      return res.status(429).json({ error: 'Demasiados intentos. Solicita un código nuevo.', code: 'too_many_attempts' });
+    }
+
+    const match = await query(
+      `SELECT id FROM email_tokens WHERE id = $1 AND token_hash = $2`,
+      [t.id, sha256(code)]
+    );
+    if (!match.rows[0]) {
+      await query('UPDATE email_tokens SET attempts = attempts + 1 WHERE id = $1', [t.id]);
+      return res.status(400).json({ error: 'Código incorrecto', code: 'code_invalid' });
+    }
+
+    await query('UPDATE users SET email_verified = TRUE, updated_at = NOW() WHERE id = $1', [user.id]);
+    await query(`UPDATE email_tokens SET used_at = NOW() WHERE user_id = $1 AND tipo = 'verify_code'`, [user.id]);
+    await publishEvent('user_verified', { userKey });
+
+    const fresh = await findUserByKey(userKey);
+    res.json({ ok: true, verified: true, user: publicUser(fresh), stats: await getUserStats(userKey) });
   } catch (e) { next(e); }
 });
 
@@ -387,7 +508,7 @@ r.post('/profile/login', async (req, res, next) => {
     if (!email || !password) return res.status(400).json({ error: 'Correo y contraseña son obligatorios' });
 
     const { rows } = await query(
-      `SELECT id, user_key, nombre, email, avatar, rol, provider, email_verified, created_at,
+      `SELECT id, user_key, nombre, usuario, email, avatar, rol, provider, email_verified, created_at,
               password_hash, (password_hash IS NOT NULL) AS has_password
          FROM users WHERE email = $1 LIMIT 1`,
       [String(email).trim().toLowerCase()]

@@ -425,4 +425,28 @@ r.delete('/:id', authRequired, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /api/videos/:id/file   (fuerza la descarga del archivo del video)
+r.get('/:id/file', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ error: 'Video no encontrado' });
+
+    const { rows } = await query('SELECT src FROM videos WHERE id = $1', [id]);
+    if (!rows[0]) return res.status(404).json({ error: 'Video no encontrado' });
+
+    const src = String(rows[0].src || '');
+    if (!src.startsWith('/media/')) return res.status(404).json({ error: 'Archivo no disponible' });
+
+    const abs = path.resolve(MEDIA_DIR, src.replace(/^\/media\//, ''));
+    if (!abs.startsWith(MEDIA_DIR)) return res.status(403).json({ error: 'No permitido' });
+    if (!fs.existsSync(abs)) return res.status(404).json({ error: 'Archivo no encontrado' });
+
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Length', String(fs.statSync(abs).size));
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Disposition', `attachment; filename="pikantepe-video-${id}${path.extname(abs) || '.mp4'}"`);
+    fs.createReadStream(abs).pipe(res);
+  } catch (e) { next(e); }
+});
+
 export default r;

@@ -6,11 +6,21 @@
   z-index: 1;
   margin-left: 250px;
   padding: 22px 16px 18px;
-  border-top: 1px solid var(--border, #27272A);
-  background: var(--bg-card, #0D0D0F);
+  border-top: 1px solid var(--header-border, #27272A);
+  background-color: var(--bg-surface, #0D0D0F);
+  background-image:
+    radial-gradient(ellipse 90% 22% at 10% 100%, rgba(242, 13, 22, 0.06), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 120' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%23F20D16' stroke-width='1'%3E%3Cpath d='M0,70 C50,55 100,85 150,70 S250,55 300,70' opacity='0.16'/%3E%3Cpath d='M0,88 C55,73 105,103 155,88 S255,73 300,88' opacity='0.10'/%3E%3Cpath d='M0,106 C60,91 110,121 160,106 S260,91 300,106' opacity='0.06'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0 0, bottom left;
+  background-size: auto, 100% 110px;
   color: var(--text-secondary, #A1A1AA);
   font-size: 12.5px;
   line-height: 1.4;
+}
+
+[data-theme="light"] .footer {
+  background-color: var(--bg-surface, #F4F4F5);
 }
 
 .inner {

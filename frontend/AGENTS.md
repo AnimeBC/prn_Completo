@@ -13,5 +13,6 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **No ejecutar `npx next dev`, `next dev`, `npm run dev`, `next build`, ni NINGÚN comando de dev/build** hasta que el usuario lo indique explícitamente. El usuario ejecuta estos comandos manualmente.
 - **No instalar dependencias con `npm install`**. Si se necesitan paquetes, mostrar los comandos `npm install <paquete>` para que el usuario los ejecute manualmente. El proyecto debe seguir controlado y sin cambios de estado no autorizados.
 - **Siempre importar con alias `@/`** (ej: `@/_Pages/main/layouts/Header/Header`) y **nunca** con rutas relativas como `../../` o `../`.
+- **No usar emojis** en la interfaz ni en el código (textos, botones, mensajes, logs). Usar **íconos de Ionicons** (`<ion-icon name="...">`) en su lugar.
 - **Nunca leer ni abrir `frontend/.env.local`** (tiene valores reales). Trabajar siempre con **`frontend/.env.example`**: si se necesita una variable nueva, agrégala ahí con un placeholder y avisa al usuario para que la ponga en `.env.local`. Nunca imprimir ni commitear secretos.
 - Si hay un error del usuario, este lo reporta y el usuario lo corrige manualmente o me pide que lo arregle.

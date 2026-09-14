@@ -86,7 +86,7 @@ async function main() {
     );
     await client.query('COMMIT');
 
-    console.log('\n✅ Administrador creado en la base "' + cfg.database + '":');
+    console.log('\n[OK] Administrador creado en la base "' + cfg.database + '":');
     console.table(rows[0]);
     console.log(`   Email:    ${ADMIN.email}`);
     console.log(`   Usuario:  ${ADMIN.usuario}`);

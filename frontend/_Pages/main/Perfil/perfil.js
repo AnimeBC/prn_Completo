@@ -5,6 +5,7 @@ import styles from './perfil.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
+import { verifyField } from '@/_Extras/Auth/availability.js';
 import MisVideos from '@/_Pages/main/MisVideos/misVideos.js';
 
 const USER_KEY_STORAGE = 'pkp_user_key';
@@ -46,6 +47,9 @@ function fmtMember(dateStr, es) {
   return d.toLocaleDateString(es ? 'es-PE' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+const availCls = (a) => (a.state === 'ok' ? styles.hintOk : a.state === 'taken' || a.state === 'invalid' ? styles.hintBad : styles.hint);
+const availIcon = (a) => (a.state === 'ok' ? 'checkmark-circle-outline' : a.state === 'checking' ? 'sync-outline' : a.state === 'idle' ? null : 'alert-circle-outline');
+
 export default function PerfilClient() {
   const { locale } = useLanguage();
   const es = locale !== 'en';
@@ -57,7 +61,7 @@ export default function PerfilClient() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState('perfil');
 
-  const [form, setForm] = useState({ nombre: '', email: '', avatar: '' });
+  const [form, setForm] = useState({ nombre: '', usuario: '', email: '', avatar: '' });
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -75,7 +79,7 @@ export default function PerfilClient() {
   const [logMsg, setLogMsg] = useState('');
 
   // registro
-  const [regNombre, setRegNombre] = useState('');
+  const [regUsuario, setRegUsuario] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPass, setRegPass] = useState('');
   const [regShow, setRegShow] = useState(false);
@@ -83,9 +87,16 @@ export default function PerfilClient() {
   const [regMsg, setRegMsg] = useState('');
   const [pendingEmail, setPendingEmail] = useState('');
   const [verifyNotice, setVerifyNotice] = useState('');
+  const [codeVal, setCodeVal] = useState('');
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeMsg, setCodeMsg] = useState('');
   const [authTab, setAuthTab] = useState('login'); // móvil: 'login' | 'register'
 
   const [googleCred, setGoogleCred] = useState('');
+
+  const [uCheck, setUCheck] = useState({ state: 'idle', msg: '' });
+  const [eCheck, setECheck] = useState({ state: 'idle', msg: '' });
+  const [editUCheck, setEditUCheck] = useState({ state: 'idle', msg: '' });
 
   const authed = !!(user && user.email_verified);
   const visibleTabs = authed ? TABS : TABS.filter((tb) => GUEST_TABS.includes(tb.id));
@@ -105,6 +116,7 @@ export default function PerfilClient() {
       setStats(j.stats || EMPTY_STATS);
       setForm({
         nombre: j.user?.nombre || '',
+        usuario: j.user?.usuario || '',
         email: j.user?.email || '',
         avatar: j.user?.avatar || '',
       });
@@ -260,6 +272,11 @@ export default function PerfilClient() {
     setSaving(true);
     setSaveMsg('');
     try {
+      if (form.usuario) {
+        const u = await verifyField({ field: 'usuario', value: form.usuario, userKey, es });
+        setEditUCheck(u);
+        if (u.state !== 'ok') { setSaveMsg(u.msg); return; }
+      }
       const r = await fetch(`${API_URL}/api/auth/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -328,13 +345,21 @@ export default function PerfilClient() {
 
   async function doRegister(e) {
     e.preventDefault();
-    setRegBusy(true);
     setRegMsg('');
+    setRegBusy(true);
     try {
+      const [u, em] = await Promise.all([
+        verifyField({ field: 'usuario', value: regUsuario, userKey, es }),
+        verifyField({ field: 'email', value: regEmail, userKey, es }),
+      ]);
+      setUCheck(u); setECheck(em);
+      if (u.state !== 'ok') { setRegMsg(u.msg); return; }
+      if (em.state !== 'ok') { setRegMsg(em.msg); return; }
+
       const r = await fetch(`${API_URL}/api/auth/profile/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userKey, nombre: regNombre, email: regEmail, password: regPass }),
+        body: JSON.stringify({ userKey, nombre: regUsuario, usuario: regUsuario, email: regEmail, password: regPass }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
@@ -343,12 +368,38 @@ export default function PerfilClient() {
       }
       setPendingEmail(regEmail);
       setRegPass('');
-      setRegMsg('');
+      setCodeVal('');
+      setCodeMsg('');
       loadProfile(userKey);
     } catch {
       setRegMsg(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
     } finally {
       setRegBusy(false);
+    }
+  }
+
+  async function doVerifyCode(e) {
+    e.preventDefault();
+    setCodeBusy(true);
+    setCodeMsg('');
+    try {
+      const r = await fetch(`${API_URL}/api/auth/profile/verify-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userKey, code: codeVal }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setCodeMsg(j.error || (es ? 'No se pudo verificar el código' : 'Could not verify the code')); return; }
+      setPendingEmail('');
+      setCodeVal('');
+      setUser(j.user || null);
+      setStats(j.stats || EMPTY_STATS);
+      setTab('perfil');
+      loadProfile(userKey);
+    } catch {
+      setCodeMsg(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
+    } finally {
+      setCodeBusy(false);
     }
   }
 
@@ -392,9 +443,12 @@ export default function PerfilClient() {
         body: JSON.stringify({ userKey }),
       });
       const j = await r.json().catch(() => ({}));
-      setLogMsg(j.ok ? (es ? 'Correo reenviado ✓' : 'Email resent ✓') : (j.error || ''));
+      const msg = j.ok ? (es ? 'Código reenviado. Revisa tu bandeja.' : 'Code resent. Check your inbox.') : (j.error || '');
+      setLogMsg(msg);
+      setCodeMsg(msg);
     } catch {
       setLogMsg(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
+      setCodeMsg(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
     }
   }
 
@@ -635,18 +689,25 @@ export default function PerfilClient() {
 
             <form className={styles.form} onSubmit={doRegister}>
               <div className={styles.control}>
-                <ion-icon name="person-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                <ion-icon name="at-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
                 <input
                   className={styles.ctrlInput}
                   type="text"
-                  name="nickname"
-                  autoComplete="nickname"
-                  placeholder={es ? 'Nombre de usuario' : 'Username'}
-                  value={regNombre}
-                  onChange={(e) => setRegNombre(e.target.value)}
+                  name="username"
+                  autoComplete="username"
+                  maxLength={30}
+                  placeholder={es ? 'Nombre de usuario (ej: juan_pe)' : 'Username (e.g. juan_pe)'}
+                  value={regUsuario}
+                  onChange={(e) => { setRegUsuario(e.target.value.replace(/\s/g, '')); setUCheck({ state: 'idle', msg: '' }); }}
                   required
                 />
               </div>
+              {availIcon(uCheck) && (
+                <p className={availCls(uCheck)}>
+                  <ion-icon name={availIcon(uCheck)} className={uCheck.state === 'checking' ? styles.spin : ''} suppressHydrationWarning></ion-icon>
+                  {uCheck.msg || (es ? 'Verificando…' : 'Checking…')}
+                </p>
+              )}
               <div className={styles.control}>
                 <ion-icon name="mail-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
                 <input
@@ -656,10 +717,16 @@ export default function PerfilClient() {
                   autoComplete="email"
                   placeholder={es ? 'Correo electrónico' : 'Email'}
                   value={regEmail}
-                  onChange={(e) => setRegEmail(e.target.value)}
+                  onChange={(e) => { setRegEmail(e.target.value); setECheck({ state: 'idle', msg: '' }); }}
                   required
                 />
               </div>
+              {availIcon(eCheck) && (
+                <p className={availCls(eCheck)}>
+                  <ion-icon name={availIcon(eCheck)} className={eCheck.state === 'checking' ? styles.spin : ''} suppressHydrationWarning></ion-icon>
+                  {eCheck.msg || (es ? 'Verificando…' : 'Checking…')}
+                </p>
+              )}
               <div className={styles.control}>
                 <ion-icon name="lock-closed-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
                 <input
@@ -716,16 +783,33 @@ export default function PerfilClient() {
       {pendingEmail && !authed && (
         <div className={styles.pendingBox}>
           <ion-icon name="mail-unread-outline" suppressHydrationWarning></ion-icon>
-          <div>
+          <div className={styles.pendingMain}>
             <strong>{es ? 'Revisa tu correo' : 'Check your email'}</strong>
             <p>
               {es
-                ? `Te enviamos un enlace de verificación a ${pendingEmail}.`
-                : `We sent a verification link to ${pendingEmail}.`}
+                ? `Enviamos un código de 6 dígitos a ${pendingEmail}.`
+                : `We sent a 6-digit code to ${pendingEmail}.`}
             </p>
+            <form className={styles.codeRow} onSubmit={doVerifyCode}>
+              <input
+                className={styles.codeInput}
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="000000"
+                value={codeVal}
+                onChange={(e) => setCodeVal(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+              <button className={styles.primaryBtn} type="submit" disabled={codeBusy || codeVal.length !== 6}>
+                <ion-icon name={codeBusy ? 'sync-outline' : 'checkmark-done-outline'} suppressHydrationWarning></ion-icon>
+                {codeBusy ? (es ? 'Verificando…' : 'Verifying…') : (es ? 'Verificar' : 'Verify')}
+              </button>
+            </form>
+            {codeMsg && <p className={styles.msgError}>{codeMsg}</p>}
           </div>
           <button type="button" className={styles.linkBtn} onClick={resendVerification}>
-            {es ? 'Reenviar' : 'Resend'}
+            {es ? 'Reenviar código' : 'Resend code'}
           </button>
         </div>
       )}
@@ -770,6 +854,26 @@ export default function PerfilClient() {
                 onChange={(e) => setForm({ ...form, nombre: e.target.value })}
               />
             </label>
+
+            {authed && (
+              <label className={styles.field}>
+                <span className={styles.label}>{es ? 'Nombre de usuario' : 'Username'}</span>
+                <input
+                  className={styles.input}
+                  type="text"
+                  maxLength={30}
+                  placeholder={es ? 'ej: juan_pe' : 'e.g. juan_pe'}
+                  value={form.usuario}
+                  onChange={(e) => { setForm({ ...form, usuario: e.target.value.replace(/\s/g, '') }); setEditUCheck({ state: 'idle', msg: '' }); }}
+                />
+                {availIcon(editUCheck) && (
+                  <span className={availCls(editUCheck)}>
+                    <ion-icon name={availIcon(editUCheck)} suppressHydrationWarning></ion-icon>
+                    {editUCheck.msg}
+                  </span>
+                )}
+              </label>
+            )}
 
             {authed && (
               <label className={styles.field}>

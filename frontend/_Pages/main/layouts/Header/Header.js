@@ -79,6 +79,10 @@ export default function Header() {
     router.push('/');
   }
 
+  function handleProfileClick() {
+    router.push('/perfil');
+  }
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (searchRef.current && !searchRef.current.contains(e.target)) {
@@ -233,6 +237,7 @@ export default function Header() {
                 <>
                   <ion-icon name="person-circle-outline" className={styles.profileIcon} suppressHydrationWarning></ion-icon>
                   <span className={styles.profileLabel}>{t('header.miPerfil')}</span>
+                  <ion-icon name="chevron-down-outline" className={styles.profileChevron} suppressHydrationWarning></ion-icon>
                 </>
               )}
             </button>

@@ -143,7 +143,6 @@ CREATE INDEX IF NOT EXISTS idx_hentai_activo ON hentai(activo);
 -- ============================================================
 CREATE TABLE IF NOT EXISTS packs (
   id         SERIAL PRIMARY KEY,
-  public_id  VARCHAR(32),
   slug       VARCHAR(180),
   titulo     VARCHAR(160),
   titulo_es  VARCHAR(160),
@@ -153,7 +152,6 @@ CREATE TABLE IF NOT EXISTS packs (
   uploader   VARCHAR(120),
   thumb      VARCHAR(255),
   tags       TEXT[] DEFAULT '{}',
-  pack_dir   VARCHAR(255),
   fotos      INTEGER DEFAULT 0,
   videos     INTEGER DEFAULT 0,
   vistas     BIGINT  DEFAULT 0,
@@ -169,14 +167,12 @@ CREATE TABLE IF NOT EXISTS packs (
 );
 
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS slug      VARCHAR(180);
-ALTER TABLE packs ADD COLUMN IF NOT EXISTS public_id VARCHAR(32);
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS titulo_es VARCHAR(160);
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS titulo_en VARCHAR(160);
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS desc_es   TEXT;
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS desc_en   TEXT;
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS thumb     VARCHAR(255);
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS tags      TEXT[] DEFAULT '{}';
-ALTER TABLE packs ADD COLUMN IF NOT EXISTS pack_dir  VARCHAR(255);
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS likes     INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS dislikes  INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE packs ADD COLUMN IF NOT EXISTS guardados INTEGER NOT NULL DEFAULT 0;
@@ -185,12 +181,8 @@ ALTER TABLE packs ALTER COLUMN titulo DROP NOT NULL;
 UPDATE packs SET titulo_es = COALESCE(titulo_es, titulo) WHERE titulo_es IS NULL;
 UPDATE packs SET titulo_en = COALESCE(titulo_en, titulo) WHERE titulo_en IS NULL;
 
--- public_id aleatorio (32 hex) para todos los packs
-UPDATE packs SET public_id = encode(gen_random_bytes(16), 'hex') WHERE public_id IS NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_packs_slug      ON packs(slug);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_packs_public_id ON packs(public_id);
-CREATE INDEX        IF NOT EXISTS idx_packs_activo    ON packs(activo);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_packs_slug   ON packs(slug);
+CREATE INDEX        IF NOT EXISTS idx_packs_activo ON packs(activo);
 
 -- ============================================================
 -- 7) PACK_MEDIA (fotos y videos del pack, con calidades)
@@ -249,23 +241,6 @@ CREATE TABLE IF NOT EXISTS pack_shares (
   created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_pack_shares_pack ON pack_shares(pack_id);
-
--- ============================================================
--- 8b) PACK_DOWNLOAD_TOKENS (token de descarga por pack + usuario)
---     Un solo token activo por (pack, user_key). Se guarda el hash.
--- ============================================================
-CREATE TABLE IF NOT EXISTS pack_download_tokens (
-  id         SERIAL PRIMARY KEY,
-  pack_id    INTEGER NOT NULL REFERENCES packs(id) ON DELETE CASCADE,
-  user_key   VARCHAR(80) NOT NULL,
-  token_hash VARCHAR(128) NOT NULL UNIQUE,
-  expires_at TIMESTAMP NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  ip         VARCHAR(60),
-  UNIQUE (pack_id, user_key)
-);
-CREATE INDEX IF NOT EXISTS idx_pack_tokens_pack ON pack_download_tokens(pack_id);
-CREATE INDEX IF NOT EXISTS idx_pack_tokens_hash ON pack_download_tokens(token_hash);
 
 -- ============================================================
 -- 9) COMUNIDAD
@@ -541,7 +516,7 @@ INSERT INTO translations (lang, key, value) VALUES
   ('es','video.mostrarMenos','Mostrar menos'), ('en','video.mostrarMenos','Show less'),
   ('es','video.aContinuacion','A continuación'), ('en','video.aContinuacion','Up next'),
   ('es','video.masVideos','Más videos'),   ('en','video.masVideos','More videos'),
-  ('es','video.proximamente','Subiremos más próximamente 👑'), ('en','video.proximamente','More videos coming soon 👑'),
+  ('es','video.proximamente','Subiremos más próximamente'), ('en','video.proximamente','More videos coming soon'),
   ('es','comentarios.titulo','comentarios'), ('en','comentarios.titulo','comments'),
   ('es','comentarios.agrega','Agrega un comentario...'), ('en','comentarios.agrega','Add a comment...'),
   ('es','comentarios.comentar','Comentar'), ('en','comentarios.comentar','Comment'),

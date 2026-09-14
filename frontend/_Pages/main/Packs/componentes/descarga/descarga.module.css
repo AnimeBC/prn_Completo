@@ -162,7 +162,51 @@
   background-color: var(--primary-hover, #FF1A1A);
 }
 
+.dlStepBtn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
 .dlCheck {
+  font-size: 15px;
+}
+
+/* ===== Barra de progreso de descarga ===== */
+.dlProgressWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.dlProgress {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-surface, #1A1A1E);
+  border: 1px solid var(--border, #27272A);
+  overflow: hidden;
+}
+
+.dlProgressFill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary, #F20D16), #ff5a5a);
+  transition: width 0.15s linear;
+}
+
+.dlProgressText {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+.dlProgressOk {
+  color: #22c55e;
   font-size: 15px;
 }
 

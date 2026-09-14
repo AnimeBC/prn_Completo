@@ -439,7 +439,11 @@ export default function SubirPacks() {
                       <div className={ls.vpath}>{p.titulo_en || ''}</div>
                     </td>
                     <td>{p.fotos || 0} fotos · {p.videos || 0} videos</td>
-                    <td>👍 {p.likes || 0} · ⬇ {p.descargas || 0} · 👁 {p.vistas || 0}</td>
+                    <td>
+                      <ion-icon name="thumbs-up-outline" suppressHydrationWarning></ion-icon> {p.likes || 0} ·{' '}
+                      <ion-icon name="download-outline" suppressHydrationWarning></ion-icon> {p.descargas || 0} ·{' '}
+                      <ion-icon name="eye-outline" suppressHydrationWarning></ion-icon> {p.vistas || 0}
+                    </td>
                     <td>
                       <div className={ls.actions}>
                         {tab === 'packs' ? (

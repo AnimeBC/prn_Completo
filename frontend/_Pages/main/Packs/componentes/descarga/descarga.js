@@ -4,13 +4,46 @@ import { useEffect, useState } from 'react';
 import styles from './descarga.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 
-export default function DescargaModal({ open, onClose, paso1, paso2, directo, titulo = 'Descargar', onDownload }) {
-  const { t } = useLanguage();
+function fmtBytes(b) {
+  const n = Number(b) || 0;
+  if (n >= 1024 * 1024 * 1024) return `${(n / (1024 ** 3)).toFixed(2)} GB`;
+  if (n >= 1024 * 1024) return `${(n / (1024 ** 2)).toFixed(1)} MB`;
+  if (n >= 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${n} B`;
+}
+
+export default function DescargaModal({
+  open,
+  onClose,
+  paso1,
+  paso2,
+  directo,
+  titulo = 'Descargar',
+  onDownload,
+  downloadFile = false,
+  downloadName = '',
+}) {
+  const { t, locale } = useLanguage();
+  const es = locale !== 'en';
   const [step, setStep] = useState(1);
 
+  // ¿El destino es un archivo descargable (videos) o una página (packs)?
+  const isFile = downloadFile || /\/api\/|\/media\//.test(String(directo || ''));
+
+  const [status, setStatus] = useState('idle'); // idle | downloading | done | error
+  const [progress, setProgress] = useState(0);
+  const [loaded, setLoaded] = useState(0);
+  const [total, setTotal] = useState(0);
+
   useEffect(() => {
-    if (open) setStep(1);
-  }, [open ]);
+    if (open) {
+      setStep(1);
+      setStatus('idle');
+      setProgress(0);
+      setLoaded(0);
+      setTotal(0);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -20,6 +53,59 @@ export default function DescargaModal({ open, onClose, paso1, paso2, directo, ti
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+
+  async function handleDownload() {
+    if (step < 3 || status === 'downloading') return;
+    if (onDownload) onDownload();
+    if (!directo || directo === '#') {
+      setStatus('error');
+      return;
+    }
+
+    setStatus('downloading');
+    setProgress(0);
+    setLoaded(0);
+    setTotal(0);
+
+    const started = Date.now();
+    try {
+      const res = await fetch(directo);
+      if (!res.ok) throw new Error('http');
+      const size = Number(res.headers.get('content-length')) || 0;
+      setTotal(size);
+
+      const reader = res.body.getReader();
+      const chunks = [];
+      let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        got += value.length;
+        setLoaded(got);
+        setProgress(size ? Math.round((got / size) * 100) : 0);
+      }
+
+      // deja ver la barra aunque el archivo sea pequeño/rápido
+      const elapsed = Date.now() - started;
+      if (elapsed < 700) await new Promise((r) => setTimeout(r, 700 - elapsed));
+
+      const blob = new Blob(chunks);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = downloadName || String(directo).split('?')[0].split('/').pop() || 'archivo';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      setProgress(100);
+      setStatus('done');
+    } catch {
+      setStatus('error');
+    }
+  }
 
   if (!open) return null;
 
@@ -96,24 +182,66 @@ export default function DescargaModal({ open, onClose, paso1, paso2, directo, ti
           <div className={styles.dlStepBody}>
             <p className={styles.dlStepTitle}>{t('descarga.paso3t')}</p>
             <p className={styles.dlStepText}>{t('descarga.paso3d')}</p>
-            <a
-              className={styles.dlStepBtn}
-              href={step >= 3 ? directo : undefined}
-              target="_blank"
-              rel="nofollow noopener"
-              aria-disabled={step < 3}
-              onClick={(e) => {
-                if (step < 3) {
-                  e.preventDefault();
-                  return;
-                }
-                if (onDownload) onDownload();
-              }}
-              style={step < 3 ? { pointerEvents: 'none', opacity: 0.5 } : undefined}
-            >
-              <ion-icon name="download-outline" className={styles.dlCheck} suppressHydrationWarning></ion-icon>
-              {t('descarga.descargarArchivo')}
-            </a>
+
+            {isFile ? (
+              <>
+                <button
+                  className={styles.dlStepBtn}
+                  type="button"
+                  disabled={step < 3 || status === 'downloading'}
+                  onClick={handleDownload}
+                  style={step < 3 ? { pointerEvents: 'none', opacity: 0.5 } : undefined}
+                >
+                  <ion-icon
+                    name={status === 'downloading' ? 'sync-outline' : 'download-outline'}
+                    className={styles.dlCheck}
+                    suppressHydrationWarning
+                  ></ion-icon>
+                  {status === 'downloading'
+                    ? (es ? 'Descargando…' : 'Downloading…')
+                    : t('descarga.descargarArchivo')}
+                </button>
+
+                {status !== 'idle' && (
+                  <div className={styles.dlProgressWrap}>
+                    <div className={styles.dlProgress}>
+                      <div className={styles.dlProgressFill} style={{ width: `${progress}%` }} />
+                    </div>
+                    <span className={styles.dlProgressText}>
+                      {status === 'downloading' && (
+                        `${progress}%${total ? ` · ${fmtBytes(loaded)} / ${fmtBytes(total)}` : (loaded ? ` · ${fmtBytes(loaded)}` : '')}`
+                      )}
+                      {status === 'done' && (
+                        <>
+                          <ion-icon name="checkmark-circle" className={styles.dlProgressOk} suppressHydrationWarning></ion-icon>
+                          {es ? 'Descarga completa' : 'Download complete'}
+                        </>
+                      )}
+                      {status === 'error' && (es ? 'Error al descargar. Intenta de nuevo.' : 'Download error. Try again.')}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <a
+                className={styles.dlStepBtn}
+                href={step >= 3 ? directo : undefined}
+                target="_blank"
+                rel="nofollow noopener"
+                aria-disabled={step < 3}
+                onClick={(e) => {
+                  if (step < 3) {
+                    e.preventDefault();
+                    return;
+                  }
+                  if (onDownload) onDownload();
+                }}
+                style={step < 3 ? { pointerEvents: 'none', opacity: 0.5 } : undefined}
+              >
+                <ion-icon name="download-outline" className={styles.dlCheck} suppressHydrationWarning></ion-icon>
+                {t('descarga.descargarArchivo')}
+              </a>
+            )}
           </div>
         </div>
       </div>

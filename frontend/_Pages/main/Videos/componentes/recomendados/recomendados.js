@@ -111,7 +111,7 @@ export default function Recomendados({ currentId }) {
           </div>
         ))}
         {hasMore && <div ref={sentinelRef} className={styles.sentinel} aria-hidden="true" />}
-        {!hasMore && <p className={styles.endMsg}>Subiremos más próximamente 👑</p>}
+        {!hasMore && <p className={styles.endMsg}>Subiremos más próximamente</p>}
       </div>
     </aside>
   );

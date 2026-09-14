@@ -6,6 +6,10 @@ import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import CompartirModal from '@/_Pages/main/Videos/componentes/compartir';
 import ReportModal from '@/_Pages/main/Videos/componentes/reportar';
+import AuthModal from '@/_Pages/main/Auth/AuthModal';
+import DescargaModal from '@/_Pages/main/Packs/componentes/descarga';
+import { SMARTLINK_URL } from '@/_Pages/main/Home/componentes/anuncio/ads.js';
+import { API_URL } from '@/_Extras/Api/api.js';
 import {
   getInteractions,
   viewVideo,
@@ -13,6 +17,7 @@ import {
   saveVideo,
   downloadVideo,
   followChannel,
+  getUserKey,
 } from '@/_Extras/Interacciones/interactions.js';
 
 function formatCount(n) {
@@ -33,8 +38,41 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
   const [expanded, setExpanded] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [dlOpen, setDlOpen] = useState(false);
 
   const [stats, setStats] = useState({ likes: 0, dislikes: 0, views: 0, subscribers: 0, myVote: null, saved: false, following: false, reported: false });
+
+  const [authed, setAuthed] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authReason, setAuthReason] = useState('like');
+
+  // ¿Hay cuenta (correo verificado o Google)? Like y Seguir requieren cuenta.
+  useEffect(() => {
+    let alive = true;
+    async function loadMe() {
+      try {
+        const key = getUserKey();
+        if (!key) { if (alive) setAuthed(false); return; }
+        const r = await fetch(`${API_URL}/api/auth/profile?userKey=${encodeURIComponent(key)}`);
+        const j = await r.json().catch(() => ({}));
+        if (alive) setAuthed(!!(j.user && j.user.email_verified));
+      } catch { if (alive) setAuthed(false); }
+    }
+    loadMe();
+    const onChange = () => loadMe();
+    window.addEventListener('pkp:me', onChange);
+    window.addEventListener('pikantepe:change', onChange);
+    return () => {
+      alive = false;
+      window.removeEventListener('pkp:me', onChange);
+      window.removeEventListener('pikantepe:change', onChange);
+    };
+  }, []);
+
+  function requireAuth(reason) {
+    setAuthReason(reason);
+    setAuthOpen(true);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -45,11 +83,13 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
   }, [videoId]);
 
   async function toggleLike() {
+    if (!authed) return requireAuth('like');
     const d = await likeVideo(videoId, stats.myVote === 'like' ? 'none' : 'like');
     if (d) setStats((s) => ({ ...s, ...d }));
   }
 
   async function toggleDislike() {
+    if (!authed) return requireAuth('like');
     const d = await likeVideo(videoId, stats.myVote === 'dislike' ? 'none' : 'dislike');
     if (d) setStats((s) => ({ ...s, ...d }));
   }
@@ -60,22 +100,14 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
   }
 
   async function toggleFollow() {
+    if (!authed) return requireAuth('follow');
     const d = await followChannel(info.channel);
     if (d) setStats((s) => ({ ...s, following: d.following, subscribers: d.subscribers }));
   }
 
-  async function doDownload() {
+  async function recordDownload() {
     const d = await downloadVideo(videoId);
     if (d) setStats((s) => ({ ...s, ...d }));
-    if (src && !src.startsWith('/videos/')) {
-      const a = document.createElement('a');
-      a.href = src;
-      a.download = '';
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
   }
 
   const liked = stats.myVote === 'like';
@@ -151,7 +183,7 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
           <button className={`${styles.actionBtn} ${stats.reported ? styles.actionActive : ''}`} type="button" onClick={() => setReportOpen(true)}>
             <ion-icon name="flag-outline" className={styles.actionIcon} suppressHydrationWarning></ion-icon> {stats.reported ? t('video.reportado') : t('video.reportar')}
           </button>
-          <button className={`${styles.actionBtn} ${styles.actionDownload}`} type="button" onClick={doDownload}>
+          <button className={`${styles.actionBtn} ${styles.actionDownload}`} type="button" onClick={() => setDlOpen(true)}>
             <ion-icon name="download-outline" className={styles.actionIcon} suppressHydrationWarning></ion-icon> {t('video.descargar')}
           </button>
         </div>
@@ -169,6 +201,20 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
         onClose={() => setReportOpen(false)}
         videoId={videoId}
         onReported={() => setStats((s) => ({ ...s, reported: true }))}
+      />
+
+      <AuthModal open={authOpen} reason={authReason} onClose={() => setAuthOpen(false)} />
+
+      <DescargaModal
+        open={dlOpen}
+        onClose={() => setDlOpen(false)}
+        onDownload={recordDownload}
+        paso1={SMARTLINK_URL}
+        paso2={SMARTLINK_URL}
+        directo={`${API_URL}/api/videos/${videoId}/file`}
+        downloadFile
+        downloadName={`pikantepe-video-${videoId}.mp4`}
+        titulo={t('descarga.titulo')}
       />
 
       <div className={styles.descBox}>
