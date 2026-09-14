@@ -1,0 +1,255 @@
+.wrap {
+  width: 100%;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--text-primary, #FFFFFF);
+}
+
+.head { margin-bottom: 16px; }
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.title ion-icon { color: var(--primary, #F20D16); font-size: 22px; }
+
+.sub { margin: 0; font-size: 13px; color: var(--text-secondary, #A1A1AA); }
+
+.cols {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.panel {
+  border: 1px solid var(--border, #27272A);
+  border-radius: 14px;
+  background: var(--bg-card, #121215);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panelTitle { margin: 0; font-size: 15px; font-weight: 800; }
+
+.serieList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.muted { color: var(--text-secondary, #A1A1AA); font-size: 13px; margin: 0; }
+
+.serieItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 10px;
+  background: var(--bg-surface, #0D0D0F);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.serieItem:hover { border-color: var(--primary, #F20D16); }
+.serieActive { border-color: var(--primary, #F20D16); }
+
+.serieThumb {
+  width: 54px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #000;
+}
+
+.serieThumbEmpty {
+  width: 54px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--bg-card, #121215);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary, #52525B);
+  flex-shrink: 0;
+}
+
+.serieInfo { display: flex; flex-direction: column; min-width: 0; }
+.serieName {
+  font-size: 13px; font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.serieMeta { font-size: 11px; color: var(--text-secondary, #A1A1AA); }
+
+.newForm,
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border, #27272A);
+}
+
+.formTitle { margin: 0; font-size: 14px; font-weight: 800; }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.input,
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 8px;
+  background: var(--bg-input, #0D0D0F);
+  color: var(--text-primary, #FFFFFF);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.textarea { resize: vertical; }
+
+.input:focus,
+.textarea:focus {
+  border-color: var(--primary, #F20D16);
+  box-shadow: 0 0 0 3px rgba(242, 13, 22, 0.18);
+}
+
+.file {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px dashed var(--border, #3F3F46);
+  border-radius: 8px;
+  background: var(--bg-input, #0D0D0F);
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 13px;
+}
+
+.primaryBtn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary, #F20D16);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primaryBtn:hover:not(:disabled) { background: var(--primary-hover, #FF1A1A); }
+.primaryBtn:disabled { opacity: 0.6; cursor: default; }
+
+.ghostBtn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 18px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-primary, #FFFFFF);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ghostBtn:hover { border-color: var(--primary, #F20D16); color: var(--primary, #F20D16); }
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 60px 0;
+  color: var(--text-secondary, #A1A1AA);
+}
+.placeholder ion-icon { font-size: 34px; color: var(--primary, #F20D16); }
+.placeholder p { margin: 0; font-size: 14px; }
+
+.coverRow { display: flex; gap: 14px; align-items: center; }
+.coverBox {
+  width: 180px;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-surface, #0D0D0F);
+  border: 1px solid var(--border, #27272A);
+  flex-shrink: 0;
+}
+.coverImg { width: 100%; height: 100%; object-fit: cover; display: block; }
+.coverEmpty {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary, #52525B); font-size: 30px;
+}
+.coverActions { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.serieTitle { margin: 0; font-size: 17px; font-weight: 800; }
+
+.hidden { display: none; }
+
+.capsList { display: flex; flex-direction: column; gap: 8px; }
+.capItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 10px;
+  background: var(--bg-surface, #0D0D0F);
+}
+.capThumb { width: 64px; height: 36px; border-radius: 6px; object-fit: cover; background: #000; }
+.capInfo { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.capInfo strong { font-size: 13px; }
+.capMeta { font-size: 11px; color: var(--text-secondary, #A1A1AA); }
+
+.dangerBtn {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border, #27272A);
+  background: transparent;
+  color: var(--text-secondary, #A1A1AA);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.dangerBtn:hover { border-color: var(--primary, #F20D16); color: var(--primary, #F20D16); }
+
+.msgError, .okMsg { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+.msgError { color: #ff6b6b; }
+.okMsg { color: #22c55e; }
+
+.loading {
+  display: flex; align-items: center; gap: 10px;
+  padding: 50px 0; color: var(--text-secondary, #A1A1AA); font-size: 14px;
+}
+.loading ion-icon { color: var(--primary, #F20D16); font-size: 22px; }
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 900px) {
+  .cols { grid-template-columns: 1fr; }
+  .two { grid-template-columns: 1fr; }
+}

@@ -82,9 +82,11 @@ function mapHentai(r, es) {
     duration: r.duracion || '00:00',
     since: fmtSince(r.created_at),
     tags: r.tags || [],
+    chapters: r.capitulos || 0,
     desc: es ? (r.desc_es || '') : (r.desc_en || r.desc_es || ''),
     src: media(r.src),
     thumb: media(r.thumb),
+    cover: media(r.cover || r.thumb),
   };
 }
 function mapPack(r, es) {

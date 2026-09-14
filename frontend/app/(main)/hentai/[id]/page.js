@@ -7,6 +7,18 @@ import { apiGet, mediaUrl, sinceOf } from '@/_Extras/Datos/server.js';
 async function resolveEntry(id) {
   const r = await apiGet(`/api/hentai/${id}`);
   if (!r || !r.id) return null;
+  const capitulos = (r.capitulos || []).map((c) => ({
+    id: c.id,
+    numero: c.numero,
+    titulo_es: c.titulo_es,
+    titulo_en: c.titulo_en,
+    desc_es: c.desc_es,
+    desc_en: c.desc_en,
+    duracion: c.duracion || '00:00',
+    src: mediaUrl(c.src),
+    thumb: c.thumb ? mediaUrl(c.thumb) : '',
+    renditions: Array.isArray(c.renditions) ? c.renditions.map((x) => ({ label: x.label, src: mediaUrl(x.src) })) : [],
+  }));
   return {
     title: r.titulo_es || r.titulo_en,
     viewsFull: `${Number(r.vistas || 0).toLocaleString('es-PE')} vistas`,
@@ -15,9 +27,8 @@ async function resolveEntry(id) {
     since: sinceOf(r.created_at),
     tags: r.tags || [],
     desc: r.desc_es || r.desc_en,
-    src: mediaUrl(r.src),
-    thumb: mediaUrl(r.thumb),
-    renditions: Array.isArray(r.renditions) ? r.renditions.map((x) => ({ label: x.label, src: mediaUrl(x.src) })) : [],
+    thumb: mediaUrl(r.cover || r.thumb),
+    capitulos,
   };
 }
 
@@ -59,7 +70,12 @@ export default async function HentaiPage({ params }) {
       <Header />
       <div className={styles.body}>
         <Sidebar />
-        <HentaiPlayer hentaiId={id} src={entry?.src || ''} info={toInfo(entry)} />
+        <HentaiPlayer
+          hentaiId={id}
+          src={entry?.capitulos?.[0]?.src || ''}
+          info={toInfo(entry)}
+          capitulos={entry?.capitulos || []}
+        />
       </div>
     </div>
   );

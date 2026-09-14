@@ -138,6 +138,20 @@ export function channelRootDir() {
   return DIRS.channels;
 }
 
+/** Hentai (anime): raíz, carpeta de la serie y de cada capítulo */
+export function hentaiRootDir() {
+  return DIRS.hentai;
+}
+
+export function hentaiSerieFolder(slug, id) {
+  const s = String(slug || 'anime').replace(/[^a-z0-9_-]/gi, '').slice(0, 50) || 'anime';
+  return `serie_${s}_${String(id).padStart(3, '0')}`;
+}
+
+export function hentaiCapFolder(numero) {
+  return `cap_${String(numero).padStart(3, '0')}`;
+}
+
 /** borra la carpeta de avatar del usuario (solo si es local /media/avatars/...) */
 export function removeAvatarFolder(publicPath) {
   if (!publicPath || !String(publicPath).startsWith('/media/avatars/')) return;

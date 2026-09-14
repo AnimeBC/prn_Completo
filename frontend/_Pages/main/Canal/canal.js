@@ -48,6 +48,61 @@ function relTime(dateStr, es) {
   return es ? `hace ${Math.floor(days / 365)} año(s)` : `${Math.floor(days / 365)} y ago`;
 }
 
+function pageList(page, pages) {
+  const out = [];
+  if (pages <= 7) {
+    for (let i = 1; i <= pages; i++) out.push(i);
+    return out;
+  }
+  out.push(1);
+  if (page > 3) out.push('…');
+  for (let i = Math.max(2, page - 1); i <= Math.min(pages - 1, page + 1); i++) out.push(i);
+  if (page < pages - 2) out.push('…');
+  out.push(pages);
+  return out;
+}
+
+function Pager({ page, pages, onChange }) {
+  if (pages <= 1) return null;
+  const nums = pageList(page, pages);
+  return (
+    <div className={styles.pager}>
+      <button
+        type="button"
+        className={styles.pageNav}
+        disabled={page <= 1}
+        onClick={() => onChange(page - 1)}
+        aria-label="Anterior"
+      >
+        <ion-icon name="chevron-back-outline" suppressHydrationWarning></ion-icon>
+      </button>
+      {nums.map((n, i) => (
+        n === '…' ? (
+          <span key={`d${i}`} className={styles.pageDots}>…</span>
+        ) : (
+          <button
+            key={n}
+            type="button"
+            className={`${styles.pageBtn} ${n === page ? styles.pageBtnActive : ''}`}
+            onClick={() => onChange(n)}
+          >
+            {n}
+          </button>
+        )
+      ))}
+      <button
+        type="button"
+        className={styles.pageNav}
+        disabled={page >= pages}
+        onClick={() => onChange(page + 1)}
+        aria-label="Siguiente"
+      >
+        <ion-icon name="chevron-forward-outline" suppressHydrationWarning></ion-icon>
+      </button>
+    </div>
+  );
+}
+
 export default function CanalClient({ slug, initialChannel, initialVideos = [], initialTotal = 0, initialPages = 1 }) {
   const { locale } = useLanguage();
   const es = locale !== 'en';
@@ -67,7 +122,6 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
   const [following, setFollowing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
 
@@ -77,6 +131,11 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
   });
 
   const firstRender = useRef(true);
+  const listTopRef = useRef(null);
+
+  function scrollTop() {
+    if (listTopRef.current) listTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   // perfil fresco (con following según la sesión)
   const loadChannel = useCallback(async () => {
@@ -98,23 +157,21 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
     return () => clearTimeout(t);
   }, [query]);
 
-  const fetchVideos = useCallback(async ({ pageToLoad = 1, append = false } = {}) => {
+  const fetchVideos = useCallback(async ({ pageToLoad = 1 } = {}) => {
     const params = new URLSearchParams({ page: String(pageToLoad), limit: '24', sort });
     if (debouncedQ) params.set('q', debouncedQ);
-    if (append) setLoadingMore(true); else setLoading(true);
+    setLoading(true);
     try {
       const r = await fetch(`${API_URL}/api/channels/${slug}/videos?${params.toString()}`);
       const j = await r.json().catch(() => ({}));
       if (r.ok) {
-        setVideos((prev) => (append ? [...prev, ...(j.data || [])] : (j.data || [])));
+        setVideos(j.data || []);
         setTotal(j.total || 0);
         setPages(j.pages || 1);
         setPage(pageToLoad);
       }
     } catch { /* noop */ }
-    finally {
-      if (append) setLoadingMore(false); else setLoading(false);
-    }
+    finally { setLoading(false); }
   }, [slug, sort, debouncedQ]);
 
   useEffect(() => {
@@ -245,7 +302,7 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
         </div>
       </header>
 
-      <nav className={styles.tabs}>
+      <nav className={styles.tabs} ref={listTopRef}>
         <button
           type="button"
           className={`${styles.tab} ${tab === 'videos' ? styles.tabActive : ''}`}
@@ -356,14 +413,11 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
                 })}
               </div>
 
-              {page < pages && (
-                <div className={styles.moreWrap}>
-                  <button type="button" className={styles.moreBtn} onClick={() => fetchVideos({ pageToLoad: page + 1, append: true })} disabled={loadingMore}>
-                    <ion-icon name={loadingMore ? 'sync-outline' : 'chevron-down-outline'} className={loadingMore ? styles.spin : ''} suppressHydrationWarning></ion-icon>
-                    {loadingMore ? (es ? 'Cargando…' : 'Loading…') : (es ? 'Cargar más' : 'Load more')}
-                  </button>
-                </div>
-              )}
+              <Pager
+                page={page}
+                pages={pages}
+                onChange={(p) => { fetchVideos({ pageToLoad: p }); scrollTop(); }}
+              />
             </>
           )}
         </>
@@ -443,19 +497,11 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
             })}
           </div>
 
-          {lists[tab].page < lists[tab].pages && (
-            <div className={styles.moreWrap}>
-              <button
-                type="button"
-                className={styles.moreBtn}
-                onClick={() => loadExtras(tab, lists[tab].page + 1, true)}
-                disabled={lists[tab].more}
-              >
-                <ion-icon name={lists[tab].more ? 'sync-outline' : 'chevron-down-outline'} className={lists[tab].more ? styles.spin : ''} suppressHydrationWarning></ion-icon>
-                {lists[tab].more ? (es ? 'Cargando…' : 'Loading…') : (es ? 'Cargar más' : 'Load more')}
-              </button>
-            </div>
-          )}
+          <Pager
+            page={lists[tab].page}
+            pages={lists[tab].pages}
+            onChange={(p) => { loadExtras(tab, p, false); scrollTop(); }}
+          />
         </>
       )}
 

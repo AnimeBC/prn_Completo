@@ -153,11 +153,11 @@ export default function HentaiList() {
           }
         }}
       >
-        <Preview src={anime.src} thumb={anime.thumb}>
+        <Preview src="" thumb={anime.cover || anime.thumb}>
           <span className={styles.playOverlay}>
             <ion-icon name="play" className={styles.playIcon} suppressHydrationWarning></ion-icon>
           </span>
-          <span className={styles.duration}>{anime.duration}</span>
+          <span className={styles.duration}>{anime.chapters || 0} cap.</span>
         </Preview>
         <div className={styles.info}>
           <h3 className={styles.cardTitle}>{anime.title}</h3>

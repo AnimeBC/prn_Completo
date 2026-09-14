@@ -66,3 +66,49 @@
     padding: 12px;
   }
 }
+
+/* ===== Capítulos ===== */
+.chapters {
+  border: 1px solid var(--border, #27272A);
+  border-radius: 12px;
+  background: var(--bg-card, #121215);
+  padding: 14px;
+}
+.chaptersTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+}
+.chaptersTitle ion-icon { color: var(--primary, #F20D16); font-size: 18px; }
+.chaptersScroll {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.chapter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 8px;
+  background: var(--bg-surface, #0D0D0F);
+  color: var(--text-primary, #FFFFFF);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.chapter:hover { border-color: var(--primary, #F20D16); }
+.chapterActive { border-color: var(--primary, #F20D16); background: rgba(242, 13, 22, 0.1); }
+.chapterNum { font-weight: 800; flex-shrink: 0; }
+.chapterName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary, #A1A1AA); }
+.chapterDur { font-size: 12px; color: var(--text-secondary, #A1A1AA); flex-shrink: 0; }
