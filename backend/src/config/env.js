@@ -1,9 +1,20 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+function parseFrontendUrls() {
+  const raw = process.env.FRONTEND_URL || 'http://localhost:3000';
+  return raw
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+
+const frontendUrls = parseFrontendUrls();
+
 export const env = {
   port: Number(process.env.PORT || 3001),
-  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+  frontendUrl: frontendUrls[0] || 'http://localhost:3000',
+  frontendUrls,
   jwtSecret: process.env.JWT_SECRET || 'pikantepe_dev_secret',
   jwtExpires: process.env.JWT_EXPIRES || '7d',
   nodeEnv: process.env.NODE_ENV || 'development',

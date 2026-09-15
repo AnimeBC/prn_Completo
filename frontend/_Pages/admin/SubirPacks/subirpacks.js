@@ -269,7 +269,7 @@ export default function SubirPacks() {
           <div className={sv.field}>
             <label className={sv.label}>Link de descarga</label>
             <span className={sv.tagsHint}>
-              Se genera automáticamente con la URL del pack: <b>https://www.pikantepe.com/packs/&lt;id&gt;</b>
+              Se genera automáticamente con la URL del pack: <b>https://pikantepe.com/packs/&lt;id&gt;</b>
             </span>
           </div>
 

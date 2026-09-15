@@ -23,8 +23,24 @@ import channelsRoutes from './routes/channels.js';
 
 const app = express();
 
+// Orígenes permitidos: los de FRONTEND_URL (lista por comas) + siempre los
+// dominios propios (con y sin www) para que el sitio funcione en ambos hosts.
+const EXTRA_ORIGINS = ['https://pikantepe.com', 'https://www.pikantepe.com'];
+const ALLOWED_ORIGINS = new Set([...(env.frontendUrls || []), ...EXTRA_ORIGINS]);
+const SITE_ORIGIN_RE = /^https:\/\/(www\.)?pikantepe\.com$/i;
+
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
-app.use(cors({ origin: env.frontendUrl === '*' ? true : env.frontendUrl, credentials: true }));
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true); // curl / server-to-server
+    const clean = String(origin).replace(/\/+$/, '');
+    if (ALLOWED_ORIGINS.has('*') || ALLOWED_ORIGINS.has(clean) || SITE_ORIGIN_RE.test(clean)) {
+      return cb(null, true);
+    }
+    return cb(null, false);
+  },
+  credentials: true,
+}));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));

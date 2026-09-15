@@ -112,3 +112,143 @@
 .chapterNum { font-weight: 800; flex-shrink: 0; }
 .chapterName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary, #A1A1AA); }
 .chapterDur { font-size: 12px; color: var(--text-secondary, #A1A1AA); flex-shrink: 0; }
+
+/* ===== Cabecera estilo MAL ===== */
+.malHead {
+  display: flex;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 12px;
+  background: var(--bg-card, #121215);
+}
+.malCoverWrap {
+  width: 190px;
+  flex-shrink: 0;
+}
+.malCover {
+  width: 100%;
+  border-radius: 10px;
+  object-fit: cover;
+  display: block;
+  background: #000;
+}
+.malCoverEmpty {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 10px;
+  background: var(--bg-surface, #0D0D0F);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  color: var(--text-secondary, #52525B);
+}
+.malBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.malEpisode {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary, #F20D16);
+}
+.malTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text-primary, #FFFFFF);
+}
+.malMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.malChip {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary, #A1A1AA);
+  border: 1px solid var(--border, #27272A);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.malDesc {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-secondary, #A1A1AA);
+}
+.malRatingRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+.malRatingBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--bg-surface, #0D0D0F);
+  border: 1px solid var(--border, #27272A);
+}
+.malRatingVal {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+}
+.malRatingLabel {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary, #A1A1AA);
+}
+.malVotes {
+  font-size: 12px;
+  color: var(--text-secondary, #A1A1AA);
+}
+/* ===== Modos ===== */
+.modes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.modeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 999px;
+  background: var(--bg-card, #121215);
+  color: var(--text-secondary, #A1A1AA);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.modeBtn:hover:not(:disabled) { border-color: var(--primary, #F20D16); color: var(--primary, #F20D16); }
+.modeActive { background: var(--primary, #F20D16); border-color: var(--primary, #F20D16); color: #FFFFFF; }
+.modeBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.chapterModes { display: inline-flex; gap: 4px; flex-shrink: 0; }
+.chapterModes em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-surface, #0D0D0F);
+  border: 1px solid var(--border, #27272A);
+  color: var(--text-secondary, #A1A1AA);
+}
+@media (max-width: 700px) {
+  .malHead { flex-direction: column; }
+  .malCoverWrap { width: 150px; }
+  .malTitle { font-size: 18px; }
+}

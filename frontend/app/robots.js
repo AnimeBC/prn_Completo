@@ -6,7 +6,7 @@ export default function robots() {
         allow: '/',
       },
     ],
-    sitemap: 'https://www.pikantepe.com/sitemap.xml',
-    host: 'https://www.pikantepe.com',
+    sitemap: 'https://pikantepe.com/sitemap.xml',
+    host: 'https://pikantepe.com',
   };
 }

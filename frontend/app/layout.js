@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  metadataBase: new URL('https://www.pikantepe.com'),
+  metadataBase: new URL('https://pikantepe.com'),
   title: {
     default: 'pikante pe — Videos, packs y comunidad picante',
     template: '%s | pikante pe',
@@ -24,12 +24,12 @@ export const metadata = {
   description:
     'pikante pe: la plataforma peruana de videos, packs exclusivos, fetiches, hentai y comunidad en vivo. Contenido picante seleccionado, tendencias y más. Descubre lo mejor en pikantepe.com.',
   keywords: ['pikante pe', 'pikantepe', 'videos', 'packs', 'fetiches', 'hentai', 'tendencias', 'comunidad', 'en vivo', 'contenido picante peru'],
-  authors: [{ name: 'pikante pe', url: 'https://www.pikantepe.com' }],
+  authors: [{ name: 'pikante pe', url: 'https://pikantepe.com' }],
   creator: 'pikante pe',
   publisher: 'pikante pe',
   category: 'entertainment',
   alternates: {
-    canonical: 'https://www.pikantepe.com',
+    canonical: 'https://pikantepe.com',
   },
   robots: {
     index: true,
@@ -57,7 +57,7 @@ export const metadata = {
   openGraph: {
     type: 'website',
     locale: 'es_PE',
-    url: 'https://www.pikantepe.com',
+    url: 'https://pikantepe.com',
     siteName: 'pikante pe',
     title: 'pikante pe — Videos, packs y comunidad picante',
     description:

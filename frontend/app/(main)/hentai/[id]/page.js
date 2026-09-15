@@ -12,12 +12,14 @@ async function resolveEntry(id) {
     numero: c.numero,
     titulo_es: c.titulo_es,
     titulo_en: c.titulo_en,
-    desc_es: c.desc_es,
-    desc_en: c.desc_en,
-    duracion: c.duracion || '00:00',
-    src: mediaUrl(c.src),
-    thumb: c.thumb ? mediaUrl(c.thumb) : '',
-    renditions: Array.isArray(c.renditions) ? c.renditions.map((x) => ({ label: x.label, src: mediaUrl(x.src) })) : [],
+    fuentes: (c.fuentes || []).map((f) => ({
+      id: f.id,
+      modo: f.modo,
+      src: mediaUrl(f.src),
+      thumb: f.thumb ? mediaUrl(f.thumb) : '',
+      duracion: f.duracion || '00:00',
+      renditions: Array.isArray(f.renditions) ? f.renditions.map((x) => ({ label: x.label, src: mediaUrl(x.src) })) : [],
+    })),
   }));
   return {
     title: r.titulo_es || r.titulo_en,
@@ -28,6 +30,13 @@ async function resolveEntry(id) {
     tags: r.tags || [],
     desc: r.desc_es || r.desc_en,
     thumb: mediaUrl(r.cover || r.thumb),
+    tipo: r.tipo || '',
+    anio: r.anio || null,
+    temporada: r.temporada || '',
+    estado: r.estado || '',
+    rating: Number(r.rating || 0),
+    votos: Number(r.votos || 0),
+    modos: r.modos || {},
     capitulos,
   };
 }
@@ -72,8 +81,8 @@ export default async function HentaiPage({ params }) {
         <Sidebar />
         <HentaiPlayer
           hentaiId={id}
-          src={entry?.capitulos?.[0]?.src || ''}
           info={toInfo(entry)}
+          serie={entry}
           capitulos={entry?.capitulos || []}
         />
       </div>

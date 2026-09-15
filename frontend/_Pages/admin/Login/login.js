@@ -131,7 +131,7 @@ export default function AdminLogin() {
           </button>
 
           <p className={styles.foot}>
-            © {new Date().getFullYear()} PIKANTE PE · <a href="https://www.pikantepe.com">pikantepe.com</a>
+            © {new Date().getFullYear()} PIKANTE PE · <a href="https://pikantepe.com">pikantepe.com</a>
           </p>
         </form>
       </div>

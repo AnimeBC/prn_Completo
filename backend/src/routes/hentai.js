@@ -13,15 +13,35 @@ import { slugify, channelSlug } from '../utils/slug.js';
 
 const r = Router();
 
+const MODOS = ['sub', 'es', 'en', 'en_sub'];
+
 function splitTags(v) {
   if (!v) return [];
   const arr = Array.isArray(v) ? v : String(v).split(',');
   return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(0, 20);
 }
 
+function intOrNull(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Number.parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 async function getSerie(id) {
   const { rows } = await query('SELECT * FROM hentai WHERE id = $1', [id]);
   return rows[0] || null;
+}
+
+/** Metadatos por modo: { sub: {...}, es: {...}, en: {...}, en_sub: {...} } */
+async function getModos(hentaiId) {
+  const { rows } = await query(
+    `SELECT modo, titulo, titulo_alt, descripcion, tags, tipo, anio, temporada, estado
+       FROM hentai_modos WHERE hentai_id = $1`,
+    [hentaiId]
+  );
+  const out = {};
+  for (const r of rows) out[r.modo] = r;
+  return out;
 }
 
 async function ensureChannel(nombre) {
@@ -38,8 +58,8 @@ function serieDir(serie) {
   return path.join(hentaiRootDir(), hentaiSerieFolder(serie.slug, serie.id));
 }
 
-/** Transcodifica en segundo plano el capítulo y actualiza la BD. */
-async function finishTranscode({ capId, origPath, destDir }) {
+/** Transcodifica en segundo plano una fuente (modo) y actualiza la BD. */
+async function finishTranscode({ fuenteId, origPath, destDir }) {
   try {
     if (!hasFFmpeg) return;
     const { renditions, poster, duration } = await transcodeVideo({ inputPath: origPath, destDir });
@@ -53,18 +73,18 @@ async function finishTranscode({ capId, origPath, destDir }) {
     const thumb = poster && !cover ? `/media/${rel}/thumbs/poster.jpg` : null;
 
     await query(
-      `UPDATE hentai_capitulos SET
+      `UPDATE hentai_capitulo_fuentes SET
          src = COALESCE($1, src), thumb = COALESCE($2, thumb),
-         renditions = $3::jsonb, duracion = $4, updated_at = NOW()
+         renditions = $3::jsonb, duracion = $4
        WHERE id = $5`,
-      [def?.src || null, thumb, JSON.stringify(list), fmtDuration(duration), capId]
+      [def?.src || null, thumb, JSON.stringify(list), fmtDuration(duration), fuenteId]
     );
     fs.rm(origPath, { force: true }, () => {});
     await cacheDel('cache:stats');
-    await publishEvent('hentai_updated', { id: capId });
-    console.log(`[hentai] capítulo #${capId} listo: ${list.map((x) => x.label).join(', ')}`);
+    await publishEvent('hentai_updated', { id: fuenteId });
+    console.log(`[hentai] fuente #${fuenteId} lista: ${list.map((x) => x.label).join(', ')}`);
   } catch (err) {
-    console.error(`[hentai] transcode capítulo #${capId} falló:`, err.message);
+    console.error(`[hentai] transcode fuente #${fuenteId} falló:`, err.message);
   }
 }
 
@@ -76,8 +96,9 @@ async function finishTranscode({ capId, origPath, destDir }) {
 r.get('/', async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT h.id, h.slug, h.titulo_es, h.titulo_en, h.desc_es, h.desc_en, h.canal,
-              h.thumb, h.cover, h.vistas, h.tags, h.created_at,
+      `SELECT h.id, h.slug, h.titulo_es, h.titulo_en, h.titulo_ja, h.titulo_romaji, h.desc_es, h.desc_en, h.canal,
+              h.thumb, h.cover, h.vistas, h.tags, h.tipo, h.anio, h.temporada, h.estado,
+              h.rating, h.votos, h.created_at,
               (SELECT COUNT(*)::int FROM hentai_capitulos c WHERE c.hentai_id = h.id AND c.activo = TRUE) AS capitulos
          FROM hentai h
         WHERE h.activo = TRUE
@@ -88,7 +109,7 @@ r.get('/', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// GET /api/hentai/:id  -> serie + capítulos
+// GET /api/hentai/:id  -> serie + capítulos (con sus modos sub/es)
 r.get('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -97,13 +118,19 @@ r.get('/:id', async (req, res, next) => {
     if (!serie || !serie.activo) return res.status(404).json({ error: 'Hentai no encontrado' });
 
     const caps = await query(
-      `SELECT id, numero, titulo_es, titulo_en, desc_es, desc_en, src, thumb, duracion, renditions, vistas, created_at
-         FROM hentai_capitulos
-        WHERE hentai_id = $1 AND activo = TRUE
-        ORDER BY numero ASC, id ASC`,
+      `SELECT c.id, c.numero, c.titulo_es, c.titulo_en, c.desc_es, c.desc_en, c.vistas, c.created_at,
+              (SELECT COALESCE(json_agg(json_build_object(
+                        'id', f.id, 'modo', f.modo, 'src', f.src,
+                        'thumb', f.thumb, 'duracion', f.duracion, 'renditions', f.renditions)
+                      ORDER BY f.modo), '[]'::json)
+                 FROM hentai_capitulo_fuentes f
+                WHERE f.capitulo_id = c.id AND f.activo = TRUE) AS fuentes
+         FROM hentai_capitulos c
+        WHERE c.hentai_id = $1 AND c.activo = TRUE
+        ORDER BY c.numero ASC, c.id ASC`,
       [id]
     );
-    res.json({ ...serie, capitulos: caps.rows });
+    res.json({ ...serie, capitulos: caps.rows, modos: await getModos(id) });
   } catch (e) { next(e); }
 });
 
@@ -111,20 +138,42 @@ r.get('/:id', async (req, res, next) => {
 // ADMIN (Bearer)
 // ============================================================
 
-// GET /api/hentai/admin/list  -> todas las series (incluye inactivas) + nº capítulos
+// GET /api/hentai/admin/list?q=&page=&limit=&papelera=
 r.get('/admin/list', authRequired, async (req, res, next) => {
   try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const papelera = String(req.query.papelera) === 'true';
+
+    const params = [];
+    let where = papelera ? 'h.activo = FALSE' : 'h.activo = TRUE';
+    if (q) {
+      params.push(`%${q}%`);
+      where += ` AND (lower(h.titulo_es) LIKE $${params.length}
+                 OR lower(COALESCE(h.titulo_en,'')) LIKE $${params.length}
+                 OR lower(COALESCE(h.titulo_ja,'')) LIKE $${params.length}
+                 OR lower(COALESCE(h.titulo_romaji,'')) LIKE $${params.length}
+                 OR lower(COALESCE(h.canal,'')) LIKE $${params.length})`;
+    }
+
+    const totalQ = await query(`SELECT COUNT(*)::int AS n FROM hentai h WHERE ${where}`, params);
     const { rows } = await query(
       `SELECT h.*, (SELECT COUNT(*)::int FROM hentai_capitulos c WHERE c.hentai_id = h.id AND c.activo = TRUE) AS capitulos
          FROM hentai h
+        WHERE ${where}
         ORDER BY h.id DESC
-        LIMIT 300`
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
     );
-    res.json({ data: rows });
+
+    const total = totalQ.rows[0].n;
+    res.json({ data: rows, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) });
   } catch (e) { next(e); }
 });
 
-// POST /api/hentai  { titulo_es, titulo_en, desc_es, desc_en, canal, tags }
+// POST /api/hentai
 r.post('/', authRequired, async (req, res, next) => {
   try {
     const b = req.body || {};
@@ -133,61 +182,101 @@ r.post('/', authRequired, async (req, res, next) => {
     const canal = String(b.canal || 'administrador pikante.pe').trim().slice(0, 120);
 
     const ins = await query(
-      `INSERT INTO hentai (slug, titulo_es, titulo_en, desc_es, desc_en, canal, tags)
-       VALUES ('tmp-' || gen_random_uuid(), $1, $2, $3, $4, $5, $6)
+      `INSERT INTO hentai
+         (slug, titulo_es, titulo_en, titulo_ja, titulo_romaji, desc_es, desc_en, canal, tags, tipo, anio, temporada, estado, rating, votos)
+       VALUES ('tmp-' || gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING id`,
       [
         titulo,
         String(b.titulo_en || titulo).trim(),
+        b.titulo_ja ? String(b.titulo_ja).trim().slice(0, 200) : null,
+        b.titulo_romaji ? String(b.titulo_romaji).trim().slice(0, 200) : null,
         String(b.desc_es || '').trim(),
         String(b.desc_en || b.desc_es || '').trim(),
         canal,
         splitTags(b.tags),
+        b.tipo ? String(b.tipo).trim().slice(0, 20) : null,
+        intOrNull(b.anio),
+        b.temporada ? String(b.temporada).trim().slice(0, 40) : null,
+        b.estado ? String(b.estado).trim().slice(0, 30) : 'En emisión',
+        Number(b.rating) || 0,
+        intOrNull(b.votos) || 0,
       ]
     );
     const id = ins.rows[0].id;
-    const slug = `${slugify(titulo) || 'anime'}-${id}`;
-    await query('UPDATE hentai SET slug = $2 WHERE id = $1', [id, slug]);
+    await query('UPDATE hentai SET slug = $2 WHERE id = $1', [id, `${slugify(titulo) || 'anime'}-${id}`]);
     await ensureChannel(canal);
 
+    // metadatos del modo principal (subtitulado ES)
+    await query(
+      `INSERT INTO hentai_modos (hentai_id, modo, titulo, titulo_alt, descripcion, tags, tipo, anio, temporada, estado)
+       VALUES ($1, 'sub', $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (hentai_id, modo) DO NOTHING`,
+      [
+        id, titulo,
+        [b.titulo_ja, b.titulo_romaji].filter(Boolean).join(' / ') || null,
+        String(b.desc_es || '').trim() || null,
+        splitTags(b.tags),
+        b.tipo ? String(b.tipo).trim().slice(0, 20) : null,
+        intOrNull(b.anio), b.temporada ? String(b.temporada).trim().slice(0, 40) : null,
+        b.estado ? String(b.estado).trim().slice(0, 30) : 'En emisión',
+      ]
+    );
+
     await publishEvent('hentai_created', { id });
-    const serie = await getSerie(id);
-    res.status(201).json({ ok: true, serie });
+    res.status(201).json({ ok: true, serie: await getSerie(id) });
   } catch (e) { next(e); }
 });
 
-// PUT /api/hentai/:id
+// PUT /api/hentai/:id  { modo, titulo, titulo_alt, descripcion, tags, tipo, anio, temporada, estado, canal }
 r.put('/:id', authRequired, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const serie = await getSerie(id);
     if (!serie) return res.status(404).json({ error: 'Hentai no encontrado' });
     const b = req.body || {};
+    const modo = MODOS.includes(b.modo) ? b.modo : 'sub';
+
+    const titulo = b.titulo !== undefined
+      ? (String(b.titulo).trim().slice(0, 200) || null)
+      : (b.titulo_es !== undefined ? (String(b.titulo_es).trim().slice(0, 200) || null) : null);
+    const tituloAlt = b.titulo_alt !== undefined
+      ? (String(b.titulo_alt).trim().slice(0, 200) || null)
+      : ([b.titulo_ja, b.titulo_romaji].filter(Boolean).join(' / ') || null);
+    const descripcion = b.descripcion !== undefined
+      ? (String(b.descripcion).trim() || null)
+      : (b.desc_es !== undefined ? (String(b.desc_es).trim() || null) : null);
+    const tags = b.tags !== undefined ? splitTags(b.tags) : null;
+    const tipo = b.tipo !== undefined ? (String(b.tipo).trim().slice(0, 20) || null) : null;
+    const anio = b.anio !== undefined ? intOrNull(b.anio) : null;
+    const temporada = b.temporada !== undefined ? (String(b.temporada).trim().slice(0, 40) || null) : null;
+    const estado = b.estado !== undefined ? (String(b.estado).trim().slice(0, 30) || null) : null;
 
     await query(
-      `UPDATE hentai SET
-         titulo_es = COALESCE($2, titulo_es),
-         titulo_en = COALESCE($3, titulo_en),
-         desc_es   = COALESCE($4, desc_es),
-         desc_en   = COALESCE($5, desc_en),
-         canal     = COALESCE($6, canal),
-         tags      = COALESCE($7, tags),
-         updated_at = NOW()
-       WHERE id = $1`,
-      [
-        id,
-        b.titulo_es ?? null,
-        b.titulo_en ?? null,
-        b.desc_es ?? null,
-        b.desc_en ?? null,
-        b.canal ? String(b.canal).trim().slice(0, 120) : null,
-        b.tags !== undefined ? splitTags(b.tags) : null,
-      ]
+      `INSERT INTO hentai_modos (hentai_id, modo, titulo, titulo_alt, descripcion, tags, tipo, anio, temporada, estado)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'), $7, $8, $9, COALESCE($10, 'En emisión'))
+       ON CONFLICT (hentai_id, modo) DO UPDATE SET
+         titulo      = COALESCE($3, hentai_modos.titulo),
+         titulo_alt  = COALESCE($4, hentai_modos.titulo_alt),
+         descripcion = COALESCE($5, hentai_modos.descripcion),
+         tags        = CASE WHEN $6 IS NULL THEN hentai_modos.tags ELSE $6 END,
+         tipo        = COALESCE($7, hentai_modos.tipo),
+         anio        = COALESCE($8, hentai_modos.anio),
+         temporada   = COALESCE($9, hentai_modos.temporada),
+         estado      = COALESCE($10, hentai_modos.estado)`,
+      [id, modo, titulo, tituloAlt, descripcion, tags, tipo, anio, temporada, estado]
     );
-    if (b.canal) await ensureChannel(b.canal);
+
+    // base del anime: canal + título para los listados
+    const canal = b.canal ? String(b.canal).trim().slice(0, 120) : null;
+    await query(
+      `UPDATE hentai SET canal = COALESCE($2, canal), titulo_es = COALESCE($3, titulo_es), updated_at = NOW() WHERE id = $1`,
+      [id, canal, titulo]
+    );
+    if (canal) await ensureChannel(canal);
 
     await publishEvent('hentai_updated', { id });
-    res.json({ ok: true, serie: await getSerie(id) });
+    res.json({ ok: true, serie: await getSerie(id), modos: await getModos(id) });
   } catch (e) { next(e); }
 });
 
@@ -201,6 +290,20 @@ r.delete('/:id', authRequired, async (req, res, next) => {
     );
     if (!rows[0]) return res.status(404).json({ error: 'Hentai no encontrado' });
     await publishEvent('hentai_deleted', { id });
+    res.json({ ok: true, id });
+  } catch (e) { next(e); }
+});
+
+// POST /api/hentai/:id/restore  -> saca de la papelera
+r.post('/:id/restore', authRequired, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const { rows } = await query(
+      'UPDATE hentai SET activo = TRUE, updated_at = NOW() WHERE id = $1 RETURNING id',
+      [id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Hentai no encontrado' });
+    await publishEvent('hentai_updated', { id });
     res.json({ ok: true, id });
   } catch (e) { next(e); }
 });
@@ -226,7 +329,8 @@ r.post('/:id/cover', authRequired, upload.single('thumb'), async (req, res, next
   } catch (e) { next(e); }
 });
 
-// POST /api/hentai/:id/capitulos  (multipart: video, thumb)  { numero, titulo_es, titulo_en, desc_es, desc_en }
+// POST /api/hentai/:id/capitulos  (multipart: video, thumb)
+//   fields: numero, modo ('sub'|'es'), titulo_es, titulo_en, desc_es, desc_en
 r.post('/:id/capitulos', authRequired, upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumb', maxCount: 1 }]), async (req, res, next) => {
   try {
     const serie = await getSerie(Number(req.params.id));
@@ -235,44 +339,43 @@ r.post('/:id/capitulos', authRequired, upload.fields([{ name: 'video', maxCount:
     if (!videoFile) return res.status(400).json({ error: 'Falta el archivo de video' });
 
     const b = req.body || {};
-    let numero = Math.max(1, Number(b.numero) || 0);
+    const modo = MODOS.includes(b.modo) ? b.modo : 'sub';
+
+    let numero = Math.max(1, intOrNull(b.numero) || 0);
     if (!numero) {
       const n = await query('SELECT COALESCE(MAX(numero), 0) + 1 AS n FROM hentai_capitulos WHERE hentai_id = $1', [serie.id]);
       numero = n.rows[0].n;
     }
-    const dup = await query('SELECT id FROM hentai_capitulos WHERE hentai_id = $1 AND numero = $2', [serie.id, numero]);
-    if (dup.rows[0]) return res.status(409).json({ error: `Ya existe el capítulo ${numero}` });
 
+    // ¿Existe el capítulo? (para agregar el otro modo al mismo episodio)
+    let cap = (await query('SELECT * FROM hentai_capitulos WHERE hentai_id = $1 AND numero = $2', [serie.id, numero])).rows[0];
+    if (!cap) {
     const ins = await query(
       `INSERT INTO hentai_capitulos (hentai_id, numero, titulo_es, titulo_en, desc_es, desc_en)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id`,
+       RETURNING *`,
       [
         serie.id,
         numero,
-        b.titulo_es ? String(b.titulo_es).trim().slice(0, 200) : null,
-        b.titulo_en ? String(b.titulo_en).trim().slice(0, 200) : null,
+        (b.titulo_es ? String(b.titulo_es).trim().slice(0, 200) : `${serie.titulo_es || serie.titulo_en || 'Anime'} - Capítulo ${numero}`),
+        (b.titulo_en ? String(b.titulo_en).trim().slice(0, 200) : `${serie.titulo_en || serie.titulo_es || 'Anime'} - Episode ${numero}`),
         b.desc_es ? String(b.desc_es).trim() : null,
         b.desc_en ? String(b.desc_en).trim() : null,
       ]
     );
-    const capId = ins.rows[0].id;
+      cap = ins.rows[0];
+    } else {
+      await query('UPDATE hentai_capitulos SET activo = TRUE, updated_at = NOW() WHERE id = $1', [cap.id]);
+    }
 
-    // carpeta: hentai/<serie>/cap_XX/
-    const destDir = path.join(serieDir(serie), hentaiCapFolder(numero));
+    // carpeta: hentai/<serie>/cap_XXX/<modo>/
+    const destDir = path.join(serieDir(serie), hentaiCapFolder(numero), modo);
     fs.mkdirSync(destDir, { recursive: true });
 
-    const ext = (path.extname(videoFile.filename) || path.extname(videoFile.originalname) || '.mp4').toLowerCase();
-    const origPath = path.join(destDir, `original${/\.(mp4|mov|webm|mkv|avi)$/i.test(ext) ? ext : '.mp4'}`);
-    moveFileSync(videoFile.path, origPath);
-    const src = publicOf(origPath);
+    const src = path.join(destDir, `original${/\.(mp4|mov|webm|mkv|avi)$/i.test(path.extname(videoFile.filename) || '') ? path.extname(videoFile.filename).toLowerCase() : '.mp4'}`);
+    moveFileSync(videoFile.path, src);
 
-    // duración (ffprobe) y portada propia del capítulo
-    try {
-      const info = await probe(origPath);
-      if (info?.duration) await query('UPDATE hentai_capitulos SET duracion = $1 WHERE id = $2', [fmtDuration(info.duration), capId]);
-    } catch { /* sin ffprobe */ }
-
+    // thumb del modo
     let thumb = null;
     const thumbFile = req.files?.thumb?.[0];
     if (thumbFile) {
@@ -284,19 +387,35 @@ r.post('/:id/capitulos', authRequired, upload.fields([{ name: 'video', maxCount:
       thumb = publicOf(target);
     }
 
-    await query('UPDATE hentai_capitulos SET src = $1, thumb = $2 WHERE id = $3', [src, thumb, capId]);
-    // portada de la serie si aún no tiene
+    const fuente = await query(
+      `INSERT INTO hentai_capitulo_fuentes (capitulo_id, modo, src, thumb, duracion, activo)
+       VALUES ($1, $2, $3, $4, '00:00', TRUE)
+       ON CONFLICT (capitulo_id, modo) DO UPDATE
+         SET src = EXCLUDED.src,
+             thumb = COALESCE(EXCLUDED.thumb, hentai_capitulo_fuentes.thumb),
+             activo = TRUE, created_at = NOW()
+       RETURNING id`,
+      [cap.id, modo, publicOf(src), thumb]
+    );
+    const fuenteId = fuente.rows[0].id;
+
+    try {
+      const info = await probe(src);
+      if (info?.duration) {
+        await query('UPDATE hentai_capitulo_fuentes SET duracion = $1 WHERE id = $2', [fmtDuration(info.duration), fuenteId]);
+      }
+    } catch { /* sin ffprobe */ }
+
     if (!serie.thumb) {
-      await query('UPDATE hentai SET thumb = COALESCE(thumb, $2) WHERE id = $1', [serie.id, thumb || src]);
+      await query('UPDATE hentai SET thumb = COALESCE(thumb, $2), cover = COALESCE(cover, $2) WHERE id = $1', [serie.id, thumb || publicOf(src)]);
     }
 
     await cacheDel('cache:stats');
     await publishEvent('hentai_updated', { id: serie.id });
 
-    const cap = await query('SELECT * FROM hentai_capitulos WHERE id = $1', [capId]);
-    res.status(201).json({ ok: true, capitulo: cap.rows[0], processing: hasFFmpeg });
+    res.status(201).json({ ok: true, capitulo: cap, fuenteId, modo, processing: hasFFmpeg });
 
-    finishTranscode({ capId, origPath, destDir });
+    finishTranscode({ fuenteId, origPath: src, destDir });
   } catch (e) { next(e); }
 });
 
@@ -309,8 +428,54 @@ r.delete('/capitulos/:capId', authRequired, async (req, res, next) => {
       [capId]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Capítulo no encontrado' });
+    await query('UPDATE hentai_capitulo_fuentes SET activo = FALSE WHERE capitulo_id = $1', [capId]);
     await publishEvent('hentai_updated', { id: capId });
     res.json({ ok: true, id: capId });
+  } catch (e) { next(e); }
+});
+
+// POST /api/hentai/:id/capitulos/reorder  { order: [capId, ...] }
+r.post('/:id/capitulos/reorder', authRequired, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const serie = await getSerie(id);
+    if (!serie) return res.status(404).json({ error: 'Hentai no encontrado' });
+
+    const order = Array.isArray(req.body?.order)
+      ? req.body.order.map((n) => Number(n)).filter((n) => Number.isInteger(n) && n > 0)
+      : [];
+    if (!order.length) return res.status(400).json({ error: 'Orden inválido' });
+
+    // 1) alejar los números actuales (evita choques del UNIQUE hentai_id+numero)
+    await query('UPDATE hentai_capitulos SET numero = -numero WHERE hentai_id = $1', [id]);
+
+    // 2) asignar el nuevo orden y regenerar el título automático
+    const base = serie.titulo_es || serie.titulo_en || 'Anime';
+    const baseEn = serie.titulo_en || serie.titulo_es || 'Anime';
+    for (let i = 0; i < order.length; i++) {
+      await query(
+        `UPDATE hentai_capitulos
+            SET numero = $2, titulo_es = $3, titulo_en = $4, updated_at = NOW()
+          WHERE id = $1 AND hentai_id = $5`,
+        [order[i], i + 1, `${base} - Capítulo ${i + 1}`, `${baseEn} - Episode ${i + 1}`, id]
+      );
+    }
+
+    await publishEvent('hentai_updated', { id });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/hentai/fuentes/:fuenteId  -> quita solo un modo (sub/es)
+r.delete('/fuentes/:fuenteId', authRequired, async (req, res, next) => {
+  try {
+    const id = Number(req.params.fuenteId);
+    const { rows } = await query(
+      'UPDATE hentai_capitulo_fuentes SET activo = FALSE WHERE id = $1 RETURNING id',
+      [id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Fuente no encontrada' });
+    res.json({ ok: true, id });
   } catch (e) { next(e); }
 });
 

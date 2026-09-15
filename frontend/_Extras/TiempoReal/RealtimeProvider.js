@@ -48,8 +48,13 @@ export function RealtimeProvider({ children }) {
         const data = JSON.parse(e.data);
         setLastEvent(data);
         window.dispatchEvent(new CustomEvent('pikantepe:change', { detail: data }));
-        // refresca datos de los server components (solo cambios de contenido)
-        if (!NO_REFRESH.has(data?.type)) router.refresh();
+        // refresca datos de los server components (solo cambios de contenido).
+        // Se difiere para evitar "Router action dispatched before initialization".
+        if (!NO_REFRESH.has(data?.type)) {
+          setTimeout(() => {
+            try { router.refresh(); } catch { /* router aún no listo */ }
+          }, 80);
+        }
       } catch {
         /* mensaje no JSON */
       }

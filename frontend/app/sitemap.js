@@ -1,6 +1,6 @@
 import { getContenidoServer } from '@/_Extras/Datos/server.js';
 
-const BASE = 'https://www.pikantepe.com';
+const BASE = 'https://pikantepe.com';
 
 export default async function sitemap() {
   const data = await getContenidoServer();
