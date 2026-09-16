@@ -549,14 +549,10 @@ export default function HentaiAdmin() {
           <div className={styles.two}>
             <input className={styles.input} placeholder="Título (ES / principal) *" value={form.titulo_es}
               onChange={(e) => setForm({ ...form, titulo_es: e.target.value })} required />
-            <input className={styles.input} placeholder="Título alterno (JA / EN)" value={form.titulo_ja}
+            <input className={styles.input} placeholder="Título alterno (JA)" value={form.titulo_ja}
               onChange={(e) => setForm({ ...form, titulo_ja: e.target.value })} />
           </div>
           {titulosExtrasUI}
-          {!editing && (
-            <input className={styles.input} placeholder="Title EN" value={form.titulo_en}
-              onChange={(e) => setForm({ ...form, titulo_en: e.target.value })} />
-          )}
           <textarea className={styles.textarea} rows={3} placeholder="Descripción" value={form.desc_es}
             onChange={(e) => setForm({ ...form, desc_es: e.target.value })} />
           {!editing && (
