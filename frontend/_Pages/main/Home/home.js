@@ -3,19 +3,38 @@
 import styles from './home.module.css';
 import Hero from '@/_Pages/main/Home/componentes/hero';
 import Carrusel from '@/_Pages/main/Home/componentes/carrusel';
+import Fila from '@/_Pages/main/Home/componentes/fila';
+import Categorias from '@/_Pages/main/Home/componentes/categorias';
 import Packs from '@/_Pages/main/Home/componentes/packs';
 import Comunidad from '@/_Pages/main/Home/componentes/comunidad';
 import Lives from '@/_Pages/main/Home/componentes/lives';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
+import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 
 export default function HomeClient() {
+  const { t } = useLanguage();
+
   return (
     <main className={styles.main}>
       <div className={styles.sections}>
-      <div className={styles.content}>
-        <Hero />
-        <Carrusel />
+        <div className={styles.content}>
+          <Hero />
+          <Carrusel />
+          <Fila
+            title={t('secciones.todosVideos')}
+            href="/videos"
+            icon="sparkles-outline"
+            source="videos"
+            limit={30}
+          />
+          <Fila
+            title={t('secciones.todosAnimes')}
+            href="/hentai"
+            icon="videocam-outline"
+            source="hentai"
+            limit={30}
+          />
           <AdBanner
             adKey="e483940fff110a871ea3ba9b07dd3259"
             width={728}
@@ -23,6 +42,7 @@ export default function HomeClient() {
             src="https://www.highrevenueformat.com/e483940fff110a871ea3ba9b07dd3259/invoke.js"
           />
           <Packs />
+          <Categorias />
           <Comunidad />
           <AdBanner
             adKey="e483940fff110a871ea3ba9b07dd3259"

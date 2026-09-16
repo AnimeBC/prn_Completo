@@ -360,7 +360,9 @@ export default function HentaiAdmin() {
   /** Sube VARIOS videos de golpe: cada uno crea/llena su episodio en el modo actual. */
   async function uploadEpisodes(files) {
     if (!editing || !files?.length) return;
-    const arr = Array.from(files);
+    // Ordena por nombre natural (1035_1, 1035_2, 1035_10…) para numerar en orden
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    const arr = Array.from(files).sort((a, b) => collator.compare(a.name || '', b.name || ''));
     const label = MODOS.find((m) => m.id === modeTab)?.label;
     setCapBusy(true); setError(''); setMsg('');
     setCapProg({ done: 0, total: arr.length });
