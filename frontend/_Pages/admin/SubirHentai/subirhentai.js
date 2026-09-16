@@ -46,7 +46,7 @@ function pageWindow(current, total) {
   return out;
 }
 
-function DropZone({ accept, file, onFile, icon, label, hint, compact = false }) {
+function DropZone({ accept, file, onFile, onFiles, multiple = false, icon, label, hint, compact = false }) {
   const inputRef = useRef(null);
   const [drag, setDrag] = useState(false);
   const [url, setUrl] = useState('');
@@ -58,12 +58,22 @@ function DropZone({ accept, file, onFile, icon, label, hint, compact = false }) 
     return () => URL.revokeObjectURL(u);
   }, [file]);
 
+  function collect(dt) {
+    if (dt?.files?.length) return Array.from(dt.files);
+    if (dt?.items?.length) return Array.from(dt.items).map((it) => it.getAsFile?.()).filter(Boolean);
+    return [];
+  }
+
+  function handleFiles(files) {
+    if (!files.length) return;
+    if (multiple && onFiles) onFiles(files);
+    else if (files[0] && onFile) onFile(files[0]);
+  }
+
   function handleDrop(e) {
     e.preventDefault();
     setDrag(false);
-    const dt = e.dataTransfer;
-    const f = (dt?.files && dt.files[0]) || (dt?.items && dt.items[0]?.getAsFile?.());
-    if (f) onFile(f);
+    handleFiles(collect(e.dataTransfer));
   }
 
   const isVideo = file && (file.type?.startsWith('video') || /\.(mp4|mov|webm|mkv|avi)$/i.test(file.name || ''));
@@ -84,8 +94,9 @@ function DropZone({ accept, file, onFile, icon, label, hint, compact = false }) 
         ref={inputRef}
         type="file"
         accept={accept}
+        multiple={multiple}
         className={styles.hidden}
-        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f); }}
+        onChange={(e) => { const files = Array.from(e.target.files || []); e.target.value = ''; handleFiles(files); }}
       />
       {file && url ? (
         isVideo
@@ -127,10 +138,11 @@ export default function HentaiAdmin() {
   const editorRef = useRef(null);
 
   const [capForm, setCapForm] = useState({ numero: '1' });
-  const [capVideo, setCapVideo] = useState(null);
-  const [capThumb, setCapThumb] = useState(null);
   const [capBusy, setCapBusy] = useState(false);
+  const [capProg, setCapProg] = useState(null);
   const [dragIdx, setDragIdx] = useState(null);
+  const [editFuenteId, setEditFuenteId] = useState(null);
+  const [thumbBusyId, setThumbBusyId] = useState(null);
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   const shownEpisodes = episodes.filter((c) => (c.fuentes || []).some((f) => f.modo === modeTab));
@@ -238,7 +250,7 @@ export default function HentaiAdmin() {
     setBulkTitulos('');
     setEpisodes([]);
     setCapForm({ numero: '1' });
-    setCapVideo(null); setCapThumb(null);
+    setEditFuenteId(null);
     setMsg(''); setError('');
     editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -345,24 +357,48 @@ export default function HentaiAdmin() {
     } catch { /* noop */ }
   }
 
-  async function uploadEpisode(file) {
-    if (!editing || !file) return;
-    setCapVideo(file);
+  /** Sube VARIOS videos de golpe: cada uno crea/llena su episodio en el modo actual. */
+  async function uploadEpisodes(files) {
+    if (!editing || !files?.length) return;
+    const arr = Array.from(files);
+    const label = MODOS.find((m) => m.id === modeTab)?.label;
     setCapBusy(true); setError(''); setMsg('');
+    setCapProg({ done: 0, total: arr.length });
+    let next = episodes.reduce((m, e) => Math.max(m, Number(e.numero) || 0), 0) + 1;
+    let done = 0;
     try {
-      const fd = new FormData();
-      fd.append('video', file);
-      if (capThumb) fd.append('thumb', capThumb);
-      fd.append('numero', capForm.numero || '');
-      fd.append('modo', modeTab);
-      const r = await fetch(`${API}/api/hentai/${editing.id}/capitulos`, { method: 'POST', headers: authHeaders(), body: fd });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setError(j.error || 'No se pudo subir el episodio'); return; }
-      setMsg(`Ep. ${j.capitulo.numero} · ${MODOS.find((m) => m.id === j.modo)?.label} subido${j.processing ? ' (procesando calidades…)' : ''}.`);
-      setCapThumb(null);
+      for (const file of arr) {
+        const fd = new FormData();
+        fd.append('video', file);
+        fd.append('numero', String(next));
+        fd.append('modo', modeTab);
+        const r = await fetch(`${API}/api/hentai/${editing.id}/capitulos`, { method: 'POST', headers: authHeaders(), body: fd });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) { setError(j.error || `No se pudo subir "${file.name}"`); break; }
+        next += 1; done += 1;
+        setCapProg({ done, total: arr.length });
+      }
+      if (done) setMsg(`${done} de ${arr.length} video(s) subido(s) en «${label}».`);
       refreshEpisodes();
     } catch { setError('No hay conexión con el servidor.'); }
-    finally { setCapBusy(false); }
+    finally { setCapBusy(false); setCapProg(null); }
+  }
+
+  /** Cambia la miniatura (thumb) de un video ya subido. */
+  async function uploadFuenteThumb(fuenteId, file) {
+    if (!file) return;
+    setThumbBusyId(fuenteId); setError(''); setMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('thumb', file);
+      const r = await fetch(`${API}/api/hentai/fuentes/${fuenteId}`, { method: 'PUT', headers: authHeaders(), body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setError(j.error || 'No se pudo subir la miniatura'); return; }
+      setMsg('Miniatura actualizada.');
+      setEditFuenteId(null);
+      refreshEpisodes();
+    } catch { setError('No hay conexión con el servidor.'); }
+    finally { setThumbBusyId(null); }
   }
 
   async function persistOrder(copy) {
@@ -597,37 +633,24 @@ export default function HentaiAdmin() {
       </h4>
 
       <div className={styles.form}>
-        <div className={styles.two}>
-          <input className={styles.input} type="number" min="1" placeholder="N° episodio" value={capForm.numero}
-            onChange={(e) => setCapForm({ ...capForm, numero: e.target.value })} />
-          <div className={styles.modeNow}>
-            <ion-icon name="pricetag-outline" suppressHydrationWarning></ion-icon>
-            Subiendo en: <strong>{MODOS.find((m) => m.id === modeTab)?.label}</strong>
-          </div>
+        <div className={styles.modeNow}>
+          <ion-icon name="pricetag-outline" suppressHydrationWarning></ion-icon>
+          Subiendo en: <strong>{MODOS.find((m) => m.id === modeTab)?.label}</strong>
         </div>
-        <div className={styles.dropCols}>
-          <div className={styles.dropField}>
-            <span className={styles.dropLabel}>
-              <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
-              Video del episodio <em>(se sube solo)</em>
-            </span>
-            <DropZone accept="video/*" file={capVideo} onFile={uploadEpisode} icon="videocam-outline"
-              label="Arrastra el video aquí" hint={`Se sube en modo ${MODOS.find((m) => m.id === modeTab)?.label}`} />
-          </div>
-          <div className={styles.dropField}>
-            <span className={styles.dropLabel}>
-              <ion-icon name="image-outline" suppressHydrationWarning></ion-icon>
-              Miniatura <em>(opcional)</em>
-            </span>
-            <DropZone accept="image/*" file={capThumb} onFile={setCapThumb} icon="image-outline"
-              label="Miniatura" hint="Opcional" compact />
-          </div>
+        <div className={styles.dropField}>
+          <span className={styles.dropLabel}>
+            <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
+            Videos del episodio <em>(puedes soltar varios de golpe)</em>
+          </span>
+          <DropZone accept="video/*" multiple onFiles={uploadEpisodes} icon="cloud-upload-outline"
+            label="Arrastra uno o varios videos aquí"
+            hint={`Se suben en modo ${MODOS.find((m) => m.id === modeTab)?.label} · se numeran solos`} />
         </div>
-        <p className={styles.muted}>El título se genera solo y el orden lo controlas arrastrando. Cada modo tiene su propia lista de videos.</p>
+        <p className={styles.muted}>Cada video crea su episodio (el título se genera solo). Reordénalos arrastrando y usa "Editar" en cada uno para ponerle su miniatura.</p>
         {capBusy && (
           <p className={styles.okMsg}>
             <ion-icon name="sync-outline" className={styles.spin} suppressHydrationWarning></ion-icon>{' '}
-            Subiendo episodio…
+            Subiendo{capProg ? ` ${capProg.done}/${capProg.total}` : ''}…
           </p>
         )}
       </div>
@@ -640,35 +663,58 @@ export default function HentaiAdmin() {
         ) : shownEpisodes.map((c, i) => {
           const fuente = (c.fuentes || []).find((f) => f.modo === modeTab);
           return (
-            <div
-              key={c.id}
-              className={`${styles.capItem} ${dragIdx === i ? styles.capDragging : ''}`}
-              draggable
-              onDragStart={() => setDragIdx(i)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => dropEpisode(i)}
-              onDragEnd={() => setDragIdx(null)}
-            >
-              <ion-icon name="reorder-three-outline" className={styles.dragHandle} suppressHydrationWarning></ion-icon>
-              <div className={styles.orderCol}>
-                <button className={styles.orderBtn} type="button" onClick={() => moveEpisode(i, -1)} disabled={i === 0} aria-label="Subir">
-                  <ion-icon name="chevron-up-outline" suppressHydrationWarning></ion-icon>
-                </button>
-                <span className={styles.orderNum}>{i + 1}</span>
-                <button className={styles.orderBtn} type="button" onClick={() => moveEpisode(i, 1)} disabled={i === shownEpisodes.length - 1} aria-label="Bajar">
-                  <ion-icon name="chevron-down-outline" suppressHydrationWarning></ion-icon>
+            <div key={c.id} className={styles.capRow}>
+              <div
+                className={`${styles.capItem} ${dragIdx === i ? styles.capDragging : ''}`}
+                draggable
+                onDragStart={() => setDragIdx(i)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => dropEpisode(i)}
+                onDragEnd={() => setDragIdx(null)}
+              >
+                <ion-icon name="reorder-three-outline" className={styles.dragHandle} suppressHydrationWarning></ion-icon>
+                <div className={styles.orderCol}>
+                  <button className={styles.orderBtn} type="button" onClick={() => moveEpisode(i, -1)} disabled={i === 0} aria-label="Subir">
+                    <ion-icon name="chevron-up-outline" suppressHydrationWarning></ion-icon>
+                  </button>
+                  <span className={styles.orderNum}>{i + 1}</span>
+                  <button className={styles.orderBtn} type="button" onClick={() => moveEpisode(i, 1)} disabled={i === shownEpisodes.length - 1} aria-label="Bajar">
+                    <ion-icon name="chevron-down-outline" suppressHydrationWarning></ion-icon>
+                  </button>
+                </div>
+                {fuente?.thumb && <img className={styles.capThumb} src={resolveImg(fuente.thumb)} alt="" />}
+                <div className={styles.capInfo}>
+                  <strong>{c.titulo_es || `Capítulo ${c.numero}`}</strong>
+                  <span className={styles.capMeta}>
+                    {(fuente?.duracion || '00:00')} · {MODOS.find((m) => m.id === modeTab)?.label}
+                  </span>
+                </div>
+                {fuente && (
+                  <button className={styles.editBtn} type="button" onClick={() => setEditFuenteId(editFuenteId === fuente.id ? null : fuente.id)} title="Editar miniatura">
+                    <ion-icon name={editFuenteId === fuente.id ? 'close-outline' : 'create-outline'} suppressHydrationWarning></ion-icon>
+                    {editFuenteId === fuente.id ? 'Cerrar' : 'Editar'}
+                  </button>
+                )}
+                <button className={styles.dangerBtn} type="button" onClick={() => deleteFuente(fuente.id)} title="Quitar este video del modo">
+                  <ion-icon name="trash-outline" suppressHydrationWarning></ion-icon>
                 </button>
               </div>
-              {fuente?.thumb && <img className={styles.capThumb} src={resolveImg(fuente.thumb)} alt="" />}
-              <div className={styles.capInfo}>
-                <strong>{c.titulo_es || `Capítulo ${c.numero}`}</strong>
-                <span className={styles.capMeta}>
-                  {(fuente?.duracion || '00:00')} · {MODOS.find((m) => m.id === modeTab)?.label}
-                </span>
-              </div>
-              <button className={styles.dangerBtn} type="button" onClick={() => deleteFuente(fuente.id)} title="Quitar este video del modo">
-                <ion-icon name="trash-outline" suppressHydrationWarning></ion-icon>
-              </button>
+              {fuente && editFuenteId === fuente.id && (
+                <div className={styles.capEditor}>
+                  <span className={styles.dropLabel}>
+                    <ion-icon name="image-outline" suppressHydrationWarning></ion-icon>
+                    Miniatura del video
+                  </span>
+                  <DropZone accept="image/*" onFile={(f) => uploadFuenteThumb(fuente.id, f)} icon="image-outline"
+                    label="Arrastra la miniatura" hint="PNG/JPG · se guarda solo" compact />
+                  {thumbBusyId === fuente.id && (
+                    <p className={styles.okMsg}>
+                      <ion-icon name="sync-outline" className={styles.spin} suppressHydrationWarning></ion-icon>{' '}
+                      Subiendo miniatura…
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

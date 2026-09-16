@@ -548,3 +548,10 @@
 /* ===== Agregar tags en lote ===== */
 .bulkTags{ display:flex; gap:8px; align-items:flex-start; margin-top:8px }
 .bulkInput{ flex:1; min-width:160px; min-height:44px; resize:vertical }
+
+/* ===== Editar miniatura por video ===== */
+.capRow{ display:flex; flex-direction:column; gap:8px }
+.capEditor{ display:flex; flex-direction:column; gap:8px; align-items:flex-start; padding:10px; border:1px dashed var(--border,#3F3F46); border-radius:10px; background:var(--bg-surface,#0D0D0F) }
+.capEditor .drop{ width:100%; max-width:260px }
+.editBtn{ display:inline-flex; align-items:center; gap:5px; padding:7px 12px; border-radius:999px; cursor:pointer; border:1px solid var(--border,#27272A); background:transparent; color:var(--text-secondary,#A1A1AA); font-size:12px; font-weight:700; font-family:inherit; white-space:nowrap }
+.editBtn:hover{ border-color:var(--primary,#F20D16); color:var(--primary,#F20D16) }

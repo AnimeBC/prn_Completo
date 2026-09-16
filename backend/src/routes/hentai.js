@@ -516,6 +516,40 @@ r.delete('/fuentes/:fuenteId', authRequired, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// PUT /api/hentai/fuentes/:fuenteId  (multipart: thumb) -> cambia la miniatura del video
+r.put('/fuentes/:fuenteId', authRequired, upload.single('thumb'), async (req, res, next) => {
+  try {
+    const fuenteId = Number(req.params.fuenteId);
+    if (!Number.isInteger(fuenteId) || fuenteId <= 0) return res.status(404).json({ error: 'Fuente no encontrada' });
+    const { rows } = await query(
+      `SELECT f.id, f.modo, c.hentai_id, c.numero
+         FROM hentai_capitulo_fuentes f
+         JOIN hentai_capitulos c ON c.id = f.capitulo_id
+        WHERE f.id = $1`,
+      [fuenteId]
+    );
+    const fuente = rows[0];
+    if (!fuente) return res.status(404).json({ error: 'Fuente no encontrada' });
+    const serie = await getSerie(fuente.hentai_id);
+    if (!serie) return res.status(404).json({ error: 'Hentai no encontrado' });
+
+    const file = req.file;
+    let thumb = null;
+    if (file) {
+      const dir = path.join(serieDir(serie), hentaiCapFolder(fuente.numero), fuente.modo, 'thumbs');
+      fs.mkdirSync(dir, { recursive: true });
+      const ext = (path.extname(file.filename || file.originalname) || '.jpg').toLowerCase();
+      const target = path.join(dir, `thumb${ext}`);
+      moveFileSync(file.path, target);
+      thumb = publicOf(target);
+    }
+    await query('UPDATE hentai_capitulo_fuentes SET thumb = COALESCE($2, thumb) WHERE id = $1', [fuenteId, thumb]);
+    await cacheDel('cache:stats');
+    await publishEvent('hentai_updated', { id: fuente.hentai_id });
+    res.json({ ok: true, thumb });
+  } catch (e) { next(e); }
+});
+
 // POST /api/hentai/capitulos/:capId/view
 r.post('/capitulos/:capId/view', async (req, res, next) => {
   try {
