@@ -10,9 +10,10 @@ import Preview from '@/_Pages/main/Home/componentes/preview';
 const BATCH = 5;
 const INITIAL = 6;
 
-export default function Recomendados({ currentId }) {
+export default function Recomendados({ currentId, title = 'A continuación', kind = 'video' }) {
   const router = useRouter();
-  const { videos: items } = useContenido();
+  const { videos, hentai } = useContenido();
+  const items = kind === 'hentai' ? hentai : videos;
 
   // Meta del video actual para calcular relación (mismo canal + tags compartidos)
   const CURRENT_META = Object.fromEntries(
@@ -70,13 +71,13 @@ export default function Recomendados({ currentId }) {
   }, [hasMore, list.length]);
 
   function go(id) {
-    router.push(`/videos/${id}`);
+    router.push(kind === 'hentai' ? `/hentai/${id}` : `/videos/${id}`);
   }
 
   return (
     <aside className={styles.side}>
       <div className={styles.sideHead}>
-        <h3 className={styles.sideTitle}>A continuación</h3>
+        <h3 className={styles.sideTitle}>{title}</h3>
         <ion-icon name="options-outline" className={styles.filterIcon} suppressHydrationWarning></ion-icon>
       </div>
 

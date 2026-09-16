@@ -115,7 +115,7 @@ export default function PackDetalle({ packId }) {
   const active = shown[idx] || photos[0] || videos[0] || null;
   const isPhoto = active?.type !== 'video';
 
-  const perPage = isMobile ? 9 : 15;
+  const perPage = isMobile ? 6 : 8;
   const totalPages = Math.max(1, Math.ceil(shown.length / perPage));
   const pageSafe = Math.min(page, totalPages - 1);
   const paged = shown.slice(pageSafe * perPage, pageSafe * perPage + perPage);
@@ -345,82 +345,6 @@ export default function PackDetalle({ packId }) {
             )}
           </div>
 
-          {/* ===== Galería: pestañas + cuadrícula ===== */}
-          {items.length > 0 && (
-            <div className={styles.galleryWrap}>
-              <div className={styles.gTabs}>
-                {photos.length > 0 && (
-                  <button type="button" className={`${styles.gTab} ${tab !== 'video' ? styles.gTabActive : ''}`} onClick={() => selectTab('foto')}>
-                    <ion-icon name="image-outline" suppressHydrationWarning></ion-icon>
-                    {t('packs.fotos')}
-                    <span className={styles.gCount}>{photos.length}</span>
-                  </button>
-                )}
-                {videos.length > 0 && (
-                  <button type="button" className={`${styles.gTab} ${tab === 'video' ? styles.gTabActive : ''}`} onClick={() => selectTab('video')}>
-                    <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
-                    {t('packs.videos')}
-                    <span className={styles.gCount}>{videos.length}</span>
-                  </button>
-                )}
-              </div>
-
-              <div className={styles.gGrid}>
-                {paged.map((it, i) => {
-                  const gi = pageSafe * perPage + i;
-                  return (
-                    <button
-                      key={`${tab}-${gi}`}
-                      type="button"
-                      className={styles.gItem}
-                      onClick={() => selectItem(gi)}
-                      title={it.type === 'video' ? 'Video' : 'Foto'}
-                    >
-                      {it.type === 'video' ? (
-                        <>
-                          <span className={styles.gVideo} style={it.thumb ? { backgroundImage: `url(${it.thumb})` } : undefined} />
-                          <span className={styles.gPlay}><ion-icon name="play" suppressHydrationWarning></ion-icon></span>
-                          {it.duracion && <span className={styles.gDur}>{it.duracion}</span>}
-                        </>
-                      ) : (
-                        <SecureImage className={styles.gImg} src={it.src} fill fit="cover" pos={{ x: 0.5, y: 0.5 }} />
-                      )}
-                      {gi === idx && (
-                        <span className={styles.gCheck}>
-                          <ion-icon name="checkmark" suppressHydrationWarning></ion-icon>
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {totalPages > 1 && (
-                <div className={styles.gPager}>
-                  <button
-                    type="button"
-                    className={styles.gPageBtn}
-                    disabled={pageSafe <= 0}
-                    onClick={() => setPage((p) => Math.max(0, Math.min(totalPages - 1, p) - 1))}
-                    aria-label={es ? 'Página anterior' : 'Previous page'}
-                  >
-                    <ion-icon name="chevron-back-outline" suppressHydrationWarning></ion-icon>
-                  </button>
-                  <span className={styles.gPageInfo}>{pageSafe + 1} / {totalPages}</span>
-                  <button
-                    type="button"
-                    className={styles.gPageBtn}
-                    disabled={pageSafe >= totalPages - 1}
-                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                    aria-label={es ? 'Página siguiente' : 'Next page'}
-                  >
-                    <ion-icon name="chevron-forward-outline" suppressHydrationWarning></ion-icon>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
           <DescargaModal
             open={dlOpen}
             onClose={() => setDlOpen(false)}
@@ -528,6 +452,83 @@ export default function PackDetalle({ packId }) {
         </div>
 
         <div className={styles.rightCol}>
+          {/* ===== Galería: pestañas Fotos / Videos + cuadrícula ===== */}
+          {items.length > 0 && (
+            <div className={`${styles.galleryWrap} ${styles.gallerySide}`}>
+              <h3 className={styles.sideTitle}>{es ? 'Fotos y videos' : 'Photos & videos'}</h3>
+              <div className={styles.gTabs}>
+                {photos.length > 0 && (
+                  <button type="button" className={`${styles.gTab} ${tab !== 'video' ? styles.gTabActive : ''}`} onClick={() => selectTab('foto')}>
+                    <ion-icon name="image-outline" suppressHydrationWarning></ion-icon>
+                    {t('packs.fotos')}
+                    <span className={styles.gCount}>{photos.length}</span>
+                  </button>
+                )}
+                {videos.length > 0 && (
+                  <button type="button" className={`${styles.gTab} ${tab === 'video' ? styles.gTabActive : ''}`} onClick={() => selectTab('video')}>
+                    <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
+                    {t('packs.videos')}
+                    <span className={styles.gCount}>{videos.length}</span>
+                  </button>
+                )}
+              </div>
+
+              <div className={styles.gGrid}>
+                {paged.map((it, i) => {
+                  const gi = pageSafe * perPage + i;
+                  return (
+                    <button
+                      key={`${tab}-${gi}`}
+                      type="button"
+                      className={styles.gItem}
+                      onClick={() => selectItem(gi)}
+                      title={it.type === 'video' ? 'Video' : 'Foto'}
+                    >
+                      {it.type === 'video' ? (
+                        <>
+                          <span className={styles.gVideo} style={it.thumb ? { backgroundImage: `url(${it.thumb})` } : undefined} />
+                          <span className={styles.gPlay}><ion-icon name="play" suppressHydrationWarning></ion-icon></span>
+                          {it.duracion && <span className={styles.gDur}>{it.duracion}</span>}
+                        </>
+                      ) : (
+                        <SecureImage className={styles.gImg} src={it.src} fill fit="cover" pos={{ x: 0.5, y: 0.5 }} />
+                      )}
+                      {gi === idx && (
+                        <span className={styles.gCheck}>
+                          <ion-icon name="checkmark" suppressHydrationWarning></ion-icon>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {totalPages > 1 && (
+                <div className={styles.gPager}>
+                  <button
+                    type="button"
+                    className={styles.gPageBtn}
+                    disabled={pageSafe <= 0}
+                    onClick={() => setPage((p) => Math.max(0, Math.min(totalPages - 1, p) - 1))}
+                    aria-label={es ? 'Página anterior' : 'Previous page'}
+                  >
+                    <ion-icon name="chevron-back-outline" suppressHydrationWarning></ion-icon>
+                  </button>
+                  <span className={styles.gPageInfo}>{pageSafe + 1} / {totalPages}</span>
+                  <button
+                    type="button"
+                    className={styles.gPageBtn}
+                    disabled={pageSafe >= totalPages - 1}
+                    onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                    aria-label={es ? 'Página siguiente' : 'Next page'}
+                  >
+                    <ion-icon name="chevron-forward-outline" suppressHydrationWarning></ion-icon>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           <h3 className={styles.sideTitle}>{t('packs.relacionados')}</h3>
           <div className={styles.stack}>
             {relacionados.map((r) => (

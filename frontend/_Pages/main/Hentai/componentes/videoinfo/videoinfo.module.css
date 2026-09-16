@@ -95,13 +95,12 @@
 }
 
 .ratioLabels {
-  position: absolute;
-  top: calc(100% + 3px);
-  left: 0;
-  right: 0;
+  position: static;
   display: flex;
-  gap: 2px;
-  font-size: 8px;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.02em;
@@ -406,3 +405,38 @@
     font-size: 12px;
   }
 }
+
+/* ===== Titulo + titulos alternos (linea horizontal) ===== */
+.videoHead{ display:flex; flex-direction:column; gap:8px; }
+.headLine{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; }
+.headLine .videoTitle{ margin:0; }
+.episodeLabel{
+  display:inline-flex; align-items:center; gap:5px; white-space:nowrap;
+  font-size:13px; font-weight:700; color:var(--primary,#F20D16);
+}
+.episodeLabel ion-icon{ font-size:15px }
+.altTitles{ display:inline-flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; }
+.altLabel{ font-size:10.5px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:var(--text-secondary,#71717A) }
+.altTitle{ font-size:12.5px; color:var(--text-secondary,#A1A1AA); font-style:italic }
+.altTitle + .altTitle{ padding-left:8px; border-left:1px solid var(--border,#27272A) }
+.headChips{ display:inline-flex; flex-wrap:wrap; gap:6px }
+.headChip{
+  font-size:11px; font-weight:700; color:var(--text-secondary,#A1A1AA);
+  border:1px solid var(--border,#27272A); border-radius:999px; padding:2px 9px; white-space:nowrap;
+}
+
+/* ===== Botón seguir (canal) ===== */
+.followBtn{
+  display:inline-flex; align-items:center; gap:6px;
+  height:36px; padding:0 16px; margin-left:4px;
+  border-radius:999px; border:1px solid var(--primary,#F20D16);
+  background:var(--primary,#F20D16); color:#FFFFFF;
+  font-size:13px; font-weight:800; cursor:pointer; white-space:nowrap; font-family:inherit;
+}
+.followBtn:hover{ background:var(--primary-hover,#FF1A1A); border-color:var(--primary-hover,#FF1A1A); }
+.followBtn:active{ transform:scale(.98); }
+.following{ background:transparent; color:var(--text-primary,#FFFFFF); border-color:var(--border,#3F3F46); }
+.following:hover{ background:rgba(242,13,22,0.1); border-color:var(--primary,#F20D16); color:var(--primary,#F20D16); }
+.followIcon{ font-size:16px; }
+
+.avatarImg{ object-fit:cover; display:block; }

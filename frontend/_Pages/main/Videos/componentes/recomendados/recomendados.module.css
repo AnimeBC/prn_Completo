@@ -27,28 +27,7 @@
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background-color: var(--bg-card, #121215);
-  border: 1px solid var(--border, #27272A);
-  border-radius: 12px;
-  padding: 12px;
-  max-height: 510px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--primary, #F20D16) transparent;
-}
-
-.stack::-webkit-scrollbar {
-  width: 6px;
-}
-
-.stack::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.stack::-webkit-scrollbar-thumb {
-  background: var(--primary, #F20D16);
-  border-radius: 3px;
+  gap: 14px;
 }
 
 .card {
@@ -156,11 +135,6 @@
 /* Light theme */
 [data-theme="light"] .thumb {
   background-color: #E4E4E7;
-}
-
-[data-theme="light"] .stack {
-  background-color: #FFFFFF;
-  border-color: #E4E4E7;
 }
 
 /* Responsive */

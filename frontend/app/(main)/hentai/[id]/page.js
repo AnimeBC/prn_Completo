@@ -23,6 +23,10 @@ async function resolveEntry(id) {
   }));
   return {
     title: r.titulo_es || r.titulo_en,
+    titulo_es: r.titulo_es || '',
+    titulo_ja: r.titulo_ja || '',
+    titulo_en: r.titulo_en || '',
+    titulo_romaji: r.titulo_romaji || '',
     viewsFull: `${Number(r.vistas || 0).toLocaleString('es-PE')} vistas`,
     date: r.created_at,
     channel: r.canal,

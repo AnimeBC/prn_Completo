@@ -54,6 +54,17 @@ async function ensureChannel(nombre) {
   );
 }
 
+/** Guarda los tags usados en el catálogo propio de hentai (para sugerirlos). */
+async function saveHentaiTags(tags) {
+  for (const name of splitTags(tags)) {
+    const slug = slugify(name) || name.toLowerCase().slice(0, 60);
+    await query(
+      'INSERT INTO hentai_tags (nombre, slug) VALUES ($1, $2) ON CONFLICT (nombre) DO NOTHING',
+      [name.slice(0, 60), slug]
+    );
+  }
+}
+
 function serieDir(serie) {
   return path.join(hentaiRootDir(), hentaiSerieFolder(serie.slug, serie.id));
 }
@@ -106,6 +117,14 @@ r.get('/', async (req, res, next) => {
         LIMIT 300`
     );
     res.json({ data: rows, total: rows.length });
+  } catch (e) { next(e); }
+});
+
+// GET /api/hentai/tags  -> tags propios del hentai
+r.get('/tags', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT nombre FROM hentai_tags ORDER BY nombre ASC');
+    res.json({ data: rows.map((t) => t.nombre) });
   } catch (e) { next(e); }
 });
 
@@ -223,6 +242,7 @@ r.post('/', authRequired, async (req, res, next) => {
       ]
     );
 
+    await saveHentaiTags(b.tags);
     await publishEvent('hentai_created', { id });
     res.status(201).json({ ok: true, serie: await getSerie(id) });
   } catch (e) { next(e); }
@@ -274,6 +294,7 @@ r.put('/:id', authRequired, async (req, res, next) => {
       [id, canal, titulo]
     );
     if (canal) await ensureChannel(canal);
+    if (tags) await saveHentaiTags(tags);
 
     await publishEvent('hentai_updated', { id });
     res.json({ ok: true, serie: await getSerie(id), modos: await getModos(id) });
@@ -486,6 +507,143 @@ r.post('/capitulos/:capId/view', async (req, res, next) => {
     if (!capId) return res.status(400).json({ error: 'Capítulo inválido' });
     await query('UPDATE hentai_capitulos SET vistas = COALESCE(vistas, 0) + 1 WHERE id = $1', [capId]);
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// ============================================================
+// INTERACCIONES de capítulos (like/save/report/download)
+// ============================================================
+
+function uk(value) {
+  const k = String(value || '').trim();
+  return k || null;
+}
+
+async function getCapStats(capId, userKey) {
+  const { rows } = await query(
+    `SELECT
+       (SELECT COUNT(*)::int FROM hentai_likes WHERE capitulo_id = $1 AND tipo = 'like')    AS likes,
+       (SELECT COUNT(*)::int FROM hentai_likes WHERE capitulo_id = $1 AND tipo = 'dislike') AS dislikes,
+       (SELECT COUNT(*)::int FROM hentai_saved WHERE capitulo_id = $1)                      AS saves,
+       (SELECT COUNT(*)::int FROM hentai_downloads WHERE capitulo_id = $1)                  AS downloads,
+       (SELECT COALESCE(vistas, 0) FROM hentai_capitulos WHERE id = $1)                     AS views,
+       (SELECT COUNT(*)::int FROM subscriptions s
+          JOIN hentai_capitulos c ON c.id = $1
+          JOIN hentai h ON h.id = c.hentai_id
+         WHERE s.channel = h.canal)                                                          AS subscribers`,
+    [capId]
+  );
+  const s = rows[0] || {};
+  let myVote = null, saved = false, following = false, reported = false;
+  if (userKey) {
+    const v = await query('SELECT tipo FROM hentai_likes WHERE capitulo_id = $1 AND user_key = $2', [capId, userKey]);
+    myVote = v.rows[0]?.tipo || null;
+    const sv = await query('SELECT 1 FROM hentai_saved WHERE capitulo_id = $1 AND user_key = $2', [capId, userKey]);
+    saved = !!sv.rows[0];
+    const rp = await query('SELECT 1 FROM hentai_reports WHERE capitulo_id = $1 AND user_key = $2 LIMIT 1', [capId, userKey]);
+    reported = !!rp.rows[0];
+    const f = await query(
+      `SELECT 1 FROM subscriptions s
+         JOIN hentai_capitulos c ON c.id = $1
+         JOIN hentai h ON h.id = c.hentai_id
+        WHERE s.channel = h.canal AND s.user_key = $2`,
+      [capId, userKey]
+    );
+    following = !!f.rows[0];
+  }
+  return { capituloId: capId, ...s, myVote, saved, following, reported };
+}
+
+// GET /api/hentai/capitulos/:capId/interactions?userKey=
+r.get('/capitulos/:capId/interactions', async (req, res, next) => {
+  try {
+    const capId = Number(req.params.capId);
+    if (!capId) return res.status(404).json({ error: 'Capítulo no encontrado' });
+    const exists = await query('SELECT id FROM hentai_capitulos WHERE id = $1', [capId]);
+    if (!exists.rows[0]) return res.status(404).json({ error: 'Capítulo no encontrado' });
+    res.json(await getCapStats(capId, uk(req.query.userKey)));
+  } catch (e) { next(e); }
+});
+
+// POST /api/hentai/capitulos/:capId/like  { userKey, tipo: 'like'|'dislike'|'none' }
+r.post('/capitulos/:capId/like', async (req, res, next) => {
+  try {
+    const capId = Number(req.params.capId);
+    if (!capId) return res.status(404).json({ error: 'Capítulo no encontrado' });
+    const exists = await query('SELECT id FROM hentai_capitulos WHERE id = $1', [capId]);
+    if (!exists.rows[0]) return res.status(404).json({ error: 'Capítulo no encontrado' });
+
+    const userKey = uk(req.body?.userKey);
+    if (!userKey) return res.status(400).json({ error: 'userKey requerido' });
+    const tipo = req.body?.tipo;
+
+    if (tipo === 'like' || tipo === 'dislike') {
+      await query(
+        `INSERT INTO hentai_likes (capitulo_id, user_key, tipo) VALUES ($1, $2, $3)
+         ON CONFLICT (capitulo_id, user_key) DO UPDATE SET tipo = EXCLUDED.tipo, created_at = NOW()`,
+        [capId, userKey, tipo]
+      );
+    } else {
+      await query('DELETE FROM hentai_likes WHERE capitulo_id = $1 AND user_key = $2', [capId, userKey]);
+    }
+    await publishEvent('hentai_like', { id: capId });
+    res.json(await getCapStats(capId, userKey));
+  } catch (e) { next(e); }
+});
+
+// POST /api/hentai/capitulos/:capId/save  { userKey }  (toggle)
+r.post('/capitulos/:capId/save', async (req, res, next) => {
+  try {
+    const capId = Number(req.params.capId);
+    if (!capId) return res.status(404).json({ error: 'Capítulo no encontrado' });
+    const exists = await query('SELECT id FROM hentai_capitulos WHERE id = $1', [capId]);
+    if (!exists.rows[0]) return res.status(404).json({ error: 'Capítulo no encontrado' });
+
+    const userKey = uk(req.body?.userKey);
+    if (!userKey) return res.status(400).json({ error: 'userKey requerido' });
+
+    const cur = await query('SELECT 1 FROM hentai_saved WHERE capitulo_id = $1 AND user_key = $2', [capId, userKey]);
+    if (cur.rows[0]) await query('DELETE FROM hentai_saved WHERE capitulo_id = $1 AND user_key = $2', [capId, userKey]);
+    else await query('INSERT INTO hentai_saved (capitulo_id, user_key) VALUES ($1, $2) ON CONFLICT DO NOTHING', [capId, userKey]);
+
+    await publishEvent('hentai_save', { id: capId });
+    res.json(await getCapStats(capId, userKey));
+  } catch (e) { next(e); }
+});
+
+// POST /api/hentai/capitulos/:capId/report  { userKey, motivo, detalle }
+r.post('/capitulos/:capId/report', async (req, res, next) => {
+  try {
+    const capId = Number(req.params.capId);
+    if (!capId) return res.status(404).json({ error: 'Capítulo no encontrado' });
+    const exists = await query('SELECT id FROM hentai_capitulos WHERE id = $1', [capId]);
+    if (!exists.rows[0]) return res.status(404).json({ error: 'Capítulo no encontrado' });
+
+    const userKey = uk(req.body?.userKey);
+    const motivo = String(req.body?.motivo || 'otro').trim().slice(0, 60) || 'otro';
+    const detalle = req.body?.detalle ? String(req.body.detalle).trim().slice(0, 1000) : null;
+
+    await query(
+      `INSERT INTO hentai_reports (capitulo_id, user_key, motivo, detalle) VALUES ($1, $2, $3, $4)`,
+      [capId, userKey, motivo, detalle]
+    );
+    await publishEvent('hentai_report', { id: capId });
+    res.json({ ok: true, reported: true });
+  } catch (e) { next(e); }
+});
+
+// POST /api/hentai/capitulos/:capId/download  { userKey }
+r.post('/capitulos/:capId/download', async (req, res, next) => {
+  try {
+    const capId = Number(req.params.capId);
+    if (!capId) return res.status(404).json({ error: 'Capítulo no encontrado' });
+    const exists = await query('SELECT id FROM hentai_capitulos WHERE id = $1', [capId]);
+    if (!exists.rows[0]) return res.status(404).json({ error: 'Capítulo no encontrado' });
+
+    const userKey = uk(req.body?.userKey);
+    await query('INSERT INTO hentai_downloads (capitulo_id, user_key) VALUES ($1, $2)', [capId, userKey]);
+    await publishEvent('hentai_download', { id: capId });
+    res.json(await getCapStats(capId, userKey));
   } catch (e) { next(e); }
 });
 

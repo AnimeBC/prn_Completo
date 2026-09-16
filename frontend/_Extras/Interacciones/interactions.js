@@ -55,3 +55,12 @@ export const savePack = (id) => post(`/api/packs/${id}/save`, { userKey: getUser
 export const sharePack = (id, red) => post(`/api/packs/${id}/share`, { userKey: getUserKey(), red });
 export const viewPack = (id) => post(`/api/packs/${id}/view`, {});
 export const downloadPack = (id) => post(`/api/packs/${id}/download`, { userKey: getUserKey() });
+
+/* ---------- hentai (capítulos) ---------- */
+export const getHentaiInteractions = (capId) =>
+  api(`/api/hentai/capitulos/${capId}/interactions?userKey=${encodeURIComponent(getUserKey())}`);
+export const likeHentai = (capId, tipo) => post(`/api/hentai/capitulos/${capId}/like`, { userKey: getUserKey(), tipo });
+export const saveHentai = (capId) => post(`/api/hentai/capitulos/${capId}/save`, { userKey: getUserKey() });
+export const reportHentai = (capId, motivo, detalle) => post(`/api/hentai/capitulos/${capId}/report`, { userKey: getUserKey(), motivo, detalle });
+export const downloadHentai = (capId) => post(`/api/hentai/capitulos/${capId}/download`, { userKey: getUserKey() });
+export const viewHentai = (capId) => post(`/api/hentai/capitulos/${capId}/view`, { userKey: getUserKey() });

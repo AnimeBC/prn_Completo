@@ -15,7 +15,7 @@ const FALLBACK = [
   { slug: 'otro', nombre: 'Otro motivo' },
 ];
 
-export default function ReportModal({ open, onClose, videoId, onReported }) {
+export default function ReportModal({ open, onClose, videoId, onReported, submitFn = null, title = null }) {
   const { locale } = useLanguage();
   const es = locale !== 'en';
 
@@ -56,7 +56,7 @@ export default function ReportModal({ open, onClose, videoId, onReported }) {
     e.preventDefault();
     setSending(true);
     setError('');
-    const d = await reportVideo(videoId, motivo, detalle);
+    const d = submitFn ? await submitFn(motivo, detalle) : await reportVideo(videoId, motivo, detalle);
     setSending(false);
     if (!d) {
       setError(es ? 'No se pudo enviar el reporte. Intenta de nuevo.' : 'Could not send the report.');
@@ -98,7 +98,7 @@ export default function ReportModal({ open, onClose, videoId, onReported }) {
                 <ion-icon name="flag-outline" suppressHydrationWarning></ion-icon>
               </span>
               <div>
-                <h3 className={styles.title}>{es ? 'Reportar video' : 'Report video'}</h3>
+                <h3 className={styles.title}>{title || (es ? 'Reportar video' : 'Report video')}</h3>
                 <p className={styles.sub}>{es ? 'Elige el motivo y lo revisamos.' : 'Pick a reason and we will review it.'}</p>
               </div>
             </div>

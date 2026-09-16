@@ -39,11 +39,15 @@ function updateLike(list, id, myLike, likes) {
   }));
 }
 
-export default function Comentarios({ videoId, packId }) {
+export default function Comentarios({ videoId, packId, hentaiCapId }) {
   const { t, locale } = useLanguage();
   const es = locale !== 'en';
 
-  const base = packId ? `/api/packs/${packId}/comments` : `/api/videos/${videoId}/comments`;
+  const base = hentaiCapId
+    ? `/api/hentai/capitulos/${hentaiCapId}/comments`
+    : packId
+      ? `/api/packs/${packId}/comments`
+      : `/api/videos/${videoId}/comments`;
 
   const [comments, setComments] = useState([]);
   const [total, setTotal] = useState(0);

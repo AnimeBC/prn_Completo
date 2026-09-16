@@ -45,7 +45,7 @@ function pageWindow(current, total) {
   return out;
 }
 
-function DropZone({ accept, file, onFile, icon, label, hint }) {
+function DropZone({ accept, file, onFile, icon, label, hint, compact = false }) {
   const inputRef = useRef(null);
   const [drag, setDrag] = useState(false);
   const [url, setUrl] = useState('');
@@ -69,7 +69,7 @@ function DropZone({ accept, file, onFile, icon, label, hint }) {
 
   return (
     <div
-      className={`${styles.drop} ${drag ? styles.dropOn : ''} ${file ? styles.dropHas : ''}`}
+      className={`${styles.drop} ${compact ? styles.dropSm : ''} ${drag ? styles.dropOn : ''} ${file ? styles.dropHas : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => inputRef.current?.click()}
@@ -131,7 +131,7 @@ export default function HentaiAdmin() {
   const shownEpisodes = episodes.filter((c) => (c.fuentes || []).some((f) => f.modo === modeTab));
 
   useEffect(() => {
-    fetch(`${API}/api/tags`).then((r) => (r.ok ? r.json() : { data: [] })).then((d) => setAllTags(d.data || [])).catch(() => {});
+    fetch(`${API}/api/hentai/tags`).then((r) => (r.ok ? r.json() : { data: [] })).then((d) => setAllTags(d.data || [])).catch(() => {});
   }, []);
 
   const loadList = useCallback(async (query, t, p) => {
@@ -518,11 +518,23 @@ export default function HentaiAdmin() {
             Subiendo en: <strong>{MODOS.find((m) => m.id === modeTab)?.label}</strong>
           </div>
         </div>
-        <div className={styles.dropGrid}>
-          <DropZone accept="image/*" file={capThumb} onFile={setCapThumb} icon="image-outline"
-            label="Miniatura (opcional)" hint="Elige la miniatura antes de soltar el video" />
-          <DropZone accept="video/*" file={capVideo} onFile={uploadEpisode} icon="videocam-outline"
-            label="Suelta el video aquí" hint={`Se sube solo en modo ${MODOS.find((m) => m.id === modeTab)?.label}`} />
+        <div className={styles.dropCols}>
+          <div className={styles.dropField}>
+            <span className={styles.dropLabel}>
+              <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
+              Video del episodio <em>(se sube solo)</em>
+            </span>
+            <DropZone accept="video/*" file={capVideo} onFile={uploadEpisode} icon="videocam-outline"
+              label="Arrastra el video aquí" hint={`Se sube en modo ${MODOS.find((m) => m.id === modeTab)?.label}`} />
+          </div>
+          <div className={styles.dropField}>
+            <span className={styles.dropLabel}>
+              <ion-icon name="image-outline" suppressHydrationWarning></ion-icon>
+              Miniatura <em>(opcional)</em>
+            </span>
+            <DropZone accept="image/*" file={capThumb} onFile={setCapThumb} icon="image-outline"
+              label="Miniatura" hint="Opcional" compact />
+          </div>
         </div>
         <p className={styles.muted}>El título se genera solo y el orden lo controlas arrastrando. Cada modo tiene su propia lista de videos.</p>
         {capBusy && (

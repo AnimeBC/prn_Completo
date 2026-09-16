@@ -6,6 +6,7 @@ import HentaiReproductor from '@/_Pages/main/Hentai/componentes/reproductor';
 import HentaiInfo from '@/_Pages/main/Hentai/componentes/videoinfo';
 import Recomendados from '@/_Pages/main/Videos/componentes/recomendados';
 import MasHentai from '@/_Pages/main/Hentai/componentes/masvideos';
+import Comentarios from '@/_Pages/main/Videos/componentes/comentarios';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 
 const MODOS = [
@@ -59,33 +60,23 @@ export default function HentaiPlayer({ hentaiId, info = null, serie = null, capi
     setModo(pickModo(c, modo));
   }
 
-  const malHeader = (
-    <header className={styles.malHead}>
-      <div className={styles.malCoverWrap}>
-        {serie?.thumb
-          ? <img className={styles.malCover} src={serie.thumb} alt="" />
-          : <span className={styles.malCoverEmpty}><ion-icon name="images-outline" suppressHydrationWarning></ion-icon></span>}
-      </div>
-      <div className={styles.malBody}>
-        {activeCap && <p className={styles.malEpisode}>Episodio {activeCap.numero} · {modoLabel(modo)}</p>}
-        <h1 className={styles.malTitle}>{meta.title || `Anime #${hentaiId}`}</h1>
-        <div className={styles.malMeta}>
-          {meta.tipo && <span className={styles.malChip}>{meta.tipo}</span>}
-          {meta.anio && <span className={styles.malChip}>{meta.anio}</span>}
-          {meta.temporada && <span className={styles.malChip}>{meta.temporada}</span>}
-          {meta.estado && <span className={styles.malChip}>{meta.estado}</span>}
-        </div>
-        {meta.desc && <p className={styles.malDesc}>{meta.desc}</p>}
-        <div className={styles.malRatingRow}>
-          <div className={styles.malRatingBox}>
-            <span className={styles.malRatingVal}>{Number(serie?.rating || 0).toFixed(1)}</span>
-            <span className={styles.malRatingLabel}>MAL RATING</span>
-          </div>
-          <span className={styles.malVotes}>{Number(serie?.votos || 0).toLocaleString('es-PE')} Votos</span>
-        </div>
-      </div>
-    </header>
-  );
+  // Títulos alternos disponibles (ES / JA / romaji / EN), sin repetir el principal
+  const altTitles = [...new Set(
+    [serie?.titulo_es, serie?.titulo_ja, serie?.titulo_romaji, serie?.titulo_en]
+      .map((x) => String(x || '').trim())
+      .filter(Boolean)
+  )].filter((x) => x.toLowerCase() !== String(meta.title || '').trim().toLowerCase());
+
+  const header = {
+    title: meta.title,
+    desc: meta.desc,
+    rating: Number(serie?.rating || 0),
+    votos: Number(serie?.votos || 0),
+    chips: [meta.tipo, meta.anio, meta.temporada, meta.estado].filter(Boolean),
+    altTitles,
+    tags: meta.tags || [],
+    episode: activeCap ? { numero: activeCap.numero, modo: modoLabel(modo) } : null,
+  };
 
   const modeToggle = fuentes.length > 0 && (
     <div className={styles.modes}>
@@ -116,6 +107,7 @@ export default function HentaiPlayer({ hentaiId, info = null, serie = null, capi
       <div className={styles.chaptersScroll}>
         {capitulos.map((c) => {
           const modos = (c.fuentes || []).map((f) => f.modo);
+          const fuente = (c.fuentes || []).find((f) => f.modo === modo) || (c.fuentes || [])[0] || null;
           return (
             <button
               key={c.id}
@@ -123,14 +115,23 @@ export default function HentaiPlayer({ hentaiId, info = null, serie = null, capi
               className={`${styles.chapter} ${activeCap?.id === c.id ? styles.chapterActive : ''}`}
               onClick={() => selectCap(c)}
             >
-              <span className={styles.chapterNum}>Ep. {c.numero}</span>
-              {c.titulo_es && <span className={styles.chapterName}>{c.titulo_es}</span>}
-              <span className={styles.chapterModes}>
-                {MODOS.filter((m) => modos.includes(m.id)).map((m) => (
-                  <em key={m.id}>{m.short}</em>
-                ))}
+              <span className={styles.chapterThumbWrap}>
+                {fuente?.thumb
+                  ? <img className={styles.chapterThumb} src={fuente.thumb} alt="" loading="lazy" />
+                  : <ion-icon name="play-outline" className={styles.chapterThumbIcon} suppressHydrationWarning></ion-icon>}
               </span>
-              <span className={styles.chapterDur}>{c.fuentes?.[0]?.duracion || '00:00'}</span>
+              <span className={styles.chapterBody}>
+                <span className={styles.chapterNum}>Ep. {c.numero}</span>
+                {c.titulo_es && <span className={styles.chapterName}>{c.titulo_es}</span>}
+                <span className={styles.chapterMetaRow}>
+                  <span className={styles.chapterModes}>
+                    {MODOS.filter((m) => modos.includes(m.id)).map((m) => (
+                      <em key={m.id}>{m.short}</em>
+                    ))}
+                  </span>
+                  <span className={styles.chapterDur}>{fuente?.duracion || '00:00'}</span>
+                </span>
+              </span>
             </button>
           );
         })}
@@ -147,34 +148,35 @@ export default function HentaiPlayer({ hentaiId, info = null, serie = null, capi
               <HentaiReproductor src={playerSrc} theater={theater} onToggleTheater={() => setTheater((p) => !p)} />
             </div>
             <div className={styles.leftCol}>
-              <HentaiInfo hentaiId={hentaiId} info={info} src={playerSrc} />
+              <HentaiInfo hentaiId={hentaiId} capituloId={activeCap?.id} info={info} src={playerSrc} header={header} />
               {modeToggle}
-              {episodeList}
+              {activeCap && <Comentarios hentaiCapId={activeCap.id} />}
               <AdBanner adKey="e483940fff110a871ea3ba9b07dd3259" width={728} height={90}
                 src="https://www.highrevenueformat.com/e483940fff110a871ea3ba9b07dd3259/invoke.js" />
             </div>
             <div className={styles.rightColSlim}>
-              <Recomendados currentId={hentaiId} />
+              {episodeList}
               <AdBanner adKey="3a837969e396afcbcfc39bb7494cfe37" width={300} height={250}
                 src="https://www.highrevenueformat.com/3a837969e396afcbcfc39bb7494cfe37/invoke.js" />
+              <Recomendados currentId={hentaiId} title="Recomendados" kind="hentai" />
               <MasHentai currentId={hentaiId} />
             </div>
           </>
         ) : (
           <>
             <div className={styles.leftCol}>
-              {malHeader}
               <HentaiReproductor src={playerSrc} theater={theater} onToggleTheater={() => setTheater((p) => !p)} />
               {modeToggle}
-              {episodeList}
-              <HentaiInfo hentaiId={hentaiId} info={info} src={playerSrc} />
+              <HentaiInfo hentaiId={hentaiId} capituloId={activeCap?.id} info={info} src={playerSrc} header={header} />
+              {activeCap && <Comentarios hentaiCapId={activeCap.id} />}
               <AdBanner adKey="e483940fff110a871ea3ba9b07dd3259" width={728} height={90}
                 src="https://www.highrevenueformat.com/e483940fff110a871ea3ba9b07dd3259/invoke.js" />
             </div>
             <div className={styles.rightCol}>
-              <Recomendados currentId={hentaiId} />
+              {episodeList}
               <AdBanner adKey="3a837969e396afcbcfc39bb7494cfe37" width={300} height={250}
                 src="https://www.highrevenueformat.com/3a837969e396afcbcfc39bb7494cfe37/invoke.js" />
+              <Recomendados currentId={hentaiId} title="Recomendados" kind="hentai" />
               <MasHentai currentId={hentaiId} />
             </div>
           </>

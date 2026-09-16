@@ -164,6 +164,29 @@ r.post('/packs/:publicId/comments', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// GET /api/hentai/capitulos/:capId/comments?userKey=&sort=top|new
+r.get('/hentai/capitulos/:capId/comments', async (req, res, next) => {
+  try {
+    const capId = Number(req.params.capId);
+    if (!capId) return res.status(400).json({ error: 'Capítulo inválido' });
+    const userKey = normalizeUserKey(req.query.userKey);
+    const sort = req.query.sort === 'new' ? 'new' : 'top';
+    const { rows } = await selectComments("c.target_type = 'hentai' AND c.target_id = $1", [capId], userKey);
+    res.json(buildTree(rows, userKey, sort));
+  } catch (e) { next(e); }
+});
+
+// POST /api/hentai/capitulos/:capId/comments  { userKey, texto, parent_id }
+r.post('/hentai/capitulos/:capId/comments', async (req, res, next) => {
+  try {
+    const capId = Number(req.params.capId);
+    if (!capId) return res.status(400).json({ error: 'Capítulo inválido' });
+    const out = await createComment({ targetType: 'hentai', targetId: capId, req });
+    if (out.error) return res.status(out.error.status).json(out.error.body);
+    res.status(201).json(out.data);
+  } catch (e) { next(e); }
+});
+
 // POST /api/comments/:id/like  { userKey }  -> alterna el "me gusta"
 r.post('/comments/:id/like', async (req, res, next) => {
   try {

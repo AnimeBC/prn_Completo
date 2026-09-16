@@ -943,3 +943,7 @@
   color: var(--primary, #F20D16);
   flex-shrink: 0;
 }
+
+/* ===== Galeria en columna lateral ===== */
+.gallerySide{ background-color:var(--bg-card,#121215); border:1px solid var(--border,#27272A); border-radius:12px; padding:12px; }
+.gallerySide .gGrid{ grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); }
