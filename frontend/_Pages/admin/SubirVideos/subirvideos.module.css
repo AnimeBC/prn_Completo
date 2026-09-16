@@ -187,3 +187,7 @@
   color:var(--text-secondary,#A1A1AA) !important;
   background:var(--bg-surface,#0D0D0F) !important;
 }
+
+/* ===== Agregar tags en lote ===== */
+.bulkTags{ display:flex; gap:8px; align-items:flex-start; margin-top:8px }
+.bulkInput{ flex:1; min-width:160px; min-height:44px; resize:vertical }

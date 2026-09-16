@@ -5,6 +5,7 @@ import sv from '@/_Pages/admin/SubirVideos/subirvideos.module.css';
 import ls from '@/_Pages/admin/SubirVideos/lista.module.css';
 import sp from './subirpacks.module.css';
 import { API_URL, authHeaders, mediaUrl } from '@/_Extras/Api/api.js';
+import { resolveTags, mergeTags } from '@/_Extras/Tags/tagsInput.js';
 
 const API = API_URL;
 const VIDEO_RE = /\.(mp4|mov|webm|mkv|avi)$/i;
@@ -30,6 +31,7 @@ export default function SubirPacks() {
   const [tagsEn, setTagsEn] = useState([]);
   const [newTagEs, setNewTagEs] = useState('');
   const [newTagEn, setNewTagEn] = useState('');
+  const [bulkTags, setBulkTags] = useState('');
 
   const [thumbFile, setThumbFile] = useState(null);
   const [thumbPreview, setThumbPreview] = useState('');
@@ -87,7 +89,7 @@ export default function SubirPacks() {
   function resetForm() {
     setTitleEs(''); setTitleEn(''); setDescEs(''); setDescEn('');
     setUploader('administrador pikante.pe'); setPrecio('S/ 0.00');
-    setTagsEs([]); setTagsEn([]); setNewTagEs(''); setNewTagEn('');
+    setTagsEs([]); setTagsEn([]); setNewTagEs(''); setNewTagEn(''); setBulkTags('');
     if (thumbPreview) URL.revokeObjectURL(thumbPreview);
     setThumbFile(null); setThumbPreview('');
     imageFiles.forEach((x) => URL.revokeObjectURL(x.url));
@@ -98,6 +100,16 @@ export default function SubirPacks() {
 
   function toggleTag(list, setList, tag) {
     setList(list.includes(tag) ? list.filter((t) => t !== tag) : [...list, tag]);
+  }
+
+  /** Pega una lista (#tag1 #tag2 ...): limpia "#", compara sin mayúsculas,
+   *  agrega los nuevos al catálogo y selecciona todos. */
+  function addAllTags() {
+    const resolved = resolveTags(bulkTags, allTags);
+    if (!resolved.length) { setBulkTags(''); return; }
+    setAllTags((cat) => mergeTags(cat, resolved));
+    setTagsEs((list) => mergeTags(list, resolved));
+    setBulkTags('');
   }
 
   function setThumb(file) {
@@ -294,6 +306,16 @@ export default function SubirPacks() {
                 onChange={(e) => setNewTagEs(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); const v = newTagEs.trim(); if (v && !tagsEs.includes(v)) setTagsEs([...tagsEs, v]); setNewTagEs(''); } }} />
               <button type="button" className={sv.tagBtn} onClick={() => { const v = newTagEs.trim(); if (v && !tagsEs.includes(v)) setTagsEs([...tagsEs, v]); setNewTagEs(''); }}>Agregar tag</button>
+            </div>
+            <div className={sv.bulkTags}>
+              <textarea
+                className={`${sv.input} ${sv.bulkInput}`}
+                placeholder="Pega tu lista de tags: #TikTok #porno #4K ..."
+                value={bulkTags}
+                onChange={(e) => setBulkTags(e.target.value)}
+                rows={2}
+              />
+              <button type="button" className={sv.tagBtn} onClick={addAllTags}>Agregar todos los tags</button>
             </div>
           </div>
 

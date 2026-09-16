@@ -2,14 +2,18 @@
 --  pikante pe — ESQUEMA COMPLETO CONSOLIDADO (archivo único)
 --  Base: "pikantepe" (PostgreSQL)
 --
---  Este archivo reemplaza a: tablas.sql, tablas2..tablas8 (unificados).
+--  Este archivo es la unión de: tablas_limpias + tablas2..tablas9.
 --  IDEMPOTENTE: puedes ejecutarlo las veces que quieras, en una base
---  nueva o existente, sin borrar datos.
+--  NUEVA o existente, sin borrar datos.
 --
---  Incluye: admins, usuarios (login/Google), códigos de verificación,
---           videos, hentai, packs (multi-idioma + galería + tokens),
---           comunidad, lives, comentarios reales, canales (perfiles
---           públicos), reportes, interacciones e i18n.
+--  Para un VPS nuevo: ejecutar SOLO este archivo.
+--    psql -U postgres -d pikantepe -f tablas_limpias.sql
+--
+--  Incluye: admins, usuarios (login/Google + verificación), videos,
+--           hentai (serie + capítulos + 4 modos sub/es/en/en_sub +
+--           tags + interacciones), packs (multi-idioma + galería +
+--           tokens), comunidad, lives, comentarios reales, canales
+--           (perfiles públicos), reportes, interacciones e i18n.
 --
 --  Admin por defecto: admin / admin123  (o crea otro: npm run seed:admin)
 -- ============================================================
@@ -118,35 +122,216 @@ CREATE TABLE IF NOT EXISTS video_tags (
 CREATE INDEX IF NOT EXISTS idx_video_tags_tag ON video_tags(tag_id);
 
 -- ============================================================
--- 5) HENTAI (colección aparte)
+-- 5) HENTAI (serie de anime)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS hentai (
-  id         SERIAL PRIMARY KEY,
-  slug       VARCHAR(160) UNIQUE,
-  titulo_es  VARCHAR(200) NOT NULL,
-  titulo_en  VARCHAR(200),
-  desc_es    TEXT,
-  desc_en    TEXT,
-  canal      VARCHAR(120) DEFAULT 'Studio Kitsune',
-  src        VARCHAR(255),
-  thumb      VARCHAR(255),
-  duracion   VARCHAR(20) DEFAULT '00:00',
-  vistas     BIGINT DEFAULT 0,
-  renditions JSONB NOT NULL DEFAULT '[]'::jsonb,
-  activo     BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  id             SERIAL PRIMARY KEY,
+  slug           VARCHAR(160) UNIQUE,
+  titulo_es      VARCHAR(200) NOT NULL,
+  titulo_en      VARCHAR(200),
+  titulo_ja      VARCHAR(200),
+  titulo_romaji  VARCHAR(200),
+  desc_es        TEXT,
+  desc_en        TEXT,
+  canal          VARCHAR(120) DEFAULT 'Studio Kitsune',
+  src            VARCHAR(255),
+  thumb          VARCHAR(255),
+  cover          VARCHAR(255),
+  pais           VARCHAR(80),
+  tags           TEXT[] DEFAULT '{}',
+  titulos_extras TEXT[] DEFAULT '{}',
+  tipo           VARCHAR(20),
+  anio           INTEGER,
+  temporada      VARCHAR(40),
+  estado         VARCHAR(30) DEFAULT 'En emisión',
+  rating         NUMERIC(3,1) DEFAULT 0,
+  votos          INTEGER DEFAULT 0,
+  duracion       VARCHAR(20) DEFAULT '00:00',
+  vistas         BIGINT DEFAULT 0,
+  renditions     JSONB NOT NULL DEFAULT '[]'::jsonb,
+  activo         BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMP NOT NULL DEFAULT NOW()
 );
-ALTER TABLE hentai ADD COLUMN IF NOT EXISTS titulo_en  VARCHAR(200);
-ALTER TABLE hentai ADD COLUMN IF NOT EXISTS desc_en    TEXT;
-ALTER TABLE hentai ADD COLUMN IF NOT EXISTS thumb      VARCHAR(255);
-ALTER TABLE hentai ADD COLUMN IF NOT EXISTS src        VARCHAR(255);
-ALTER TABLE hentai ADD COLUMN IF NOT EXISTS renditions JSONB NOT NULL DEFAULT '[]'::jsonb;
-ALTER TABLE hentai ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS titulo_en     VARCHAR(200);
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS titulo_ja     VARCHAR(200);
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS titulo_romaji VARCHAR(200);
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS desc_en       TEXT;
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS thumb         VARCHAR(255);
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS src           VARCHAR(255);
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS tags          TEXT[] DEFAULT '{}';
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS titulos_extras TEXT[] DEFAULT '{}';
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS cover         VARCHAR(255);
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS pais          VARCHAR(80);
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS tipo          VARCHAR(20);
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS anio          INTEGER;
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS temporada     VARCHAR(40);
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS estado        VARCHAR(30) DEFAULT 'En emisión';
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS rating        NUMERIC(3,1) DEFAULT 0;
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS votos         INTEGER DEFAULT 0;
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS renditions    JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE hentai ADD COLUMN IF NOT EXISTS updated_at    TIMESTAMP NOT NULL DEFAULT NOW();
 CREATE INDEX IF NOT EXISTS idx_hentai_activo ON hentai(activo);
 
 -- ============================================================
--- 6) PACKS (multi-idioma ES/EN + portada + contadores)
+-- 6) HENTAI_CAPITULOS (capítulos hijos de la serie)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS hentai_capitulos (
+  id         SERIAL PRIMARY KEY,
+  hentai_id  INTEGER NOT NULL REFERENCES hentai(id) ON DELETE CASCADE,
+  numero     INTEGER NOT NULL DEFAULT 1,
+  titulo_es  VARCHAR(200),
+  titulo_en  VARCHAR(200),
+  desc_es    TEXT,
+  desc_en    TEXT,
+  src        VARCHAR(255) NOT NULL DEFAULT '',
+  thumb      VARCHAR(255),
+  duracion   VARCHAR(20) DEFAULT '00:00',
+  renditions JSONB NOT NULL DEFAULT '[]'::jsonb,
+  vistas     BIGINT DEFAULT 0,
+  activo     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (hentai_id, numero)
+);
+ALTER TABLE hentai_capitulos ADD COLUMN IF NOT EXISTS renditions JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE hentai_capitulos ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS idx_hentai_cap_serie ON hentai_capitulos(hentai_id);
+
+-- ============================================================
+-- 7) HENTAI_CAPITULO_FUENTES (4 modos por capítulo)
+--    sub = Subtitulado ES   /   es = Español (doblado)
+--    en  = Inglés (doblado) /   en_sub = Inglés subtitulado
+-- ============================================================
+CREATE TABLE IF NOT EXISTS hentai_capitulo_fuentes (
+  id          SERIAL PRIMARY KEY,
+  capitulo_id INTEGER NOT NULL REFERENCES hentai_capitulos(id) ON DELETE CASCADE,
+  modo        VARCHAR(10) NOT NULL DEFAULT 'sub'
+              CHECK (modo IN ('sub', 'es', 'en', 'en_sub')),
+  src         VARCHAR(255) NOT NULL DEFAULT '',
+  thumb       VARCHAR(255),
+  duracion    VARCHAR(20) DEFAULT '00:00',
+  renditions  JSONB NOT NULL DEFAULT '[]'::jsonb,
+  activo      BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (capitulo_id, modo)
+);
+-- Amplía el CHECK en bases existentes (de 2 a 4 modos)
+ALTER TABLE hentai_capitulo_fuentes DROP CONSTRAINT IF EXISTS hentai_capitulo_fuentes_modo_check;
+ALTER TABLE hentai_capitulo_fuentes ADD CONSTRAINT hentai_capitulo_fuentes_modo_check
+  CHECK (modo IN ('sub', 'es', 'en', 'en_sub'));
+CREATE INDEX IF NOT EXISTS idx_hentai_fuentes_cap ON hentai_capitulo_fuentes(capitulo_id);
+
+-- Migrar capítulos existentes (si los hubiera) a una fuente 'sub'
+INSERT INTO hentai_capitulo_fuentes (capitulo_id, modo, src, thumb, duracion, renditions)
+SELECT c.id, 'sub', c.src, c.thumb, c.duracion, c.renditions
+  FROM hentai_capitulos c
+ WHERE c.src <> ''
+   AND NOT EXISTS (SELECT 1 FROM hentai_capitulo_fuentes f WHERE f.capitulo_id = c.id)
+ON CONFLICT (capitulo_id, modo) DO NOTHING;
+
+-- ============================================================
+-- 8) HENTAI_MODOS (metadatos POR MODO de la serie)
+--    título, descripción, tags, tipo, año, temporada, estado
+-- ============================================================
+CREATE TABLE IF NOT EXISTS hentai_modos (
+  id          SERIAL PRIMARY KEY,
+  hentai_id   INTEGER NOT NULL REFERENCES hentai(id) ON DELETE CASCADE,
+  modo        VARCHAR(10) NOT NULL CHECK (modo IN ('sub', 'es', 'en', 'en_sub')),
+  titulo      VARCHAR(200),
+  titulo_alt  VARCHAR(200),
+  descripcion TEXT,
+  tags        TEXT[] DEFAULT '{}',
+  titulos_extras TEXT[] DEFAULT '{}',
+  tipo        VARCHAR(20),
+  anio        INTEGER,
+  temporada   VARCHAR(40),
+  estado      VARCHAR(30) DEFAULT 'En emisión',
+  UNIQUE (hentai_id, modo)
+);
+ALTER TABLE hentai_modos ADD COLUMN IF NOT EXISTS titulos_extras TEXT[] DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS idx_hentai_modos_serie ON hentai_modos(hentai_id);
+
+-- Backfill: crea la fila 'sub' a partir de los datos actuales de la serie
+INSERT INTO hentai_modos (hentai_id, modo, titulo, titulo_alt, descripcion, tags, tipo, anio, temporada, estado)
+SELECT h.id, 'sub',
+       COALESCE(h.titulo_es, h.titulo_en),
+       COALESCE(h.titulo_ja, h.titulo_romaji),
+       COALESCE(h.desc_es, h.desc_en),
+       COALESCE(h.tags, '{}'),
+       h.tipo, h.anio, h.temporada, h.estado
+  FROM hentai h
+ WHERE NOT EXISTS (SELECT 1 FROM hentai_modos m WHERE m.hentai_id = h.id AND m.modo = 'sub')
+ON CONFLICT (hentai_id, modo) DO NOTHING;
+
+-- ============================================================
+-- 9) HENTAI_TAGS (tags propios del hentai) + SEED
+-- ============================================================
+CREATE TABLE IF NOT EXISTS hentai_tags (
+  id     SERIAL PRIMARY KEY,
+  nombre VARCHAR(60) UNIQUE NOT NULL,
+  slug   VARCHAR(60) UNIQUE NOT NULL
+);
+
+INSERT INTO hentai_tags (nombre, slug) VALUES
+  ('TV','tv'), ('OVA','ova'), ('ONA','ona'), ('Especial','especial'), ('Película','pelicula'),
+  ('Harem','harem'), ('Ecchi','ecchi'), ('Romance','romance'), ('Comedia','comedia'),
+  ('Escolar','escolar'), ('Fantasía','fantasia'), ('Isekai','isekai'), ('Sobrenatural','sobrenatural'),
+  ('Acción','accion'), ('Drama','drama'), ('Netorare','netorare'), ('NTR','ntr'),
+  ('Vanilla','vanilla'), ('Tetonas','tetonas'), ('Milf','milf'), ('Virgen','virgen'),
+  ('Dominante','dominante'), ('Sumisa','sumisa'), ('Timido','timido'), ('Senpai','senpai'),
+  ('Enfermera','enfermera'), ('Profesora','profesora'), ('Sirvienta','sirvienta'),
+  ('Anal','anal'), ('Oral','oral'), ('Vaginal','vaginal'), ('Trío','trio'),
+  ('Ahegao','ahegao'), ('Embarazo','embarazo'), ('Corrida Interna','corrida-interna'),
+  ('Juguetes','juguetes'), ('Bondage','bondage'), ('Incesto','incesto'), ('Tentáculos','tentaculos')
+ON CONFLICT (nombre) DO NOTHING;
+
+-- ============================================================
+-- 10) INTERACCIONES DE HENTAI (por capitulo_id)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS hentai_likes (
+  id          SERIAL PRIMARY KEY,
+  capitulo_id INTEGER NOT NULL REFERENCES hentai_capitulos(id) ON DELETE CASCADE,
+  user_key    VARCHAR(80) NOT NULL,
+  tipo        VARCHAR(10) NOT NULL CHECK (tipo IN ('like', 'dislike')),
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (capitulo_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_hentai_likes_cap  ON hentai_likes(capitulo_id);
+CREATE INDEX IF NOT EXISTS idx_hentai_likes_user ON hentai_likes(user_key);
+
+CREATE TABLE IF NOT EXISTS hentai_saved (
+  id          SERIAL PRIMARY KEY,
+  capitulo_id INTEGER NOT NULL REFERENCES hentai_capitulos(id) ON DELETE CASCADE,
+  user_key    VARCHAR(80) NOT NULL,
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (capitulo_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_hentai_saved_cap  ON hentai_saved(capitulo_id);
+CREATE INDEX IF NOT EXISTS idx_hentai_saved_user ON hentai_saved(user_key);
+
+CREATE TABLE IF NOT EXISTS hentai_downloads (
+  id          SERIAL PRIMARY KEY,
+  capitulo_id INTEGER NOT NULL REFERENCES hentai_capitulos(id) ON DELETE CASCADE,
+  user_key    VARCHAR(80),
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_hentai_downloads_cap  ON hentai_downloads(capitulo_id);
+CREATE INDEX IF NOT EXISTS idx_hentai_downloads_user ON hentai_downloads(user_key);
+
+CREATE TABLE IF NOT EXISTS hentai_reports (
+  id          SERIAL PRIMARY KEY,
+  capitulo_id INTEGER NOT NULL REFERENCES hentai_capitulos(id) ON DELETE CASCADE,
+  user_key    VARCHAR(80),
+  motivo      VARCHAR(80),
+  detalle     TEXT,
+  estado      VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_hentai_reports_cap ON hentai_reports(capitulo_id);
+
+-- ============================================================
+-- 11) PACKS (multi-idioma ES/EN + portada + contadores)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS packs (
   id         SERIAL PRIMARY KEY,
@@ -198,7 +383,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_packs_public_id ON packs(public_id);
 CREATE INDEX        IF NOT EXISTS idx_packs_activo    ON packs(activo);
 
 -- ============================================================
--- 7) PACK_MEDIA (fotos y videos del pack, con calidades)
+-- 12) PACK_MEDIA (fotos y videos del pack, con calidades)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS pack_media (
   id         SERIAL PRIMARY KEY,
@@ -217,7 +402,7 @@ CREATE INDEX IF NOT EXISTS idx_pack_media_pack ON pack_media(pack_id);
 CREATE INDEX IF NOT EXISTS idx_pack_media_tipo ON pack_media(pack_id, tipo);
 
 -- ============================================================
--- 8) PACK_DOWNLOADS / LIKES / SAVES / SHARES
+-- 13) PACK_DOWNLOADS / LIKES / SAVES / SHARES / TOKENS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS pack_downloads (
   id         SERIAL PRIMARY KEY,
@@ -270,7 +455,7 @@ CREATE INDEX IF NOT EXISTS idx_pack_tokens_pack ON pack_download_tokens(pack_id)
 CREATE INDEX IF NOT EXISTS idx_pack_tokens_hash ON pack_download_tokens(token_hash);
 
 -- ============================================================
--- 9) COMUNIDAD
+-- 14) COMUNIDAD
 -- ============================================================
 CREATE TABLE IF NOT EXISTS community (
   id         SERIAL PRIMARY KEY,
@@ -285,7 +470,7 @@ CREATE TABLE IF NOT EXISTS community (
 CREATE INDEX IF NOT EXISTS idx_community_activo ON community(activo);
 
 -- ============================================================
--- 10) LIVES
+-- 15) LIVES
 -- ============================================================
 CREATE TABLE IF NOT EXISTS lives (
   id         SERIAL PRIMARY KEY,
@@ -298,23 +483,34 @@ CREATE TABLE IF NOT EXISTS lives (
 CREATE INDEX IF NOT EXISTS idx_lives_activo ON lives(activo);
 
 -- ============================================================
--- 11) COMENTARIOS
+-- 16) COMENTARIOS (video / pack / hentai) + likes
+--    target_type: 'video' | 'pack' | 'hentai'
+--    target_id:   id del objetivo
 -- ============================================================
 CREATE TABLE IF NOT EXISTS comments (
-  id         SERIAL PRIMARY KEY,
-  video_id   INTEGER REFERENCES videos(id) ON DELETE CASCADE,
-  user_key   VARCHAR(80),
-  usuario    VARCHAR(120) NOT NULL,
-  texto      TEXT NOT NULL,
-  likes      INTEGER DEFAULT 0,
-  parent_id  INTEGER REFERENCES comments(id) ON DELETE CASCADE,
-  activo     BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+  id          SERIAL PRIMARY KEY,
+  video_id    INTEGER REFERENCES videos(id) ON DELETE CASCADE,
+  target_type VARCHAR(20) NOT NULL DEFAULT 'video',
+  target_id   INTEGER,
+  user_key    VARCHAR(80),
+  usuario     VARCHAR(120) NOT NULL,
+  texto       TEXT NOT NULL,
+  likes       INTEGER DEFAULT 0,
+  parent_id   INTEGER REFERENCES comments(id) ON DELETE CASCADE,
+  activo      BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
 );
-ALTER TABLE comments ADD COLUMN IF NOT EXISTS user_key   VARCHAR(80);
-ALTER TABLE comments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW();
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS target_type VARCHAR(20) NOT NULL DEFAULT 'video';
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS target_id   INTEGER;
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS user_key    VARCHAR(80);
+ALTER TABLE comments ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMP NOT NULL DEFAULT NOW();
+
+-- Los comentarios existentes pertenecen a videos
+UPDATE comments SET target_id = video_id WHERE target_id IS NULL AND video_id IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_comments_video    ON comments(video_id);
+CREATE INDEX IF NOT EXISTS idx_comments_target   ON comments(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_comments_user_key ON comments(user_key);
 CREATE INDEX IF NOT EXISTS idx_comments_parent   ON comments(parent_id);
 
@@ -330,7 +526,7 @@ CREATE INDEX IF NOT EXISTS idx_comment_likes_comment ON comment_likes(comment_id
 CREATE INDEX IF NOT EXISTS idx_comment_likes_user    ON comment_likes(user_key);
 
 -- ============================================================
--- 12) APORTANTES
+-- 17) APORTANTES
 -- ============================================================
 CREATE TABLE IF NOT EXISTS aportantes (
   id                SERIAL PRIMARY KEY,
@@ -354,7 +550,7 @@ VALUES ('71923609', 'JHON ANDERSON CURASMA CASAVILCA', NULL, 'HUANCAVELICA', 'HU
 ON CONFLICT (dni) DO NOTHING;
 
 -- ============================================================
--- 13) USUARIOS (perfil / login correo + Google)
+-- 18) USUARIOS (perfil / login correo + Google)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
   id             SERIAL PRIMARY KEY,
@@ -404,7 +600,7 @@ CREATE INDEX IF NOT EXISTS idx_email_tokens_user ON email_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_email_tokens_hash ON email_tokens(token_hash);
 
 -- ============================================================
--- 14) CANALES (autores) + seguidores
+-- 19) CANALES (autores) + seguidores
 -- ============================================================
 CREATE TABLE IF NOT EXISTS channels (
   id          SERIAL PRIMARY KEY,
@@ -463,7 +659,7 @@ UPDATE channels
  WHERE nombre ILIKE '%pikante%';
 
 -- ============================================================
--- 15) INTERACCIONES DE VIDEO
+-- 20) INTERACCIONES DE VIDEO
 -- ============================================================
 CREATE TABLE IF NOT EXISTS video_likes (
   id         SERIAL PRIMARY KEY,
@@ -519,26 +715,26 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE INDEX IF NOT EXISTS idx_subs_channel ON subscriptions(channel);
 
 -- ============================================================
--- 16) REPORTES (motivos + gestión)
+-- 21) REPORTES (motivos + gestión)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS reports (
-  id          SERIAL PRIMARY KEY,
-  video_id    INTEGER REFERENCES videos(id) ON DELETE CASCADE,
-  user_key    VARCHAR(80),
-  motivo      VARCHAR(80),
-  motivo_slug VARCHAR(60),
-  detalle     TEXT,
-  estado      VARCHAR(20) NOT NULL DEFAULT 'pendiente',
-  revisado_en TIMESTAMP,
+  id           SERIAL PRIMARY KEY,
+  video_id     INTEGER REFERENCES videos(id) ON DELETE CASCADE,
+  user_key     VARCHAR(80),
+  motivo       VARCHAR(80),
+  motivo_slug  VARCHAR(60),
+  detalle      TEXT,
+  estado       VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+  revisado_en  TIMESTAMP,
   revisado_por INTEGER REFERENCES admins(id) ON DELETE SET NULL,
-  nota_admin  TEXT,
-  created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+  nota_admin   TEXT,
+  created_at   TIMESTAMP NOT NULL DEFAULT NOW()
 );
-ALTER TABLE reports ADD COLUMN IF NOT EXISTS estado      VARCHAR(20) NOT NULL DEFAULT 'pendiente';
-ALTER TABLE reports ADD COLUMN IF NOT EXISTS motivo_slug VARCHAR(60);
-ALTER TABLE reports ADD COLUMN IF NOT EXISTS revisado_en TIMESTAMP;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS estado       VARCHAR(20) NOT NULL DEFAULT 'pendiente';
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS motivo_slug  VARCHAR(60);
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS revisado_en  TIMESTAMP;
 ALTER TABLE reports ADD COLUMN IF NOT EXISTS revisado_por INTEGER REFERENCES admins(id) ON DELETE SET NULL;
-ALTER TABLE reports ADD COLUMN IF NOT EXISTS nota_admin  TEXT;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS nota_admin   TEXT;
 CREATE INDEX IF NOT EXISTS idx_reports_video  ON reports(video_id);
 CREATE INDEX IF NOT EXISTS idx_reports_estado ON reports(estado);
 
@@ -560,7 +756,7 @@ INSERT INTO report_motivos (slug, nombre) VALUES
 ON CONFLICT (slug) DO NOTHING;
 
 -- ============================================================
--- 17) ÍNDICES por user_key (perfil: guardados, likes, historial,
+-- 22) ÍNDICES por user_key (perfil: guardados, likes, historial,
 --     descargas y suscripciones)
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_video_likes_user    ON video_likes(user_key);
@@ -573,7 +769,7 @@ CREATE INDEX IF NOT EXISTS idx_pack_saves_user     ON pack_saves(user_key);
 CREATE INDEX IF NOT EXISTS idx_pack_downloads_user ON pack_downloads(user_key);
 
 -- ============================================================
--- 18) IDIOMAS + TRADUCCIONES (i18n)
+-- 23) IDIOMAS + TRADUCCIONES (i18n)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS languages (
   code   VARCHAR(5) PRIMARY KEY,
@@ -649,7 +845,7 @@ INSERT INTO translations (lang, key, value) VALUES
 ON CONFLICT (lang, key) DO UPDATE SET value = EXCLUDED.value;
 
 -- ============================================================
--- 19) TRIGGERS updated_at
+-- 24) TRIGGERS updated_at
 -- ============================================================
 DROP TRIGGER IF EXISTS trg_admins_updated ON admins;
 CREATE TRIGGER trg_admins_updated BEFORE UPDATE ON admins
@@ -663,6 +859,10 @@ DROP TRIGGER IF EXISTS trg_hentai_updated ON hentai;
 CREATE TRIGGER trg_hentai_updated BEFORE UPDATE ON hentai
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
+DROP TRIGGER IF EXISTS trg_hentai_cap_updated ON hentai_capitulos;
+CREATE TRIGGER trg_hentai_cap_updated BEFORE UPDATE ON hentai_capitulos
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
 DROP TRIGGER IF EXISTS trg_packs_updated ON packs;
 CREATE TRIGGER trg_packs_updated BEFORE UPDATE ON packs
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
@@ -672,7 +872,7 @@ CREATE TRIGGER trg_aportantes_updated BEFORE UPDATE ON aportantes
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ============================================================
--- 20) SEED: categorías de fetiche + tags base
+-- 25) SEED: categorías de fetiche + tags base
 -- ============================================================
 INSERT INTO fetiche_categorias (nombre, slug) VALUES
   ('Japonesa', 'japonesa'), ('Orgía', 'orgia'), ('Viral', 'viral'),
@@ -688,7 +888,7 @@ INSERT INTO tags (nombre, slug) VALUES
 ON CONFLICT (nombre) DO NOTHING;
 
 -- ============================================================
--- 21) SEED: videos de ejemplo (sin archivo; súbelos desde el admin)
+-- 26) SEED: videos de ejemplo (sin archivo; súbelos desde el admin)
 -- ============================================================
 CREATE OR REPLACE FUNCTION _seed_video(
   p_titulo_es   TEXT,
@@ -796,7 +996,7 @@ SELECT _seed_video('Obligada :(', 'Forced :(',
 DROP FUNCTION IF EXISTS _seed_video(TEXT, TEXT, TEXT, TEXT, TEXT, BIGINT, BOOLEAN, TEXT, BOOLEAN, TEXT[]);
 
 -- ============================================================
--- 22) SEED: packs de ejemplo (multi-idioma)
+-- 27) SEED: packs de ejemplo (multi-idioma)
 -- ============================================================
 INSERT INTO packs (slug, titulo_es, titulo_en, uploader, fotos, videos, desc_es, desc_en, tags, precio, download, thumb)
 VALUES

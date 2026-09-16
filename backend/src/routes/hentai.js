@@ -21,6 +21,13 @@ function splitTags(v) {
   return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(0, 20);
 }
 
+/** Títulos extras: acepta array o texto separado por comas / saltos de línea. */
+function splitTitles(v) {
+  if (!v) return [];
+  const arr = Array.isArray(v) ? v : String(v).split(/[\n,]+/);
+  return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(0, 30);
+}
+
 function intOrNull(v) {
   if (v === undefined || v === null || v === '') return null;
   const n = Number.parseInt(String(v), 10);
@@ -35,7 +42,7 @@ async function getSerie(id) {
 /** Metadatos por modo: { sub: {...}, es: {...}, en: {...}, en_sub: {...} } */
 async function getModos(hentaiId) {
   const { rows } = await query(
-    `SELECT modo, titulo, titulo_alt, descripcion, tags, tipo, anio, temporada, estado
+    `SELECT modo, titulo, titulo_alt, titulos_extras, descripcion, tags, tipo, anio, temporada, estado
        FROM hentai_modos WHERE hentai_id = $1`,
     [hentaiId]
   );
@@ -202,8 +209,8 @@ r.post('/', authRequired, async (req, res, next) => {
 
     const ins = await query(
       `INSERT INTO hentai
-         (slug, titulo_es, titulo_en, titulo_ja, titulo_romaji, desc_es, desc_en, canal, tags, tipo, anio, temporada, estado, rating, votos)
-       VALUES ('tmp-' || gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         (slug, titulo_es, titulo_en, titulo_ja, titulo_romaji, desc_es, desc_en, canal, tags, titulos_extras, tipo, anio, temporada, estado, rating, votos)
+       VALUES ('tmp-' || gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING id`,
       [
         titulo,
@@ -214,6 +221,7 @@ r.post('/', authRequired, async (req, res, next) => {
         String(b.desc_en || b.desc_es || '').trim(),
         canal,
         splitTags(b.tags),
+        splitTitles(b.titulos_extras),
         b.tipo ? String(b.tipo).trim().slice(0, 20) : null,
         intOrNull(b.anio),
         b.temporada ? String(b.temporada).trim().slice(0, 40) : null,
@@ -228,12 +236,13 @@ r.post('/', authRequired, async (req, res, next) => {
 
     // metadatos del modo principal (subtitulado ES)
     await query(
-      `INSERT INTO hentai_modos (hentai_id, modo, titulo, titulo_alt, descripcion, tags, tipo, anio, temporada, estado)
-       VALUES ($1, 'sub', $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO hentai_modos (hentai_id, modo, titulo, titulo_alt, titulos_extras, descripcion, tags, tipo, anio, temporada, estado)
+       VALUES ($1, 'sub', $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (hentai_id, modo) DO NOTHING`,
       [
         id, titulo,
         [b.titulo_ja, b.titulo_romaji].filter(Boolean).join(' / ') || null,
+        splitTitles(b.titulos_extras),
         String(b.desc_es || '').trim() || null,
         splitTags(b.tags),
         b.tipo ? String(b.tipo).trim().slice(0, 20) : null,
@@ -267,31 +276,38 @@ r.put('/:id', authRequired, async (req, res, next) => {
       ? (String(b.descripcion).trim() || null)
       : (b.desc_es !== undefined ? (String(b.desc_es).trim() || null) : null);
     const tags = b.tags !== undefined ? splitTags(b.tags) : null;
+    const titulosExtras = b.titulos_extras !== undefined ? splitTitles(b.titulos_extras) : null;
     const tipo = b.tipo !== undefined ? (String(b.tipo).trim().slice(0, 20) || null) : null;
     const anio = b.anio !== undefined ? intOrNull(b.anio) : null;
     const temporada = b.temporada !== undefined ? (String(b.temporada).trim().slice(0, 40) || null) : null;
     const estado = b.estado !== undefined ? (String(b.estado).trim().slice(0, 30) || null) : null;
 
     await query(
-      `INSERT INTO hentai_modos (hentai_id, modo, titulo, titulo_alt, descripcion, tags, tipo, anio, temporada, estado)
-       VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{}'), $7, $8, $9, COALESCE($10, 'En emisión'))
+      `INSERT INTO hentai_modos (hentai_id, modo, titulo, titulo_alt, titulos_extras, descripcion, tags, tipo, anio, temporada, estado)
+       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '{}'), $8, $9, $10, COALESCE($11, 'En emisión'))
        ON CONFLICT (hentai_id, modo) DO UPDATE SET
-         titulo      = COALESCE($3, hentai_modos.titulo),
-         titulo_alt  = COALESCE($4, hentai_modos.titulo_alt),
-         descripcion = COALESCE($5, hentai_modos.descripcion),
-         tags        = CASE WHEN $6 IS NULL THEN hentai_modos.tags ELSE $6 END,
-         tipo        = COALESCE($7, hentai_modos.tipo),
-         anio        = COALESCE($8, hentai_modos.anio),
-         temporada   = COALESCE($9, hentai_modos.temporada),
-         estado      = COALESCE($10, hentai_modos.estado)`,
-      [id, modo, titulo, tituloAlt, descripcion, tags, tipo, anio, temporada, estado]
+         titulo         = COALESCE($3, hentai_modos.titulo),
+         titulo_alt     = COALESCE($4, hentai_modos.titulo_alt),
+         titulos_extras = CASE WHEN $5 IS NULL THEN hentai_modos.titulos_extras ELSE $5 END,
+         descripcion    = COALESCE($6, hentai_modos.descripcion),
+         tags           = CASE WHEN $7 IS NULL THEN hentai_modos.tags ELSE $7 END,
+         tipo           = COALESCE($8, hentai_modos.tipo),
+         anio           = COALESCE($9, hentai_modos.anio),
+         temporada      = COALESCE($10, hentai_modos.temporada),
+         estado         = COALESCE($11, hentai_modos.estado)`,
+      [id, modo, titulo, tituloAlt, titulosExtras, descripcion, tags, tipo, anio, temporada, estado]
     );
 
     // base del anime: canal + título para los listados
     const canal = b.canal ? String(b.canal).trim().slice(0, 120) : null;
     await query(
-      `UPDATE hentai SET canal = COALESCE($2, canal), titulo_es = COALESCE($3, titulo_es), updated_at = NOW() WHERE id = $1`,
-      [id, canal, titulo]
+      `UPDATE hentai
+          SET canal = COALESCE($2, canal),
+              titulo_es = COALESCE($3, titulo_es),
+              titulos_extras = CASE WHEN $4 IS NULL THEN titulos_extras ELSE $4 END,
+              updated_at = NOW()
+        WHERE id = $1`,
+      [id, canal, titulo, modo === 'sub' ? titulosExtras : null]
     );
     if (canal) await ensureChannel(canal);
     if (tags) await saveHentaiTags(tags);

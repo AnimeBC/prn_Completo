@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './subirhentai.module.css';
 import { API_URL, mediaUrl, authHeaders } from '@/_Extras/Api/api.js';
+import { resolveTags, mergeTags, parseTags } from '@/_Extras/Tags/tagsInput.js';
 
 const API = API_URL;
 const PER_PAGE = 10;
@@ -115,6 +116,10 @@ export default function HentaiAdmin() {
   const [tagsEs, setTagsEs] = useState([]);
   const [allTags, setAllTags] = useState([]);
   const [newTag, setNewTag] = useState('');
+  const [bulkTags, setBulkTags] = useState('');
+  const [titulosExtras, setTitulosExtras] = useState([]);
+  const [newTitulo, setNewTitulo] = useState('');
+  const [bulkTitulos, setBulkTitulos] = useState('');
   const [episodes, setEpisodes] = useState([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -170,10 +175,37 @@ export default function HentaiAdmin() {
     setNewTag('');
   }
 
+  /** Pega una lista (#tag1 #tag2 ...): limpia "#", compara sin mayúsculas,
+   *  agrega los nuevos al catálogo y selecciona todos. */
+  function addAllTags() {
+    const resolved = resolveTags(bulkTags, allTags);
+    if (!resolved.length) { setBulkTags(''); return; }
+    setAllTags((cat) => mergeTags(cat, resolved));
+    setTagsEs((list) => mergeTags(list, resolved));
+    setBulkTags('');
+  }
+
+  // ===== Títulos extras (títulos alternos en otros idiomas) =====
+  function addTitulo() {
+    const v = newTitulo.trim();
+    if (v) setTitulosExtras((list) => mergeTags(list, [v]));
+    setNewTitulo('');
+  }
+  function addAllTitulos() {
+    const parsed = parseTags(bulkTitulos);
+    if (!parsed.length) { setBulkTitulos(''); return; }
+    setTitulosExtras((list) => mergeTags(list, parsed));
+    setBulkTitulos('');
+  }
+  function removeTitulo(t) {
+    setTitulosExtras((list) => list.filter((x) => x !== t));
+  }
+
   function captureMode() {
     return {
       titulo: form.titulo_es, titulo_alt: form.titulo_ja, descripcion: form.desc_es,
       tipo: form.tipo, anio: form.anio, temporada: form.temporada, estado: form.estado, tags: tagsEs,
+      titulos_extras: titulosExtras,
     };
   }
   function loadMode(m) {
@@ -185,6 +217,7 @@ export default function HentaiAdmin() {
       estado: md.estado || 'En emisión',
     }));
     setTagsEs(md.tags || []);
+    setTitulosExtras(md.titulos_extras || []);
   }
   function selectMode(m) {
     if (m === modeTab) return;
@@ -199,6 +232,10 @@ export default function HentaiAdmin() {
     setModeTab('sub');
     setForm(EMPTY);
     setTagsEs([]);
+    setBulkTags('');
+    setTitulosExtras([]);
+    setNewTitulo('');
+    setBulkTitulos('');
     setEpisodes([]);
     setCapForm({ numero: '1' });
     setCapVideo(null); setCapThumb(null);
@@ -227,6 +264,7 @@ export default function HentaiAdmin() {
         temporada: sub.temporada || '', estado: sub.estado || 'En emisión',
       });
       setTagsEs(sub.tags || []);
+      setTitulosExtras(sub.titulos_extras || []);
       setCapForm({ numero: String(cap.length + 1) });
       editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch { setError('No hay conexión con el servidor.'); }
@@ -243,6 +281,7 @@ export default function HentaiAdmin() {
           titulo_es: form.titulo_es, titulo_ja: form.titulo_ja, titulo_en: form.titulo_en,
           desc_es: form.desc_es, desc_en: form.desc_en,
           canal: form.canal, tags: tagsEs.join(', '),
+          titulos_extras: titulosExtras.join(', '),
           tipo: form.tipo, anio: form.anio, temporada: form.temporada, estado: form.estado,
         }),
       });
@@ -267,6 +306,7 @@ export default function HentaiAdmin() {
           modo: modeTab,
           titulo: form.titulo_es, titulo_alt: form.titulo_ja, descripcion: form.desc_es,
           tags: tagsEs.join(', '), tipo: form.tipo, anio: form.anio, temporada: form.temporada,
+          titulos_extras: titulosExtras.join(', '),
           estado: form.estado, canal: form.canal,
         }),
       });
@@ -443,6 +483,56 @@ export default function HentaiAdmin() {
         />
         <button type="button" className={styles.tagBtn} onClick={addTag}>Agregar tag</button>
       </div>
+      {!editing && (
+        <div className={styles.bulkTags}>
+          <textarea
+            className={`${styles.input} ${styles.bulkInput}`}
+            placeholder="Pega tu lista de tags: #TikTok #porno #4K ..."
+            value={bulkTags}
+            onChange={(e) => setBulkTags(e.target.value)}
+            rows={2}
+          />
+          <button type="button" className={styles.tagBtn} onClick={addAllTags}>Agregar todos los tags</button>
+        </div>
+      )}
+    </>
+  );
+
+  const titulosExtrasUI = (
+    <>
+      <div className={styles.tagsHead}>
+        <span className={styles.tagsHint}>Títulos extras — otros idiomas (JA, romaji, EN…)</span>
+      </div>
+      {titulosExtras.length > 0 && (
+        <div className={styles.chips}>
+          {titulosExtras.map((t) => (
+            <span key={t} className={styles.chip}>
+              {t}
+              <button type="button" onClick={() => removeTitulo(t)} aria-label="Quitar">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className={styles.addRow}>
+        <input
+          className={`${styles.input} ${styles.addInput}`}
+          placeholder="Título extra + Enter"
+          value={newTitulo}
+          onChange={(e) => setNewTitulo(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTitulo(); } }}
+        />
+        <button type="button" className={styles.tagBtn} onClick={addTitulo}>Agregar título</button>
+      </div>
+      <div className={styles.bulkTags}>
+        <textarea
+          className={`${styles.input} ${styles.bulkInput}`}
+          placeholder="Pega varios títulos (uno por línea o separados por coma)"
+          value={bulkTitulos}
+          onChange={(e) => setBulkTitulos(e.target.value)}
+          rows={2}
+        />
+        <button type="button" className={styles.tagBtn} onClick={addAllTitulos}>Agregar todos</button>
+      </div>
     </>
   );
 
@@ -462,6 +552,7 @@ export default function HentaiAdmin() {
             <input className={styles.input} placeholder="Título alterno (JA / EN)" value={form.titulo_ja}
               onChange={(e) => setForm({ ...form, titulo_ja: e.target.value })} />
           </div>
+          {titulosExtrasUI}
           {!editing && (
             <input className={styles.input} placeholder="Title EN" value={form.titulo_en}
               onChange={(e) => setForm({ ...form, titulo_en: e.target.value })} />

@@ -60,9 +60,13 @@ export default function HentaiPlayer({ hentaiId, info = null, serie = null, capi
     setModo(pickModo(c, modo));
   }
 
-  // Títulos alternos disponibles (ES / JA / romaji / EN), sin repetir el principal
+  // Títulos alternos disponibles (ES / JA / romaji / EN + títulos extras), sin repetir el principal
+  const titulosExtras = [
+    ...(Array.isArray(serie?.titulos_extras) ? serie.titulos_extras : []),
+    ...Object.values(serie?.modos || {}).flatMap((m) => (Array.isArray(m?.titulos_extras) ? m.titulos_extras : [])),
+  ];
   const altTitles = [...new Set(
-    [serie?.titulo_es, serie?.titulo_ja, serie?.titulo_romaji, serie?.titulo_en]
+    [serie?.titulo_es, serie?.titulo_ja, serie?.titulo_romaji, serie?.titulo_en, ...titulosExtras]
       .map((x) => String(x || '').trim())
       .filter(Boolean)
   )].filter((x) => x.toLowerCase() !== String(meta.title || '').trim().toLowerCase());
