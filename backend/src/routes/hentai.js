@@ -287,13 +287,13 @@ r.put('/:id', authRequired, async (req, res, next) => {
 
     await query(
       `INSERT INTO hentai_modos (hentai_id, modo, titulo, titulo_alt, titulos_extras, descripcion, tags, tipo, anio, temporada, estado)
-       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '{}'), $8, $9, $10, COALESCE($11, 'En emisión'))
+       VALUES ($1, $2, $3, $4, $5::text[], $6, COALESCE($7::text[], '{}'::text[]), $8, $9, $10, COALESCE($11, 'En emisión'))
        ON CONFLICT (hentai_id, modo) DO UPDATE SET
          titulo         = COALESCE($3, hentai_modos.titulo),
          titulo_alt     = COALESCE($4, hentai_modos.titulo_alt),
-         titulos_extras = CASE WHEN $5 IS NULL THEN hentai_modos.titulos_extras ELSE $5 END,
+         titulos_extras = CASE WHEN $5::text[] IS NULL THEN hentai_modos.titulos_extras ELSE $5::text[] END,
          descripcion    = COALESCE($6, hentai_modos.descripcion),
-         tags           = CASE WHEN $7 IS NULL THEN hentai_modos.tags ELSE $7 END,
+         tags           = CASE WHEN $7::text[] IS NULL THEN hentai_modos.tags ELSE $7::text[] END,
          tipo           = COALESCE($8, hentai_modos.tipo),
          anio           = COALESCE($9, hentai_modos.anio),
          temporada      = COALESCE($10, hentai_modos.temporada),
@@ -307,7 +307,7 @@ r.put('/:id', authRequired, async (req, res, next) => {
       `UPDATE hentai
           SET canal = COALESCE($2, canal),
               titulo_es = COALESCE($3, titulo_es),
-              titulos_extras = CASE WHEN $4 IS NULL THEN titulos_extras ELSE $4 END,
+              titulos_extras = CASE WHEN $4::text[] IS NULL THEN titulos_extras ELSE $4::text[] END,
               updated_at = NOW()
         WHERE id = $1`,
       [id, canal, titulo, modo === 'sub' ? titulosExtras : null]
