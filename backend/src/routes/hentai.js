@@ -5,7 +5,7 @@ import { query } from '../db/pool.js';
 import { authRequired } from '../middleware/auth.js';
 import { publishEvent, cacheDel } from '../db/redis.js';
 import {
-  upload, MEDIA_DIR, publicOf, moveFileSync,
+  upload, MEDIA_DIR, publicOf, moveFileSync, removeMedia,
   hentaiRootDir, hentaiSerieFolder, hentaiCapFolder,
 } from '../services/upload.js';
 import { transcodeVideo, hasFFmpeg, fmtDuration, probe } from '../services/transcode.js';
@@ -362,12 +362,24 @@ r.post('/:id/cover', authRequired, upload.single('thumb'), async (req, res, next
     const dir = path.join(serieDir(serie), 'thumbs');
     fs.mkdirSync(dir, { recursive: true });
     const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
-    const target = path.join(dir, `cover${ext}`);
+    // Nombre unico por subida (evita la cache del navegador con "cover.jpg" fijo).
+    const target = path.join(dir, `cover-${Date.now()}${ext}`);
     moveFileSync(file.path, target);
     const cover = publicOf(target);
+    const oldCover = serie.cover;
 
-    await query('UPDATE hentai SET cover = $2, thumb = COALESCE(thumb, $2), updated_at = NOW() WHERE id = $1', [serie.id, cover]);
+    await query(
+      `UPDATE hentai SET cover = $2,
+              thumb = CASE WHEN thumb IS NULL OR thumb = $3 THEN $2 ELSE thumb END,
+              updated_at = NOW()
+        WHERE id = $1`,
+      [serie.id, cover, oldCover]
+    );
+    if (oldCover && oldCover !== cover) removeMedia(oldCover);
+
+    await cacheDel('cache:stats');
     await publishEvent('hentai_updated', { id: serie.id });
+    console.log(`[hentai] serie #${serie.id} cover -> ${cover} (antes: ${oldCover || 'sin portada'})`);
     res.json({ ok: true, cover, serie: await getSerie(serie.id) });
   } catch (e) { next(e); }
 });
@@ -419,13 +431,18 @@ r.post('/:id/capitulos', authRequired, upload.fields([{ name: 'video', maxCount:
     moveFileSync(videoFile.path, src);
 
     // thumb del modo
+    const prevThumb = (await query(
+      'SELECT thumb FROM hentai_capitulo_fuentes WHERE capitulo_id = $1 AND modo = $2',
+      [cap.id, modo]
+    )).rows[0]?.thumb || null;
+
     let thumb = null;
     const thumbFile = req.files?.thumb?.[0];
     if (thumbFile) {
       const tdir = path.join(destDir, 'thumbs');
       fs.mkdirSync(tdir, { recursive: true });
-      const text = (path.extname(thumbFile.filename) || '.jpg').toLowerCase();
-      const target = path.join(tdir, `cover${text}`);
+      const text = (path.extname(thumbFile.originalname) || path.extname(thumbFile.filename) || '.jpg').toLowerCase();
+      const target = path.join(tdir, `cover-${Date.now()}${text}`);
       moveFileSync(thumbFile.path, target);
       thumb = publicOf(target);
     }
@@ -441,6 +458,7 @@ r.post('/:id/capitulos', authRequired, upload.fields([{ name: 'video', maxCount:
       [cap.id, modo, publicOf(src), thumb]
     );
     const fuenteId = fuente.rows[0].id;
+    if (prevThumb && thumb && prevThumb !== thumb) removeMedia(prevThumb);
 
     try {
       const info = await probe(src);
@@ -528,7 +546,7 @@ r.put('/fuentes/:fuenteId', authRequired, upload.single('thumb'), async (req, re
     const fuenteId = Number(req.params.fuenteId);
     if (!Number.isInteger(fuenteId) || fuenteId <= 0) return res.status(404).json({ error: 'Fuente no encontrada' });
     const { rows } = await query(
-      `SELECT f.id, f.modo, c.hentai_id, c.numero
+      `SELECT f.id, f.modo, f.thumb, c.hentai_id, c.numero
          FROM hentai_capitulo_fuentes f
          JOIN hentai_capitulos c ON c.id = f.capitulo_id
         WHERE f.id = $1`,
@@ -536,22 +554,28 @@ r.put('/fuentes/:fuenteId', authRequired, upload.single('thumb'), async (req, re
     );
     const fuente = rows[0];
     if (!fuente) return res.status(404).json({ error: 'Fuente no encontrada' });
+
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Adjunta la miniatura' });
+
     const serie = await getSerie(fuente.hentai_id);
     if (!serie) return res.status(404).json({ error: 'Hentai no encontrado' });
 
-    const file = req.file;
-    let thumb = null;
-    if (file) {
-      const dir = path.join(serieDir(serie), hentaiCapFolder(fuente.numero), fuente.modo, 'thumbs');
-      fs.mkdirSync(dir, { recursive: true });
-      const ext = (path.extname(file.filename || file.originalname) || '.jpg').toLowerCase();
-      const target = path.join(dir, `thumb${ext}`);
-      moveFileSync(file.path, target);
-      thumb = publicOf(target);
-    }
-    await query('UPDATE hentai_capitulo_fuentes SET thumb = COALESCE($2, thumb) WHERE id = $1', [fuenteId, thumb]);
+    const dir = path.join(serieDir(serie), hentaiCapFolder(fuente.numero), fuente.modo, 'thumbs');
+    fs.mkdirSync(dir, { recursive: true });
+    const ext = (path.extname(file.originalname) || path.extname(file.filename) || '.jpg').toLowerCase();
+    // Nombre unico por subida: si se reutilizara "thumb.jpg", el navegador/nginx
+    // seguiria sirviendo la miniatura vieja desde cache y pareceria que no cambia.
+    const target = path.join(dir, `thumb-${Date.now()}${ext}`);
+    moveFileSync(file.path, target);
+    const thumb = publicOf(target);
+
+    await query('UPDATE hentai_capitulo_fuentes SET thumb = $2 WHERE id = $1', [fuenteId, thumb]);
+    if (fuente.thumb && fuente.thumb !== thumb) removeMedia(fuente.thumb);
+
     await cacheDel('cache:stats');
     await publishEvent('hentai_updated', { id: fuente.hentai_id });
+    console.log(`[hentai] fuente #${fuenteId} thumb -> ${thumb} (antes: ${fuente.thumb || 'sin miniatura'})`);
     res.json({ ok: true, thumb });
   } catch (e) { next(e); }
 });

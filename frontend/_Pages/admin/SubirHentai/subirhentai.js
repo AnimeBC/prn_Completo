@@ -453,11 +453,15 @@ export default function HentaiAdmin() {
       fd.append('thumb', file);
       const r = await fetch(`${API}/api/hentai/fuentes/${fuenteId}`, { method: 'PUT', headers: authHeaders(), body: fd });
       const j = await r.json().catch(() => ({}));
+      console.log('[hentai] PUT fuente thumb', fuenteId, 'status=', r.status, j);
       if (!r.ok) { setError(j.error || 'No se pudo subir la miniatura'); return; }
       setMsg('Miniatura actualizada.');
       setEditFuenteId(null);
       refreshEpisodes();
-    } catch { setError('No hay conexión con el servidor.'); }
+    } catch (err) {
+      console.error('[hentai] PUT fuente thumb error:', err);
+      setError('No hay conexión con el servidor.');
+    }
     finally { setThumbBusyId(null); }
   }
 
