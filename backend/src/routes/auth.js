@@ -205,10 +205,29 @@ async function findUserByKey(userKey) {
   return rows[0] || null;
 }
 
+// Alias aleatorio para invitados y cuentas sin nombre (nada de "Invitado xxxx").
+const ALIAS_WORDS = [
+  'Zorro', 'Tigre', 'Lobo', 'Leon', 'Puma', 'Halcon', 'Dragon', 'Cuervo', 'Pantera', 'Jaguar',
+  'Tiburon', 'Aguila', 'Lince', 'Oso', 'Gato', 'Cobra', 'Fenix', 'Rayo', 'Sombra', 'Cometa',
+  'Tornado', 'Volcan', 'Trueno', 'Fuego', 'Hielo', 'Nube', 'Estrella', 'Meteoro', 'Fantasma', 'Titan',
+];
+function randomAlias(seed) {
+  if (seed) {
+    // Determinista por userKey: el mismo dispositivo siempre ve el mismo alias.
+    let h = 0;
+    const s = String(seed);
+    for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    const num = h % 90 + 10;
+    return `${ALIAS_WORDS[h % ALIAS_WORDS.length]}${num}`;
+  }
+  const num = Math.floor(Math.random() * 90) + 10;
+  return `${ALIAS_WORDS[Math.floor(Math.random() * ALIAS_WORDS.length)]}${num}`;
+}
+
 async function ensureUser(userKey) {
   const existing = await findUserByKey(userKey);
   if (existing) return existing;
-  const nombre = `Invitado ${userKey.slice(-4)}`;
+  const nombre = randomAlias(userKey);
   await query(
     `INSERT INTO users (user_key, rol, nombre) VALUES ($1, 'user', $2)
      ON CONFLICT (user_key) DO NOTHING`,
@@ -266,11 +285,11 @@ r.get('/profile', async (req, res, next) => {
     const userKey = normalizeUserKey(req.query.userKey);
     if (!userKey) return res.status(400).json({ error: 'userKey inválido' });
 
-    const existing = await findUserByKey(userKey);
+    let existing = await findUserByKey(userKey);
     if (!existing) {
       const guest = {
         user_key: userKey,
-        nombre: `Invitado ${userKey.slice(-4)}`,
+        nombre: randomAlias(userKey),
         rol: 'user',
         provider: 'local',
         email_verified: false,
@@ -281,6 +300,11 @@ r.get('/profile', async (req, res, next) => {
         user: { ...publicUser(guest), virtual: true },
         stats: { likes: 0, saved: 0, following: 0, downloads: 0 },
       });
+    }
+    // Cuentas sin nombre (registros viejos): le ponemos un alias aleatorio.
+    if (!existing.nombre || !String(existing.nombre).trim()) {
+      await query('UPDATE users SET nombre = $2, updated_at = NOW() WHERE user_key = $1', [userKey, randomAlias()]);
+      existing = await findUserByKey(userKey);
     }
     res.json({ ok: true, user: publicUser(existing), stats: await getUserStats(userKey) });
   } catch (e) { next(e); }
@@ -647,13 +671,16 @@ r.post('/profile/register', async (req, res, next) => {
 
     await ensureUser(userKey);
     const hash = await bcrypt.hash(String(password), 10);
+    const cleanNombre = String(nombre || '').trim().slice(0, 120) || randomAlias();
     await query(
       `UPDATE users SET email = $2, password_hash = $3, provider = 'local',
               email_verified = FALSE,
               usuario = COALESCE(NULLIF($5, ''), usuario),
-              nombre = COALESCE(NULLIF($4, ''), nombre), updated_at = NOW()
+              nombre = CASE WHEN nombre IS NULL OR nombre = '' OR nombre LIKE 'Invitado %'
+                            THEN $4 ELSE nombre END,
+              updated_at = NOW()
         WHERE user_key = $1`,
-      [userKey, cleanEmail, hash, String(nombre || '').trim().slice(0, 120), cleanUsuario]
+      [userKey, cleanEmail, hash, cleanNombre, cleanUsuario]
     );
 
     const user = await findUserByKey(userKey);
@@ -821,7 +848,7 @@ r.post('/profile/google', async (req, res, next) => {
     }
 
     const email = String(info.email).toLowerCase();
-    const nombre = info.name || email.split('@')[0];
+    const nombre = String(info.name || '').trim() || randomAlias();
     const picture = info.picture || null;
     const googleId = String(info.sub || '');
 
@@ -841,7 +868,8 @@ r.post('/profile/google', async (req, res, next) => {
       await query(
         `UPDATE users SET google_id = $2, provider = 'google', email_verified = TRUE,
                 email = COALESCE(email, $3), avatar = COALESCE(avatar, $4),
-                nombre = COALESCE(NULLIF(nombre, ''), $5),
+                nombre = CASE WHEN nombre IS NULL OR nombre = '' OR nombre LIKE 'Invitado %'
+                              THEN $5 ELSE nombre END,
                 last_login = NOW(), updated_at = NOW()
           WHERE id = $1`,
         [user.id, googleId, email, picture, nombre]
