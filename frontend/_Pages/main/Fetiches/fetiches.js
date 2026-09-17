@@ -8,6 +8,7 @@ import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
+import { videoUrl } from '@/_Extras/Datos/urls.js';
 
 const PER_PAGE = 16;
 
@@ -212,8 +213,8 @@ export default function FetichesClient() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function go(id) {
-    router.push(`/videos/${id}`);
+  function go(item) {
+    router.push(videoUrl(item));
   }
 
   function scrollRow(dir = 1) {
@@ -253,11 +254,11 @@ export default function FetichesClient() {
         className={styles.card}
         role="link"
         tabIndex={0}
-        onClick={() => go(video.id)}
+        onClick={() => go(video)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            go(video.id);
+            go(video);
           }
         }}
       >

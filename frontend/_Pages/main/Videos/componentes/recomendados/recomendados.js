@@ -6,6 +6,7 @@ import styles from './recomendados.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
 import { canalUrl } from '@/_Extras/Canales/canal.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
+import { videoUrl, hentaiUrl } from '@/_Extras/Datos/urls.js';
 
 const BATCH = 5;
 const INITIAL = 6;
@@ -71,9 +72,8 @@ export default function Recomendados({ currentId, title = 'A continuación', kin
   }, [hasMore, list.length]);
 
   function go(item) {
-    const id = item?.id ?? item;
-    if (kind === 'hentai') router.push(`/hentai/${item?.slug || id}`);
-    else router.push(`/videos/${id}`);
+    if (kind === 'hentai') router.push(hentaiUrl(item));
+    else router.push(videoUrl(item));
   }
 
   return (

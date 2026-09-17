@@ -6,6 +6,7 @@ import styles from './fila.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
+import { videoUrl, hentaiUrl } from '@/_Extras/Datos/urls.js';
 
 /**
  * Fila/carrusel genérico del home.
@@ -46,9 +47,9 @@ export default function Fila({ title, href = null, icon = 'flame', source = 'vid
   }
 
   function go(item) {
-    if (source === 'hentai') router.push(`/hentai/${item.slug || item.id}`);
+    if (source === 'hentai') router.push(hentaiUrl(item));
     else if (source === 'packs') router.push(`/packs/${item.public_id}`);
-    else router.push(`/videos/${item.id}`);
+    else router.push(videoUrl(item));
   }
 
   if (!items.length) return null;

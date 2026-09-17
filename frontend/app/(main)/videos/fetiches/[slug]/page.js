@@ -4,10 +4,12 @@ import VideosClient from '@/_Pages/main/Videos/videos.js';
 import styles from '@/app/(main)/page.module.css';
 import { apiGet, mediaUrl, sinceOf } from '@/_Extras/Datos/server.js';
 
-async function resolveEntry(id) {
-  const r = await apiGet(`/api/videos/${id}`);
+async function resolveEntry(slug) {
+  const r = await apiGet(`/api/videos/${encodeURIComponent(slug)}`);
   if (!r || !r.id) return null;
   return {
+    id: r.id,
+    slug: r.slug || String(r.id),
     title: r.titulo_es || r.titulo_en,
     viewsFull: `${Number(r.vistas || 0).toLocaleString('es-PE')} vistas`,
     date: r.created_at,
@@ -29,8 +31,8 @@ function toInfo(entry) {
 }
 
 export async function generateMetadata({ params }) {
-  const { id } = await params;
-  const entry = await resolveEntry(id);
+  const { slug } = await params;
+  const entry = await resolveEntry(slug);
   if (!entry) return { title: 'Video no encontrado' };
   const title = entry.title;
   const resumen = (entry.desc || '').replace(/\s+/g, ' ').trim().slice(0, 160);
@@ -42,7 +44,7 @@ export async function generateMetadata({ params }) {
     title,
     description,
     keywords: entry.tags,
-    alternates: { canonical: `/videos/fetiches/${id}` },
+    alternates: { canonical: `/videos/fetiches/${entry.slug}` },
     openGraph: {
       type: 'video.other',
       title: `${title} | pikante pe`,
@@ -53,15 +55,15 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function FeticheVideoPage({ params }) {
-  const { id } = await params;
-  const entry = await resolveEntry(id);
+  const { slug } = await params;
+  const entry = await resolveEntry(slug);
 
   return (
     <div className={styles.layout}>
       <Header />
       <div className={styles.body}>
         <Sidebar />
-        <VideosClient videoId={id} src={entry?.src || ''} info={toInfo(entry)} renditions={entry?.renditions || []} />
+        <VideosClient videoId={entry?.id || slug} src={entry?.src || ''} info={toInfo(entry)} renditions={entry?.renditions || []} />
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
+import { videoUrl } from '@/_Extras/Datos/urls.js';
 
 const PER_PAGE = 16;
 const DROP_ORDEN = ['Más recientes', 'Más vistos', 'Más largos', 'Más cortos'];
@@ -195,8 +196,8 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
         className={styles.card}
         role="link"
         tabIndex={0}
-        onClick={() => router.push(`/videos/${video.id}`)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/videos/${video.id}`); } }}
+        onClick={() => router.push(videoUrl(video))}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(videoUrl(video)); } }}
       >
         <Preview src={video.src} thumb={video.thumb}>
           <span className={styles.duration}>{video.duration}</span>

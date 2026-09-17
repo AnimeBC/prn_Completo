@@ -106,6 +106,33 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
   const likePct = totalVotes ? Math.round((stats.likes / totalVotes) * 100) : 50;
   const dislikePct = 100 - likePct;
 
+  // Like/Dislike + barra de ratio (se usa en el canal en PC y junto a las vistas en móvil).
+  const segmentedUI = (
+    <>
+      <div className={styles.ytSegmented}>
+        <button className={`${styles.ytSegBtn} ${stats.myVote === 'like' ? styles.ytSegActive : ''}`} type="button" aria-label="Me gusta" aria-pressed={stats.myVote === 'like'} onClick={toggleLike}>
+          <ion-icon name={stats.myVote === 'like' ? 'thumbs-up' : 'thumbs-up-outline'} className={styles.ytSegIcon} suppressHydrationWarning></ion-icon>
+          <span className={styles.ytCount}>{formatCount(stats.likes)}</span>
+        </button>
+        <div className={styles.ytSegDivider} />
+        <button className={`${styles.ytSegBtn} ${stats.myVote === 'dislike' ? styles.ytSegActive : ''}`} type="button" aria-label="No me gusta" aria-pressed={stats.myVote === 'dislike'} onClick={toggleDislike}>
+          <ion-icon name={stats.myVote === 'dislike' ? 'thumbs-down' : 'thumbs-down-outline'} className={styles.ytSegIcon} suppressHydrationWarning></ion-icon>
+          <span className={styles.ytCount}>{formatCount(stats.dislikes)}</span>
+        </button>
+      </div>
+      <div className={styles.ratioWrap} aria-hidden="true">
+        <div className={styles.ratioBar}>
+          <div className={styles.ratioGreen} style={{ width: `${likePct}%` }} />
+          <div className={styles.ratioRed} style={{ width: `${dislikePct}%` }} />
+        </div>
+        <div className={styles.ratioLabels}>
+          <span className={styles.ratioLabelGreen}>{likePct}%</span>
+          <span className={styles.ratioLabelRed}>{dislikePct}%</span>
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <div className={styles.col}>
       <div className={styles.videoHead}>
@@ -133,7 +160,10 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
             </span>
           )}
         </div>
-        <p className={styles.videoMeta}>{info.views} • {info.date}</p>
+        <div className={styles.metaRow}>
+          <p className={styles.videoMeta}>{info.views} • {info.date}</p>
+          <div className={`${styles.ytSegmentedWrap} ${styles.segMobile}`}>{segmentedUI}</div>
+        </div>
       </div>
 
       <div className={styles.channelRow}>
@@ -166,28 +196,8 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
           </button>
         </div>
 
-        <div className={styles.ytSegmentedWrap}>
-          <div className={styles.ytSegmented}>
-            <button className={`${styles.ytSegBtn} ${stats.myVote === 'like' ? styles.ytSegActive : ''}`} type="button" aria-label="Me gusta" aria-pressed={stats.myVote === 'like'} onClick={toggleLike}>
-              <ion-icon name={stats.myVote === 'like' ? 'thumbs-up' : 'thumbs-up-outline'} className={styles.ytSegIcon} suppressHydrationWarning></ion-icon>
-              <span className={styles.ytCount}>{formatCount(stats.likes)}</span>
-            </button>
-            <div className={styles.ytSegDivider} />
-            <button className={`${styles.ytSegBtn} ${stats.myVote === 'dislike' ? styles.ytSegActive : ''}`} type="button" aria-label="No me gusta" aria-pressed={stats.myVote === 'dislike'} onClick={toggleDislike}>
-              <ion-icon name={stats.myVote === 'dislike' ? 'thumbs-down' : 'thumbs-down-outline'} className={styles.ytSegIcon} suppressHydrationWarning></ion-icon>
-              <span className={styles.ytCount}>{formatCount(stats.dislikes)}</span>
-            </button>
-          </div>
-          <div className={styles.ratioWrap} aria-hidden="true">
-            <div className={styles.ratioBar}>
-              <div className={styles.ratioGreen} style={{ width: `${likePct}%` }} />
-              <div className={styles.ratioRed} style={{ width: `${dislikePct}%` }} />
-            </div>
-            <div className={styles.ratioLabels}>
-              <span className={styles.ratioLabelGreen}>{likePct}%</span>
-              <span className={styles.ratioLabelRed}>{dislikePct}%</span>
-            </div>
-          </div>
+        <div className={`${styles.ytSegmentedWrap} ${styles.segDesktop}`}>
+          {segmentedUI}
         </div>
 
         <div className={styles.actions}>

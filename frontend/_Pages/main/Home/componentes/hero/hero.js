@@ -6,6 +6,7 @@ import styles from './hero.module.css';
 import { useTheme } from '@/_Extras/CambiodeColor/ThemeProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
+import { videoUrl } from '@/_Extras/Datos/urls.js';
 
 const suggestions = [
   { label: 'nav.tendencias', href: '/tendencias', icon: 'trending-up-outline' },
@@ -119,11 +120,11 @@ export default function Hero() {
           className={styles.visualMedia}
           role="link"
           tabIndex={0}
-          onClick={() => router.push(rec ? `/videos/${rec.id}` : '/videos/fetiches/1')}
+          onClick={() => router.push(rec ? videoUrl(rec) : '/videos/fetiches/1')}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              router.push(rec ? `/videos/${rec.id}` : '/videos/fetiches/1');
+              router.push(rec ? videoUrl(rec) : '/videos/fetiches/1');
             }
           }}
         >
@@ -138,7 +139,7 @@ export default function Hero() {
             aria-label="Reproducir video recomendado"
             onClick={(e) => {
               e.stopPropagation();
-              router.push(rec ? `/videos/${rec.id}` : '/videos/fetiches/1');
+              router.push(rec ? videoUrl(rec) : '/videos/fetiches/1');
             }}
           >
             <ion-icon name="play-sharp" className={styles.playIcon} suppressHydrationWarning></ion-icon>

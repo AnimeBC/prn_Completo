@@ -6,6 +6,7 @@ import styles from './carrusel.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
+import { videoUrl } from '@/_Extras/Datos/urls.js';
 
 export default function Carrusel() {
   const trackRef = useRef(null);
@@ -64,11 +65,11 @@ export default function Carrusel() {
             className={styles.card}
             role="link"
             tabIndex={0}
-            onClick={() => router.push(`/videos/${video.id}`)}
+            onClick={() => router.push(videoUrl(video))}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                router.push(`/videos/${video.id}`);
+                router.push(videoUrl(video));
               }
             }}
           >

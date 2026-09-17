@@ -8,6 +8,7 @@ import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
+import { videoUrl } from '@/_Extras/Datos/urls.js';
 
 const PER_PAGE = 16;
 const DROP_ORDEN = ['Más recientes', 'Más vistos', 'Más largos', 'Más cortos'];
@@ -157,8 +158,8 @@ export default function TodosVideosClient() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function go(id) {
-    router.push(`/videos/${id}`);
+  function go(item) {
+    router.push(videoUrl(item));
   }
 
   function clearFilters() {
@@ -175,11 +176,11 @@ export default function TodosVideosClient() {
         className={styles.card}
         role="link"
         tabIndex={0}
-        onClick={() => go(video.id)}
+        onClick={() => go(video)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            go(video.id);
+            go(video);
           }
         }}
       >

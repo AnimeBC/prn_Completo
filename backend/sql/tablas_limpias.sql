@@ -1022,7 +1022,14 @@ VALUES
 ON CONFLICT (slug) DO NOTHING;
 
 -- ============================================================
--- 28) COMUNIDAD (red social interna)
+-- 28) SLUG de videos (URLs amigables: /videos/titulo-3)
+-- ============================================================
+UPDATE videos
+   SET slug = trim(both '-' from regexp_replace(lower(titulo_es), '[^a-z0-9]+', '-', 'g')) || '-' || id
+ WHERE slug IS NULL OR slug = '';
+
+-- ============================================================
+-- 29) COMUNIDAD (red social interna)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS comunidades (
   id           SERIAL PRIMARY KEY,

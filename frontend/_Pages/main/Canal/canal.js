@@ -8,6 +8,7 @@ import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
 import AuthModal from '@/_Pages/main/Auth/AuthModal';
+import { videoUrl } from '@/_Extras/Datos/urls.js';
 
 const SORTS = [
   { id: 'recent', es: 'Más recientes', en: 'Newest' },
@@ -391,8 +392,8 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
                       className={styles.card}
                       role="link"
                       tabIndex={0}
-                      onClick={() => router.push(`/videos/${v.id}`)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/videos/${v.id}`); } }}
+                      onClick={() => router.push(videoUrl(v))}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(videoUrl(v)); } }}
                     >
                       <div className={styles.thumb}>
                         <Preview src={resolveImg(v.src)} thumb={resolveImg(v.thumb)}>

@@ -21,16 +21,16 @@ export default async function sitemap() {
   }));
 
   const videoRoutes = (data.videos || []).map((v) => ({
-    url: `${BASE}/videos/${v.id}`,
+    url: `${BASE}/videos/${v.slug || v.id}`,
     lastModified: new Date(),
     changeFrequency: 'weekly',
     priority: 0.6,
   }));
 
   const feticheRoutes = (data.videos || [])
-    .filter((v) => v.is_fetiche)
+    .filter((v) => v.is_fetiche || v.isFetiche)
     .map((f) => ({
-      url: `${BASE}/videos/fetiches/${f.id}`,
+      url: `${BASE}/videos/fetiches/${f.slug || f.id}`,
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.6,

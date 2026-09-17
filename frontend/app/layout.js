@@ -28,9 +28,6 @@ export const metadata = {
   creator: 'pikante pe',
   publisher: 'pikante pe',
   category: 'entertainment',
-  alternates: {
-    canonical: 'https://pikantepe.com',
-  },
   robots: {
     index: true,
     follow: true,

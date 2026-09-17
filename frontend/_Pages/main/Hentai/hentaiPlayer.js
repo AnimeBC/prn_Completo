@@ -156,6 +156,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
               <HentaiReproductor src={playerSrc} theater={theater} onToggleTheater={() => setTheater((p) => !p)} />
             </div>
             <div className={styles.leftCol}>
+              <div className={styles.epMobile}>{episodeList}</div>
               <HentaiInfo hentaiId={hentaiId} capituloId={activeCap?.id} info={info} src={playerSrc} header={header} />
               {modeToggle}
               {activeCap && <Comentarios hentaiCapId={activeCap.id} />}
@@ -163,7 +164,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
                 src="https://www.highrevenueformat.com/e483940fff110a871ea3ba9b07dd3259/invoke.js" />
             </div>
             <div className={styles.rightColSlim}>
-              {episodeList}
+              <div className={styles.epDesktop}>{episodeList}</div>
               <AdBanner adKey="3a837969e396afcbcfc39bb7494cfe37" width={300} height={250}
                 src="https://www.highrevenueformat.com/3a837969e396afcbcfc39bb7494cfe37/invoke.js" />
               <Recomendados currentId={hentaiId} title="Recomendados" kind="hentai" />
@@ -174,6 +175,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
           <>
             <div className={styles.leftCol}>
               <HentaiReproductor src={playerSrc} theater={theater} onToggleTheater={() => setTheater((p) => !p)} />
+              <div className={styles.epMobile}>{episodeList}</div>
               {modeToggle}
               <HentaiInfo hentaiId={hentaiId} capituloId={activeCap?.id} info={info} src={playerSrc} header={header} />
               {activeCap && <Comentarios hentaiCapId={activeCap.id} />}
@@ -181,7 +183,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
                 src="https://www.highrevenueformat.com/e483940fff110a871ea3ba9b07dd3259/invoke.js" />
             </div>
             <div className={styles.rightCol}>
-              {episodeList}
+              <div className={styles.epDesktop}>{episodeList}</div>
               <AdBanner adKey="3a837969e396afcbcfc39bb7494cfe37" width={300} height={250}
                 src="https://www.highrevenueformat.com/3a837969e396afcbcfc39bb7494cfe37/invoke.js" />
               <Recomendados currentId={hentaiId} title="Recomendados" kind="hentai" />

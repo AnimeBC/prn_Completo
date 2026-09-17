@@ -2,13 +2,16 @@ import Header from '@/_Pages/main/layouts/Header/Header';
 import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import VideosClient from '@/_Pages/main/Videos/videos.js';
 import styles from '@/app/(main)/page.module.css';
+import { notFound } from 'next/navigation';
 import { apiGet, mediaUrl, sinceOf } from '@/_Extras/Datos/server.js';
 
-/** Trae el video desde PostgreSQL (base de datos). */
-async function resolveEntry(id) {
-  const r = await apiGet(`/api/videos/${id}`);
+/** Trae el video desde PostgreSQL (acepta id o slug). */
+async function resolveEntry(slug) {
+  const r = await apiGet(`/api/videos/${encodeURIComponent(slug)}`);
   if (!r || !r.id) return null;
   return {
+    id: r.id,
+    slug: r.slug || String(r.id),
     title: r.titulo_es || r.titulo_en,
     viewsFull: `${Number(r.vistas || 0).toLocaleString('es-PE')} vistas`,
     date: r.created_at,
@@ -38,8 +41,8 @@ function toInfo(entry) {
 }
 
 export async function generateMetadata({ params }) {
-  const { id } = await params;
-  const entry = await resolveEntry(id);
+  const { slug } = await params;
+  const entry = await resolveEntry(slug);
   if (!entry) return { title: 'Video' };
   const title = entry.title;
   const resumen = (entry.desc || '').replace(/\s+/g, ' ').trim().slice(0, 160);
@@ -51,7 +54,7 @@ export async function generateMetadata({ params }) {
     title,
     description,
     keywords: entry.tags,
-    alternates: { canonical: `/videos/${id}` },
+    alternates: { canonical: `/videos/${entry.slug}` },
     openGraph: {
       type: 'video.other',
       title: `${title} | pikante pe`,
@@ -62,16 +65,37 @@ export async function generateMetadata({ params }) {
 }
 
 export default async function VideoPage({ params }) {
-  const { id } = await params;
-  const entry = await resolveEntry(id);
+  const { slug } = await params;
+  const entry = await resolveEntry(slug);
+  if (!entry) notFound();
   const src = entry?.src || '';
+
+  const jsonLd = entry
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'VideoObject',
+        name: entry.title,
+        description: entry.desc || entry.title,
+        thumbnailUrl: entry.thumb ? [entry.thumb] : undefined,
+        uploadDate: entry.date,
+        contentUrl: entry.src || undefined,
+        embedUrl: `https://pikantepe.com/videos/${entry.slug}`,
+        publisher: { '@type': 'Organization', name: 'pikante pe', url: 'https://pikantepe.com' },
+      }
+    : null;
 
   return (
     <div className={styles.layout}>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
       <Header />
       <div className={styles.body}>
         <Sidebar />
-        <VideosClient videoId={id} src={src} info={toInfo(entry)} renditions={entry?.renditions || []} />
+        <VideosClient videoId={entry?.id || slug} src={src} info={toInfo(entry)} renditions={entry?.renditions || []} />
       </div>
     </div>
   );

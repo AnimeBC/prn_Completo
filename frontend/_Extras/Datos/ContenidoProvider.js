@@ -50,6 +50,7 @@ function fmtSince(dateStr) {
 function mapVideo(r, es) {
   return {
     id: r.id,
+    slug: r.slug || '',
     title: r.titulo_es || r.titulo_en || `Video #${r.id}`,
     titleEn: r.titulo_en,
     channel: r.canal || 'administrador pikante.pe',

@@ -6,6 +6,7 @@ import styles from './masvideos.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
 import { canalUrl } from '@/_Extras/Canales/canal.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
+import { videoUrl } from '@/_Extras/Datos/urls.js';
 
 const BATCH = 5;
 
@@ -51,8 +52,8 @@ export default function MasVideos({ currentId }) {
     return () => obs.disconnect();
   }, [hasMore, list.length]);
 
-  function go(id) {
-    router.push(`/videos/${id}`);
+  function go(video) {
+    router.push(videoUrl(video));
   }
 
   return (
@@ -63,11 +64,11 @@ export default function MasVideos({ currentId }) {
           className={styles.card}
           role="link"
           tabIndex={0}
-          onClick={() => go(video.id)}
+          onClick={() => go(video)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              go(video.id);
+              go(video);
             }
           }}
         >

@@ -198,18 +198,18 @@ r.get('/', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// GET /api/videos/:id
+// GET /api/videos/:id  (acepta id numérico o slug)
 r.get('/:id', async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ error: 'Video no encontrado' });
-
+    const param = String(req.params.id || '').trim();
+    const num = Number(param);
+    const byId = Number.isInteger(num) && num > 0;
     const { rows } = await query(
       `SELECT v.*, fc.nombre AS fetiche_categoria
          FROM videos v
          LEFT JOIN fetiche_categorias fc ON fc.id = v.fetiche_categoria_id
-        WHERE v.id = $1`,
-      [id]
+        WHERE ${byId ? 'v.id = $1' : 'v.slug = $1'}`,
+      [byId ? num : param]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Video no encontrado' });
     const tagMap = await tagsForVideos([rows[0].id]);
@@ -275,6 +275,7 @@ r.post('/upload', authRequired, upload.fields([{ name: 'video', maxCount: 1 }, {
     }
 
     await query('UPDATE videos SET src = $1, descarga = $1, thumb = $2 WHERE id = $3', [src, thumb, id]);
+    await query('UPDATE videos SET slug = $2 WHERE id = $1', [id, `${slugify(title) || 'video'}-${id}`]);
 
     const names = [...splitTags(b.tags), ...splitTags(b.tagsEn)];
     await linkTags(id, names);

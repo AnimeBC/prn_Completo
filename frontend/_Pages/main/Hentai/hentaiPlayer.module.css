@@ -290,3 +290,14 @@
 .chapterBody{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
 .chapterMetaRow{ display:flex; align-items:center; gap:8px; flex-wrap:wrap }
 @media (max-width: 480px){ .chapterThumbWrap{ width:72px } }
+
+/* ===== Episodios: en movil, justo bajo el reproductor (tipo lista de musica) ===== */
+.epMobile{ display:none }
+@media (max-width: 1024px){
+  .epDesktop{ display:none }
+  .epMobile{ display:block }
+  .epMobile .chapters{ padding:10px 12px }
+  .epMobile .chaptersTitle{ font-size:14px; margin-bottom:8px }
+  .epMobile .chaptersScroll{ max-height:230px }
+  .epMobile .chapterThumbWrap{ width:76px }
+}

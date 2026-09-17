@@ -440,3 +440,22 @@
 .followIcon{ font-size:16px; }
 
 .avatarImg{ object-fit:cover; display:block; }
+
+/* ===== Movil: like/dislike a la derecha del canal, sin deformar ===== */
+@media (max-width: 640px){
+  .channelRow{ flex-wrap:wrap; align-items:center; gap:10px }
+  .channel{ flex:1 1 auto; min-width:0 }
+  .ytSegmentedWrap{ margin-left:auto; min-width:0; flex-shrink:0 }
+  .ytSegmented{ border-radius:999px }
+  .ytSegBtn{ padding:7px 12px }
+  .actions{ flex:1 1 100%; width:100% }
+}
+
+/* ===== Meta (vistas/fecha) + like/dislike a la derecha en movil ===== */
+.metaRow{ display:flex; align-items:center; gap:12px; flex-wrap:wrap }
+.metaRow .videoMeta{ margin:0 }
+.segMobile{ display:none }
+@media (max-width: 640px){
+  .segMobile{ display:flex; margin-left:auto }
+  .segDesktop{ display:none }
+}

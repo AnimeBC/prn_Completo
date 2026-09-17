@@ -8,6 +8,7 @@ import { useSidebar } from '@/app/sidebarContext.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
+import { videoUrl } from '@/_Extras/Datos/urls.js';
 
 const filters = [
   { value: 'recientes', label: 'filtros.recientes' },
@@ -95,10 +96,10 @@ export default function Header() {
     setShowResults(false);
   }
 
-  function goTo(id) {
+  function goTo(item) {
     setSearchOpen(false);
     setShowResults(false);
-    router.push(`/videos/${id}`);
+    router.push(videoUrl(item));
   }
 
   function renderResults() {
@@ -112,7 +113,7 @@ export default function Header() {
     return (
       <div className={styles.results}>
         {results.map((v) => (
-          <button key={v.id} className={styles.resultItem} type="button" onClick={() => goTo(v.id)}>
+          <button key={v.id} className={styles.resultItem} type="button" onClick={() => goTo(v)}>
             <span className={styles.resultThumbWrap}>
               {v.thumb
                 ? <img className={styles.resultThumb} src={mediaUrl(v.thumb)} alt="" loading="lazy" />

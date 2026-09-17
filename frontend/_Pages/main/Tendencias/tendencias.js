@@ -8,6 +8,7 @@ import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
+import { videoUrl } from '@/_Extras/Datos/urls.js';
 
 function parseViews(text) {
   const m = String(text).match(/([\d,.]+)\s*K?/i);
@@ -64,8 +65,8 @@ export default function TendenciasClient() {
 
   const paged = list.slice((page - 1) * 16, page * 16);
 
-  function go(id) {
-    router.push(`/videos/${id}`);
+  function go(item) {
+    router.push(videoUrl(item));
   }
 
   function renderCard(video, idx) {
@@ -75,11 +76,11 @@ export default function TendenciasClient() {
         className={styles.card}
         role="link"
         tabIndex={0}
-        onClick={() => go(video.id)}
+        onClick={() => go(video)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            go(video.id);
+            go(video);
           }
         }}
       >
