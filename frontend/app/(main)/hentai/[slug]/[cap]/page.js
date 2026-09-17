@@ -4,8 +4,8 @@ import HentaiPlayer from '@/_Pages/main/Hentai/hentaiPlayer';
 import styles from '@/app/(main)/page.module.css';
 import { apiGet, mediaUrl, sinceOf } from '@/_Extras/Datos/server.js';
 
-async function resolveEntry(id) {
-  const r = await apiGet(`/api/hentai/${id}`);
+async function resolveEntry(slug) {
+  const r = await apiGet(`/api/hentai/${encodeURIComponent(slug)}`);
   if (!r || !r.id) return null;
   const capitulos = (r.capitulos || []).map((c) => ({
     id: c.id,
@@ -22,6 +22,8 @@ async function resolveEntry(id) {
     })),
   }));
   return {
+    id: r.id,
+    slug: r.slug || String(r.id),
     title: r.titulo_es || r.titulo_en,
     titulo_es: r.titulo_es || '',
     titulo_ja: r.titulo_ja || '',
@@ -41,6 +43,7 @@ async function resolveEntry(id) {
     rating: Number(r.rating || 0),
     votos: Number(r.votos || 0),
     modos: r.modos || {},
+    titulos_extras: r.titulos_extras || [],
     capitulos,
   };
 }
@@ -51,32 +54,28 @@ function toInfo(entry) {
 }
 
 export async function generateMetadata({ params }) {
-  const { id } = await params;
-  const entry = await resolveEntry(id);
+  const { slug, cap } = await params;
+  const entry = await resolveEntry(slug);
   if (!entry) return { title: 'Hentai' };
-  const title = entry.title;
+  const title = `${entry.title} - Episodio ${cap}`;
   const resumen = (entry.desc || '').replace(/\s+/g, ' ').trim().slice(0, 160);
-  const description =
-    resumen ||
-    `${entry.viewsFull || ''} • ${entry.channel || ''}`.trim() ||
-    `Mira ${title} en pikante pe`;
   return {
     title,
-    description,
+    description: resumen || `Mira ${entry.title} episodio ${cap} en pikante pe`,
     keywords: entry.tags,
-    alternates: { canonical: `/hentai/${id}` },
+    alternates: { canonical: `/hentai/${entry.slug}/${cap}` },
     openGraph: {
       type: 'video.other',
       title: `${title} | pikante pe`,
-      description,
+      description: resumen,
       images: entry.thumb ? [entry.thumb] : undefined,
     },
   };
 }
 
-export default async function HentaiPage({ params }) {
-  const { id } = await params;
-  const entry = await resolveEntry(id);
+export default async function HentaiCapituloPage({ params }) {
+  const { slug, cap } = await params;
+  const entry = await resolveEntry(slug);
 
   return (
     <div className={styles.layout}>
@@ -84,7 +83,9 @@ export default async function HentaiPage({ params }) {
       <div className={styles.body}>
         <Sidebar />
         <HentaiPlayer
-          hentaiId={id}
+          hentaiId={entry?.id || slug}
+          slug={entry?.slug || slug}
+          capNumero={cap}
           info={toInfo(entry)}
           serie={entry}
           capitulos={entry?.capitulos || []}

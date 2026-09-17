@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './hentaiPlayer.module.css';
 import HentaiReproductor from '@/_Pages/main/Hentai/componentes/reproductor';
 import HentaiInfo from '@/_Pages/main/Hentai/componentes/videoinfo';
@@ -26,17 +27,19 @@ function pickModo(cap, prefer) {
   return fuentes[0]?.modo || 'sub';
 }
 
-export default function HentaiPlayer({ hentaiId, info = null, serie = null, capitulos = [] }) {
+export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, info = null, serie = null, capitulos = [] }) {
+  const router = useRouter();
   const [theater, setTheater] = useState(false);
-  const [capId, setCapId] = useState(capitulos[0]?.id ?? null);
-  const [modo, setModo] = useState(pickModo(capitulos[0], 'sub'));
+  const inicial = (capNumero != null && capitulos.find((c) => String(c.numero) === String(capNumero))) || capitulos[0] || null;
+  const [capId, setCapId] = useState(inicial?.id ?? null);
+  const [modo, setModo] = useState(pickModo(inicial, 'sub'));
 
   useEffect(() => {
-    const first = capitulos[0];
-    setCapId(first?.id ?? null);
-    setModo(pickModo(first, 'sub'));
+    const sel = (capNumero != null && capitulos.find((c) => String(c.numero) === String(capNumero))) || capitulos[0] || null;
+    setCapId(sel?.id ?? null);
+    setModo(pickModo(sel, 'sub'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hentaiId]);
+  }, [hentaiId, capNumero]);
 
   const activeCap = capitulos.find((c) => c.id === capId) || capitulos[0] || null;
   const fuentes = activeCap?.fuentes || [];
@@ -58,6 +61,7 @@ export default function HentaiPlayer({ hentaiId, info = null, serie = null, capi
   function selectCap(c) {
     setCapId(c.id);
     setModo(pickModo(c, modo));
+    if (slug) router.replace(`/hentai/${slug}/${c.numero}`);
   }
 
   // Títulos alternos disponibles (ES / JA / romaji / EN + títulos extras), sin repetir el principal

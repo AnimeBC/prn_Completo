@@ -15,6 +15,7 @@ import feticheCategoriasRoutes from './routes/feticheCategorias.js';
 import hentaiRoutes from './routes/hentai.js';
 import packsRoutes from './routes/packs.js';
 import communityRoutes from './routes/community.js';
+import comunidadRoutes from './routes/comunidad.js';
 import livesRoutes from './routes/lives.js';
 import interactionsRoutes from './routes/interactions.js';
 import translationsRoutes from './routes/translations.js';
@@ -64,6 +65,8 @@ app.use('/api/fetiche-categorias', feticheCategoriasRoutes);
 app.use('/api/hentai', hentaiRoutes);
 app.use('/api/packs', packsRoutes);
 app.use('/api/community', communityRoutes);
+// comunidad social (feed, historias, grupos, chat, presencia, moderación)
+app.use('/api/comunidad', comunidadRoutes);
 app.use('/api/lives', livesRoutes);
 // interacciones (/api/videos/:id/like, /save, /view, /report, /download, /share, /api/channels/follow)
 app.use('/api', interactionsRoutes);

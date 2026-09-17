@@ -570,6 +570,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS usuario        VARCHAR(40);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS subida_mb       INTEGER;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN     NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS provider       VARCHAR(20) NOT NULL DEFAULT 'local';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id      VARCHAR(255);
@@ -1019,6 +1020,242 @@ VALUES
    'Latex bodysuit and intense sessions.',
    ARRAY['latex','fetiche'], 'S/ 18.00', '#', NULL)
 ON CONFLICT (slug) DO NOTHING;
+
+-- ============================================================
+-- 28) COMUNIDAD (red social interna)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS comunidades (
+  id           SERIAL PRIMARY KEY,
+  nombre       VARCHAR(120) NOT NULL,
+  slug         VARCHAR(160) UNIQUE,
+  descripcion  TEXT,
+  avatar       VARCHAR(255),
+  banner       VARCHAR(255),
+  reglas       TEXT,
+  privacidad   VARCHAR(20) NOT NULL DEFAULT 'publica',   -- publica | privada
+  solo_adultos BOOLEAN NOT NULL DEFAULT TRUE,
+  user_key     VARCHAR(80),
+  miembros     BIGINT NOT NULL DEFAULT 0,
+  activo       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+ALTER TABLE comunidades ADD COLUMN IF NOT EXISTS reglas       TEXT;
+ALTER TABLE comunidades ADD COLUMN IF NOT EXISTS privacidad   VARCHAR(20) NOT NULL DEFAULT 'publica';
+ALTER TABLE comunidades ADD COLUMN IF NOT EXISTS solo_adultos BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE comunidades ADD COLUMN IF NOT EXISTS modo_union   VARCHAR(20) NOT NULL DEFAULT 'libre';
+ALTER TABLE comunidades ADD COLUMN IF NOT EXISTS destacado    BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS idx_comunidades_activo ON comunidades(activo);
+CREATE INDEX IF NOT EXISTS idx_comunidades_destacado ON comunidades(destacado);
+
+CREATE TABLE IF NOT EXISTS comunidad_miembros (
+  id           SERIAL PRIMARY KEY,
+  comunidad_id INTEGER NOT NULL REFERENCES comunidades(id) ON DELETE CASCADE,
+  user_key     VARCHAR(80) NOT NULL,
+  usuario      VARCHAR(120),
+  rol          VARCHAR(20) NOT NULL DEFAULT 'miembro',
+  created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (comunidad_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_comunidad_miembros_grupo ON comunidad_miembros(comunidad_id);
+CREATE INDEX IF NOT EXISTS idx_comunidad_miembros_user  ON comunidad_miembros(user_key);
+
+CREATE TABLE IF NOT EXISTS comunidad_solicitudes (
+  id           SERIAL PRIMARY KEY,
+  comunidad_id INTEGER NOT NULL REFERENCES comunidades(id) ON DELETE CASCADE,
+  user_key     VARCHAR(80) NOT NULL,
+  usuario      VARCHAR(120),
+  mensaje      TEXT,
+  estado       VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+  created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (comunidad_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_comunidad_solicitudes_estado ON comunidad_solicitudes(estado);
+
+CREATE TABLE IF NOT EXISTS comunidad_posts (
+  id           SERIAL PRIMARY KEY,
+  comunidad_id INTEGER REFERENCES comunidades(id) ON DELETE SET NULL,
+  user_key     VARCHAR(80),
+  usuario      VARCHAR(120) NOT NULL,
+  avatar       VARCHAR(255),
+  texto        TEXT,
+  tipo         VARCHAR(20) NOT NULL DEFAULT 'texto',
+  media        JSONB NOT NULL DEFAULT '[]'::jsonb,
+  likes        INTEGER NOT NULL DEFAULT 0,
+  comentarios  INTEGER NOT NULL DEFAULT 0,
+  compartidos  INTEGER NOT NULL DEFAULT 0,
+  activo       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+ALTER TABLE comunidad_posts ADD COLUMN IF NOT EXISTS avatar VARCHAR(255);
+ALTER TABLE comunidad_posts ADD COLUMN IF NOT EXISTS media  JSONB NOT NULL DEFAULT '[]'::jsonb;
+CREATE INDEX IF NOT EXISTS idx_comunidad_posts_activo ON comunidad_posts(activo, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comunidad_posts_grupo  ON comunidad_posts(comunidad_id);
+CREATE INDEX IF NOT EXISTS idx_comunidad_posts_user   ON comunidad_posts(user_key);
+
+CREATE TABLE IF NOT EXISTS comunidad_post_likes (
+  id         SERIAL PRIMARY KEY,
+  post_id    INTEGER NOT NULL REFERENCES comunidad_posts(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (post_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_comunidad_likes_post ON comunidad_post_likes(post_id);
+
+CREATE TABLE IF NOT EXISTS comunidad_post_comentarios (
+  id         SERIAL PRIMARY KEY,
+  post_id    INTEGER NOT NULL REFERENCES comunidad_posts(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80),
+  usuario    VARCHAR(120) NOT NULL,
+  avatar     VARCHAR(255),
+  texto      TEXT NOT NULL,
+  activo     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_comunidad_coment_post ON comunidad_post_comentarios(post_id);
+
+CREATE TABLE IF NOT EXISTS comunidad_post_guardados (
+  id         SERIAL PRIMARY KEY,
+  post_id    INTEGER NOT NULL REFERENCES comunidad_posts(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (post_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_comunidad_guardados_post ON comunidad_post_guardados(post_id);
+
+CREATE TABLE IF NOT EXISTS comunidad_stories (
+  id         SERIAL PRIMARY KEY,
+  user_key   VARCHAR(80),
+  usuario    VARCHAR(120) NOT NULL,
+  avatar     VARCHAR(255),
+  tipo       VARCHAR(20) NOT NULL DEFAULT 'foto',
+  media      VARCHAR(255),
+  texto      TEXT,
+  vistas     INTEGER NOT NULL DEFAULT 0,
+  activo     BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMP NOT NULL DEFAULT (NOW() + INTERVAL '24 hours')
+);
+CREATE INDEX IF NOT EXISTS idx_comunidad_stories_activo ON comunidad_stories(activo, expires_at DESC);
+
+CREATE TABLE IF NOT EXISTS comunidad_story_vistas (
+  id         SERIAL PRIMARY KEY,
+  story_id   INTEGER NOT NULL REFERENCES comunidad_stories(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (story_id, user_key)
+);
+
+CREATE TABLE IF NOT EXISTS comunidad_story_reacciones (
+  id         SERIAL PRIMARY KEY,
+  story_id   INTEGER NOT NULL REFERENCES comunidad_stories(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80),
+  emoji      VARCHAR(8),
+  texto      TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_comunidad_story_reacc ON comunidad_story_reacciones(story_id);
+
+CREATE TABLE IF NOT EXISTS comunidad_mensajes (
+  id           SERIAL PRIMARY KEY,
+  comunidad_id INTEGER REFERENCES comunidades(id) ON DELETE CASCADE,
+  user_key     VARCHAR(80),
+  usuario      VARCHAR(120) NOT NULL,
+  avatar       VARCHAR(255),
+  texto        TEXT,
+  tipo         VARCHAR(20) NOT NULL DEFAULT 'texto',
+  media        VARCHAR(255),
+  activo       BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_comunidad_msj_grupo ON comunidad_mensajes(comunidad_id, created_at DESC);
+
+ALTER TABLE comunidad_mensajes
+  ADD COLUMN IF NOT EXISTS reply_to INTEGER REFERENCES comunidad_mensajes(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS comunidad_mensaje_reacciones (
+  id         SERIAL PRIMARY KEY,
+  mensaje_id INTEGER NOT NULL REFERENCES comunidad_mensajes(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80) NOT NULL,
+  emoji      VARCHAR(8) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE (mensaje_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_comunidad_reacciones_msj ON comunidad_mensaje_reacciones(mensaje_id);
+
+CREATE TABLE IF NOT EXISTS comunidad_presencia (
+  user_key   VARCHAR(80) PRIMARY KEY,
+  usuario    VARCHAR(120),
+  avatar     VARCHAR(255),
+  last_seen  TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS comunidad_reportes (
+  id           SERIAL PRIMARY KEY,
+  tipo         VARCHAR(20) NOT NULL DEFAULT 'post',
+  target_id    INTEGER,
+  comunidad_id INTEGER,
+  user_key     VARCHAR(80),
+  motivo       VARCHAR(80),
+  detalle      TEXT,
+  estado       VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+  nota_admin   TEXT,
+  revisado_en  TIMESTAMP,
+  created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_comunidad_reportes_estado ON comunidad_reportes(estado);
+
+DROP TRIGGER IF EXISTS trg_comunidades_updated ON comunidades;
+CREATE TRIGGER trg_comunidades_updated BEFORE UPDATE ON comunidades
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+INSERT INTO comunidades (nombre, slug, descripcion, reglas, privacidad, miembros)
+VALUES
+  ('Fotos Calientes', 'fotos-calientes', 'Comparte y mira las mejores fotos de la comunidad.',
+   '1) Solo contenido +18. 2) Prohibido contenido de menores. 3) Respeta a los demás.', 'publica', 18700),
+  ('Videos XXX', 'videos-xxx', 'Los mejores videos caseros y amateur subidos por la comunidad.',
+   '1) Solo contenido +18. 2) Prohibido contenido de menores. 3) No spam.', 'publica', 12400),
+  ('Parejas Swingers', 'parejas-swingers', 'Espacio para parejas y experiencias en grupo.',
+   '1) Solo adultos verificados. 2) Prohibido contenido de menores. 3) Respeto total.', 'privada', 9800),
+  ('Amateur Perú', 'amateur-peru', 'Contenido amateur hecho en casa, comunidad peruana.',
+   '1) Solo +18. 2) Contenido propio o con permiso. 3) Sin menores.', 'publica', 5400)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Los grupos privados SIEMPRE piden permiso.
+UPDATE comunidades
+   SET modo_union = 'invitacion'
+ WHERE privacidad = 'privada' AND modo_union <> 'invitacion';
+
+-- Fechas de la comunidad con zona horaria (para que cada país vea su hora exacta).
+DO $$
+DECLARE
+  pares text[][] := ARRAY[
+    ['comunidades', 'created_at'], ['comunidades', 'updated_at'],
+    ['comunidad_miembros', 'created_at'],
+    ['comunidad_posts', 'created_at'],
+    ['comunidad_post_likes', 'created_at'],
+    ['comunidad_post_comentarios', 'created_at'],
+    ['comunidad_post_guardados', 'created_at'],
+    ['comunidad_stories', 'created_at'], ['comunidad_stories', 'expires_at'],
+    ['comunidad_story_vistas', 'created_at'],
+    ['comunidad_mensajes', 'created_at'],
+    ['comunidad_presencia', 'last_seen'],
+    ['comunidad_reportes', 'created_at'], ['comunidad_reportes', 'revisado_en'],
+    ['comunidad_solicitudes', 'created_at'],
+    ['comunidad_mensaje_reacciones', 'created_at']
+  ];
+  par text[];
+BEGIN
+  FOREACH par SLICE 1 IN ARRAY pares LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = par[1] AND column_name = par[2]
+         AND data_type = 'timestamp without time zone'
+    ) THEN
+      EXECUTE format('ALTER TABLE %I ALTER COLUMN %I TYPE TIMESTAMPTZ USING %I AT TIME ZONE ''UTC''', par[1], par[2], par[2]);
+    END IF;
+  END LOOP;
+END $$;
 
 -- ============================================================
 -- FIN — Base completa. Admin: admin / admin123

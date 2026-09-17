@@ -475,3 +475,8 @@
     font-size: 13px;
   }
 }
+
+/* ===== Tarjetas uniformes ===== */
+.metaLine{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100% }
+.card{ min-width:0 }
+.card > :first-child{ width:100% }

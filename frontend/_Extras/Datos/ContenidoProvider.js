@@ -73,6 +73,7 @@ function mapVideo(r, es) {
 function mapHentai(r, es) {
   return {
     id: r.id,
+    slug: r.slug || '',
     title: r.titulo_es || r.titulo_en || `Anime #${r.id}`,
     channel: r.canal || 'Studio Kitsune',
     views: fmtViews(r.vistas, es),

@@ -50,7 +50,8 @@ export function RealtimeProvider({ children }) {
         window.dispatchEvent(new CustomEvent('pikantepe:change', { detail: data }));
         // refresca datos de los server components (solo cambios de contenido).
         // Se difiere para evitar "Router action dispatched before initialization".
-        if (!NO_REFRESH.has(data?.type)) {
+        const tipo = String(data?.type || '');
+        if (!NO_REFRESH.has(tipo) && !tipo.startsWith('comunidad_')) {
           setTimeout(() => {
             try { router.refresh(); } catch { /* router aún no listo */ }
           }, 80);

@@ -37,7 +37,7 @@ export default async function sitemap() {
     }));
 
   const hentaiRoutes = (data.hentai || []).map((h) => ({
-    url: `${BASE}/hentai/${h.id}`,
+    url: `${BASE}/hentai/${h.slug || h.id}`,
     lastModified: new Date(),
     changeFrequency: 'weekly',
     priority: 0.6,

@@ -46,7 +46,7 @@ export default function Fila({ title, href = null, icon = 'flame', source = 'vid
   }
 
   function go(item) {
-    if (source === 'hentai') router.push(`/hentai/${item.id}`);
+    if (source === 'hentai') router.push(`/hentai/${item.slug || item.id}`);
     else if (source === 'packs') router.push(`/packs/${item.public_id}`);
     else router.push(`/videos/${item.id}`);
   }

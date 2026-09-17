@@ -475,8 +475,8 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
                   className={styles.card}
                   role="link"
                   tabIndex={0}
-                  onClick={() => router.push(`/hentai/${it.id}`)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); router.push(`/hentai/${it.id}`); } }}
+                    onClick={() => router.push(`/hentai/${it.slug || it.id}`)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') {                       e.preventDefault(); router.push(`/hentai/${it.slug || it.id}`); } }}
                 >
                   <div className={styles.thumb}>
                     <Preview src={resolveImg(it.src)} thumb={resolveImg(it.thumb)}>

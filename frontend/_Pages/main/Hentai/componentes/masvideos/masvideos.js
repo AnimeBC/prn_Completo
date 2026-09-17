@@ -50,8 +50,9 @@ export default function MasHentai({ currentId }) {
     return () => obs.disconnect();
   }, [hasMore, list.length]);
 
-  function go(id) {
-    router.push(`/hentai/${id}`);
+  function go(anime) {
+    const id = anime?.id ?? anime;
+    router.push(`/hentai/${anime?.slug || id}`);
   }
 
   return (
@@ -62,11 +63,11 @@ export default function MasHentai({ currentId }) {
           className={styles.card}
           role="link"
           tabIndex={0}
-          onClick={() => go(anime.id)}
+          onClick={() => go(anime)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              go(anime.id);
+              go(anime);
             }
           }}
         >

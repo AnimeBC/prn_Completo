@@ -21,6 +21,7 @@ export const DIRS = {
   packs: path.join(MEDIA_DIR, 'packs'),
   avatars: path.join(MEDIA_DIR, 'avatars'),
   channels: path.join(MEDIA_DIR, 'channels'),
+  community: path.join(MEDIA_DIR, 'community'),
   tmp: path.join(MEDIA_DIR, '_tmp'),
 };
 
@@ -230,4 +231,34 @@ export function removeMedia(publicPath) {
   const abs = path.resolve(MEDIA_DIR, rel);
   if (!abs.startsWith(MEDIA_DIR)) return;
   try { fs.rmSync(abs, { force: true }); } catch { /* ignore */ }
+}
+
+/* ================= COMUNIDAD (red social) ================= */
+
+// Comunidad: límite técnico alto (20 GB). El límite real por usuario se
+// controla en las rutas según users.subida_mb (200 MB por defecto).
+const MAX_COMMUNITY_MB = Number(process.env.MAX_COMMUNITY_MB || 20480);
+
+/** Multer para la comunidad: hasta 6 archivos (video / imagen / audio), 500 MB. */
+export const communityUpload = multer({
+  storage,
+  limits: { fileSize: MAX_COMMUNITY_MB * 1024 * 1024, files: 6 },
+  fileFilter(req, file, cb) {
+    const bad = (msg) => { const e = new Error(msg); e.status = 400; return cb(e); };
+    const name = file.originalname || '';
+    const okVideo = videoMime.includes(file.mimetype) || /\.(mp4|mov|webm|mkv|avi)$/i.test(name);
+    const okImage = imageMime.includes(file.mimetype) || /\.(gif|png|jpe?g|webp|avif)$/i.test(name);
+    const okAudio = /^audio\//.test(file.mimetype) || /\.(mp3|wav|ogg|m4a|aac)$/i.test(name);
+    if (!okVideo && !okImage && !okAudio) return bad('Formato no permitido (video, foto o audio)');
+    cb(null, true);
+  },
+});
+
+/** raiz de la seccion comunidad */
+export function communityRootDir() { return DIRS.community; }
+
+/** carpeta del usuario dentro de community: user_<key> */
+export function communityUserFolder(userKey) {
+  const s = String(userKey || 'user').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || 'user';
+  return 'user_' + s;
 }

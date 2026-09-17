@@ -70,8 +70,10 @@ export default function Recomendados({ currentId, title = 'A continuación', kin
     return () => obs.disconnect();
   }, [hasMore, list.length]);
 
-  function go(id) {
-    router.push(kind === 'hentai' ? `/hentai/${id}` : `/videos/${id}`);
+  function go(item) {
+    const id = item?.id ?? item;
+    if (kind === 'hentai') router.push(`/hentai/${item?.slug || id}`);
+    else router.push(`/videos/${id}`);
   }
 
   return (
@@ -91,11 +93,11 @@ export default function Recomendados({ currentId, title = 'A continuación', kin
               className={styles.card}
               role="link"
               tabIndex={0}
-              onClick={() => go(video.id)}
+              onClick={() => go(video)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  go(video.id);
+                  go(video);
                 }
               }}
             >

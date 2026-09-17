@@ -135,13 +135,16 @@ r.get('/tags', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// GET /api/hentai/:id  -> serie + capítulos (con sus modos sub/es)
+// GET /api/hentai/:id  -> serie + capítulos (acepta id numérico o slug)
 r.get('/:id', async (req, res, next) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ error: 'Hentai no encontrado' });
-    const serie = await getSerie(id);
+    const param = String(req.params.id || '').trim();
+    const num = Number(param);
+    const serie = (Number.isInteger(num) && num > 0)
+      ? await getSerie(num)
+      : (await query('SELECT * FROM hentai WHERE slug = $1 LIMIT 1', [param])).rows[0];
     if (!serie || !serie.activo) return res.status(404).json({ error: 'Hentai no encontrado' });
+    const id = serie.id;
 
     const caps = await query(
       `SELECT c.id, c.numero, c.titulo_es, c.titulo_en, c.desc_es, c.desc_en, c.vistas, c.created_at,

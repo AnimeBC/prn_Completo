@@ -127,8 +127,8 @@ export default function HentaiList() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function go(id) {
-    router.push(`/hentai/${id}`);
+  function go(anime) {
+    router.push(`/hentai/${anime.slug || anime.id}`);
   }
 
   function clearFilters() {
@@ -145,11 +145,11 @@ export default function HentaiList() {
         className={styles.card}
         role="link"
         tabIndex={0}
-        onClick={() => go(anime.id)}
+        onClick={() => go(anime)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            go(anime.id);
+            go(anime);
           }
         }}
       >
