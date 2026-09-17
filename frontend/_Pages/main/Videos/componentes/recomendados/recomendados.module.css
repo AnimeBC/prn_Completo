@@ -38,6 +38,12 @@
   scrollbar-color: var(--primary, #F20D16) transparent;
 }
 
+/* Sin scroll interno: la lista fluye completa (se usa en la página de hentai) */
+.noScroll {
+  max-height: none;
+  overflow: visible;
+}
+
 .stack::-webkit-scrollbar {
   width: 6px;
 }

@@ -142,8 +142,20 @@ r.get('/', async (req, res, next) => {
       `SELECT h.id, h.slug, h.titulo_es, h.titulo_en, h.titulo_ja, h.titulo_romaji, h.desc_es, h.desc_en, h.canal,
               h.thumb, h.cover, h.vistas, h.tags, h.tipo, h.anio, h.temporada, h.estado,
               h.rating, h.votos, h.created_at,
-              (SELECT COUNT(*)::int FROM hentai_capitulos c WHERE c.hentai_id = h.id AND c.activo = TRUE) AS capitulos
+              (SELECT COUNT(*)::int FROM hentai_capitulos c WHERE c.hentai_id = h.id AND c.activo = TRUE) AS capitulos,
+              CASE WHEN ff.duracion IS NOT NULL AND ff.duracion <> '' AND ff.duracion <> '00:00'
+                   THEN ff.duracion ELSE h.duracion END AS duracion,
+              ff.thumb AS fuente_thumb,
+              ff.src   AS fuente_src
          FROM hentai h
+         LEFT JOIN LATERAL (
+           SELECT f.duracion, f.thumb, f.src
+             FROM hentai_capitulos c
+             JOIN hentai_capitulo_fuentes f ON f.capitulo_id = c.id AND f.activo = TRUE
+            WHERE c.hentai_id = h.id AND c.activo = TRUE
+            ORDER BY c.numero ASC, CASE f.modo WHEN 'es' THEN 0 WHEN 'sub' THEN 1 ELSE 2 END
+            LIMIT 1
+         ) ff ON TRUE
         WHERE h.activo = TRUE
         ORDER BY h.id DESC
         LIMIT 300`

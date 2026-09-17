@@ -6,7 +6,6 @@ import styles from './hentaiPlayer.module.css';
 import HentaiReproductor from '@/_Pages/main/Hentai/componentes/reproductor';
 import HentaiInfo from '@/_Pages/main/Hentai/componentes/videoinfo';
 import Recomendados from '@/_Pages/main/Videos/componentes/recomendados';
-import MasHentai from '@/_Pages/main/Hentai/componentes/masvideos';
 import Comentarios from '@/_Pages/main/Videos/componentes/comentarios';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 
@@ -167,8 +166,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
               <div className={styles.epDesktop}>{episodeList}</div>
               <AdBanner adKey="3a837969e396afcbcfc39bb7494cfe37" width={300} height={250}
                 src="https://www.highrevenueformat.com/3a837969e396afcbcfc39bb7494cfe37/invoke.js" />
-              <Recomendados currentId={hentaiId} title="Recomendados" kind="hentai" />
-              <MasHentai currentId={hentaiId} />
+              <Recomendados currentId={hentaiId} title="Recomendados" kind="hentai" scroll={false} />
             </div>
           </>
         ) : (
@@ -186,8 +184,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
               <div className={styles.epDesktop}>{episodeList}</div>
               <AdBanner adKey="3a837969e396afcbcfc39bb7494cfe37" width={300} height={250}
                 src="https://www.highrevenueformat.com/3a837969e396afcbcfc39bb7494cfe37/invoke.js" />
-              <Recomendados currentId={hentaiId} title="Recomendados" kind="hentai" />
-              <MasHentai currentId={hentaiId} />
+              <Recomendados currentId={hentaiId} title="Recomendados" kind="hentai" scroll={false} />
             </div>
           </>
         )}

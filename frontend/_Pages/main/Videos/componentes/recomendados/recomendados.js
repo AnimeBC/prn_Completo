@@ -11,7 +11,7 @@ import { videoUrl, hentaiUrl } from '@/_Extras/Datos/urls.js';
 const BATCH = 5;
 const INITIAL = 6;
 
-export default function Recomendados({ currentId, title = 'A continuación', kind = 'video' }) {
+export default function Recomendados({ currentId, title = 'A continuación', kind = 'video', scroll = true }) {
   const router = useRouter();
   const { videos, hentai } = useContenido();
   const items = kind === 'hentai' ? hentai : videos;
@@ -59,17 +59,17 @@ export default function Recomendados({ currentId, title = 'A continuación', kin
     if (!hasMore) return;
     const el = sentinelRef.current;
     if (!el) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setCount((c) => Math.min(c + BATCH, list.length));
-        }
-      },
-      { root: el.parentElement, rootMargin: '200px' }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [hasMore, list.length]);
+      const obs = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting) {
+            setCount((c) => Math.min(c + BATCH, list.length));
+          }
+        },
+        { root: scroll ? el.parentElement : null, rootMargin: '200px' }
+      );
+      obs.observe(el);
+      return () => obs.disconnect();
+    }, [hasMore, list.length, scroll]);
 
   function go(item) {
     if (kind === 'hentai') router.push(hentaiUrl(item));
@@ -83,7 +83,7 @@ export default function Recomendados({ currentId, title = 'A continuación', kin
         <ion-icon name="options-outline" className={styles.filterIcon} suppressHydrationWarning></ion-icon>
       </div>
 
-      <div className={styles.stack}>
+      <div className={`${styles.stack} ${scroll ? '' : styles.noScroll}`}>
         {visible.map((video, idx) => (
           <div key={`wrap-${video.id}`}>
             {idx > 0 && visible[idx - 1].score > 0 && video.score === 0 && (
