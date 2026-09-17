@@ -76,6 +76,31 @@ function serieDir(serie) {
   return path.join(hentaiRootDir(), hentaiSerieFolder(serie.slug, serie.id));
 }
 
+/**
+ * Borra los archivos del video anterior cuando se REEMPLAZA un episodio/modo:
+ * el original, todas las calidades y el poster automático. Conserva la
+ * miniatura personalizada del admin (cover.* / cover-*).
+ */
+function cleanOldVideoFiles(destDir) {
+  try {
+    if (!fs.existsSync(destDir)) return;
+    for (const entry of fs.readdirSync(destDir)) {
+      const full = path.join(destDir, entry);
+      if (entry === 'calidades') { fs.rmSync(full, { recursive: true, force: true }); continue; }
+      if (entry === 'thumbs') {
+        for (const t of fs.readdirSync(full)) {
+          if (/^(cover|thumb)[.-]/i.test(t)) continue;
+          fs.rmSync(path.join(full, t), { recursive: true, force: true });
+        }
+        continue;
+      }
+      if (/^original\./i.test(entry)) fs.rmSync(full, { force: true });
+    }
+  } catch (err) {
+    console.error('[hentai] limpieza de video previo falló:', err.message);
+  }
+}
+
 /** Transcodifica en segundo plano una fuente (modo) y actualiza la BD. */
 async function finishTranscode({ fuenteId, origPath, destDir }) {
   try {
@@ -87,7 +112,7 @@ async function finishTranscode({ fuenteId, origPath, destDir }) {
 
     const thumbsDir = path.join(destDir, 'thumbs');
     let cover = null;
-    try { cover = fs.readdirSync(thumbsDir).find((f) => f.startsWith('cover.')) || null; } catch { /* sin thumbs */ }
+    try { cover = fs.readdirSync(thumbsDir).find((f) => /^(cover|thumb)[.-]/i.test(f)) || null; } catch { /* sin thumbs */ }
     const thumb = poster && !cover ? `/media/${rel}/thumbs/poster.jpg` : null;
 
     await query(
@@ -427,14 +452,20 @@ r.post('/:id/capitulos', authRequired, upload.fields([{ name: 'video', maxCount:
     const destDir = path.join(serieDir(serie), hentaiCapFolder(numero), modo);
     fs.mkdirSync(destDir, { recursive: true });
 
+    // Si ya existía un video en este episodio/modo, es un REEMPLAZO:
+    // se borra el video anterior (original + calidades + poster) antes de subir el nuevo.
+    const prevFuente = (await query(
+      'SELECT id, thumb FROM hentai_capitulo_fuentes WHERE capitulo_id = $1 AND modo = $2',
+      [cap.id, modo]
+    )).rows[0] || null;
+    const prevThumb = prevFuente?.thumb || null;
+    if (prevFuente) {
+      cleanOldVideoFiles(destDir);
+      console.log(`[hentai] reemplazando fuente #${prevFuente.id} (cap ${numero}, modo ${modo}): video anterior eliminado`);
+    }
+
     const src = path.join(destDir, `original${/\.(mp4|mov|webm|mkv|avi)$/i.test(path.extname(videoFile.filename) || '') ? path.extname(videoFile.filename).toLowerCase() : '.mp4'}`);
     moveFileSync(videoFile.path, src);
-
-    // thumb del modo
-    const prevThumb = (await query(
-      'SELECT thumb FROM hentai_capitulo_fuentes WHERE capitulo_id = $1 AND modo = $2',
-      [cap.id, modo]
-    )).rows[0]?.thumb || null;
 
     let thumb = null;
     const thumbFile = req.files?.thumb?.[0];
@@ -452,6 +483,7 @@ r.post('/:id/capitulos', authRequired, upload.fields([{ name: 'video', maxCount:
        VALUES ($1, $2, $3, $4, '00:00', TRUE)
        ON CONFLICT (capitulo_id, modo) DO UPDATE
          SET src = EXCLUDED.src,
+             renditions = '[]'::jsonb,
              thumb = COALESCE(EXCLUDED.thumb, hentai_capitulo_fuentes.thumb),
              activo = TRUE, created_at = NOW()
        RETURNING id`,
@@ -480,17 +512,28 @@ r.post('/:id/capitulos', authRequired, upload.fields([{ name: 'video', maxCount:
   } catch (e) { next(e); }
 });
 
-// DELETE /api/hentai/capitulos/:capId  (lógico)
+// DELETE /api/hentai/capitulos/:capId  (borra el episodio y TODOS sus videos del disco)
 r.delete('/capitulos/:capId', authRequired, async (req, res, next) => {
   try {
     const capId = Number(req.params.capId);
-    const { rows } = await query(
-      'UPDATE hentai_capitulos SET activo = FALSE, updated_at = NOW() WHERE id = $1 RETURNING id',
+    const cap = (await query(
+      'SELECT id, numero, hentai_id FROM hentai_capitulos WHERE id = $1',
       [capId]
-    );
-    if (!rows[0]) return res.status(404).json({ error: 'Capítulo no encontrado' });
-    await query('UPDATE hentai_capitulo_fuentes SET activo = FALSE WHERE capitulo_id = $1', [capId]);
-    await publishEvent('hentai_updated', { id: capId });
+    )).rows[0];
+    if (!cap) return res.status(404).json({ error: 'Capítulo no encontrado' });
+
+    // Borra la carpeta completa del episodio (todos los modos: original, calidades y thumbs).
+    const serie = await getSerie(cap.hentai_id);
+    if (serie) {
+      const capDir = path.join(serieDir(serie), hentaiCapFolder(cap.numero));
+      fs.rmSync(capDir, { recursive: true, force: true });
+    }
+
+    await query('UPDATE hentai_capitulos SET activo = FALSE, updated_at = NOW() WHERE id = $1', [capId]);
+    await query('UPDATE hentai_capitulo_fuentes SET activo = FALSE, thumb = NULL, renditions = \'[]\'::jsonb WHERE capitulo_id = $1', [capId]);
+    await cacheDel('cache:stats');
+    await publishEvent('hentai_updated', { id: cap.hentai_id });
+    console.log(`[hentai] capítulo #${capId} (cap ${cap.numero}) eliminado con sus archivos`);
     res.json({ ok: true, id: capId });
   } catch (e) { next(e); }
 });
@@ -527,15 +570,30 @@ r.post('/:id/capitulos/reorder', authRequired, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// DELETE /api/hentai/fuentes/:fuenteId  -> quita solo un modo (sub/es)
+// DELETE /api/hentai/fuentes/:fuenteId  -> quita un modo y BORRA sus videos del disco
 r.delete('/fuentes/:fuenteId', authRequired, async (req, res, next) => {
   try {
     const id = Number(req.params.fuenteId);
-    const { rows } = await query(
-      'UPDATE hentai_capitulo_fuentes SET activo = FALSE WHERE id = $1 RETURNING id',
+    const f = (await query(
+      `SELECT f.id, f.modo, f.thumb, c.hentai_id, c.numero
+         FROM hentai_capitulo_fuentes f
+         JOIN hentai_capitulos c ON c.id = f.capitulo_id
+        WHERE f.id = $1`,
       [id]
-    );
-    if (!rows[0]) return res.status(404).json({ error: 'Fuente no encontrada' });
+    )).rows[0];
+    if (!f) return res.status(404).json({ error: 'Fuente no encontrada' });
+
+    // Borra la carpeta del modo: video original, calidades y miniaturas.
+    const serie = await getSerie(f.hentai_id);
+    if (serie) {
+      const dir = path.join(serieDir(serie), hentaiCapFolder(f.numero), f.modo);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+
+    await query(`UPDATE hentai_capitulo_fuentes SET activo = FALSE, thumb = NULL, renditions = '[]'::jsonb WHERE id = $1`, [id]);
+    await cacheDel('cache:stats');
+    await publishEvent('hentai_updated', { id: f.hentai_id });
+    console.log(`[hentai] fuente #${id} (cap ${f.numero}, modo ${f.modo}) eliminada con sus archivos`);
     res.json({ ok: true, id });
   } catch (e) { next(e); }
 });
@@ -566,7 +624,7 @@ r.put('/fuentes/:fuenteId', authRequired, upload.single('thumb'), async (req, re
     const ext = (path.extname(file.originalname) || path.extname(file.filename) || '.jpg').toLowerCase();
     // Nombre unico por subida: si se reutilizara "thumb.jpg", el navegador/nginx
     // seguiria sirviendo la miniatura vieja desde cache y pareceria que no cambia.
-    const target = path.join(dir, `thumb-${Date.now()}${ext}`);
+    const target = path.join(dir, `cover-${Date.now()}${ext}`);
     moveFileSync(file.path, target);
     const thumb = publicOf(target);
 

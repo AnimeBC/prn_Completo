@@ -157,6 +157,7 @@ export default function HentaiAdmin() {
   const [dragIdx, setDragIdx] = useState(null);
   const [editFuenteId, setEditFuenteId] = useState(null);
   const [thumbBusyId, setThumbBusyId] = useState(null);
+  const [replaceBusyId, setReplaceBusyId] = useState(null);
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   const shownEpisodes = episodes.filter((c) => (c.fuentes || []).some((f) => f.modo === modeTab));
@@ -442,6 +443,28 @@ export default function HentaiAdmin() {
       refreshEpisodes();
     } catch { setError('No hay conexión con el servidor.'); }
     finally { setCapBusy(false); setCapProg(null); }
+  }
+
+  /** Reemplaza el video de un episodio/modo ya subido (el server borra el anterior). */
+  async function replaceEpisode(c, file) {
+    if (!editing || !file) return;
+    setReplaceBusyId(c.id); setError(''); setMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('video', file);
+      fd.append('numero', String(c.numero));
+      fd.append('modo', modeTab);
+      const r = await fetch(`${API}/api/hentai/${editing.id}/capitulos`, { method: 'POST', headers: authHeaders(), body: fd });
+      const j = await r.json().catch(() => ({}));
+      console.log('[hentai] reemplazar video', c.numero, modeTab, 'status=', r.status, j);
+      if (!r.ok) { setError(j.error || 'No se pudo reemplazar el video'); return; }
+      setMsg(`Video del episodio ${c.numero} reemplazado.`);
+      setEditFuenteId(null);
+      refreshEpisodes();
+    } catch (err) {
+      console.error('[hentai] reemplazar video error:', err);
+      setError('No hay conexión con el servidor.');
+    } finally { setReplaceBusyId(null); }
   }
 
   /** Cambia la miniatura (thumb) de un video ya subido. */
@@ -778,6 +801,18 @@ export default function HentaiAdmin() {
                     <p className={styles.okMsg}>
                       <ion-icon name="sync-outline" className={styles.spin} suppressHydrationWarning></ion-icon>{' '}
                       Subiendo miniatura…
+                    </p>
+                  )}
+                  <span className={styles.dropLabel}>
+                    <ion-icon name="cloud-upload-outline" suppressHydrationWarning></ion-icon>
+                    Reemplazar video
+                  </span>
+                  <DropZone accept="video/*" onFile={(f) => replaceEpisode(c, f)} icon="cloud-upload-outline"
+                    label="Suelta el nuevo video" hint="Borra el anterior y sube este con sus calidades" compact />
+                  {replaceBusyId === c.id && (
+                    <p className={styles.okMsg}>
+                      <ion-icon name="sync-outline" className={styles.spin} suppressHydrationWarning></ion-icon>{' '}
+                      Reemplazando video…
                     </p>
                   )}
                 </div>
