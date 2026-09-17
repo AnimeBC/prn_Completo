@@ -91,7 +91,7 @@ function toBool(v) {
 function splitTags(v) {
   if (!v) return [];
   const arr = Array.isArray(v) ? v : String(v).split(',');
-  return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(0, 20);
+  return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(0, 120);
 }
 
 /** Saca la duración real del archivo con ffprobe y la guarda. */

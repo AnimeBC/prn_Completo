@@ -18,14 +18,14 @@ const MODOS = ['sub', 'es', 'en', 'en_sub'];
 function splitTags(v) {
   if (!v) return [];
   const arr = Array.isArray(v) ? v : String(v).split(',');
-  return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(0, 20);
+  return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(0, 120);
 }
 
 /** Títulos extras: acepta array o texto separado por comas / saltos de línea. */
 function splitTitles(v) {
   if (!v) return [];
   const arr = Array.isArray(v) ? v : String(v).split(/[\n,]+/);
-  return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(0, 30);
+  return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(0, 80);
 }
 
 function intOrNull(v) {
