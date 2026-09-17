@@ -22,6 +22,13 @@ import {
   viewPack,
   downloadPack,
 } from '@/_Extras/Interacciones/interactions.js';
+import {
+  overlayPackStats,
+  guestTogglePackLike,
+  guestTogglePackSave,
+  guestAddPackDownload,
+} from '@/_Extras/Interacciones/local.js';
+import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 
 function parseNum(text) {
   const m = String(text).match(/([\d,.]+)\s*K?/i);
@@ -44,6 +51,7 @@ export default function PackDetalle({ packId }) {
   const { t, locale } = useLanguage();
   const es = locale !== 'en';
   const { packs } = useContenido();
+  const { authed } = useAuth();
 
   const [detail, setDetail] = useState(null);
   const [dlOpen, setDlOpen] = useState(false);
@@ -139,14 +147,17 @@ export default function PackDetalle({ packId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.src]);
 
-  // Vistas + likes/guardados
+  // Vistas + likes/guardados (el invitado guarda su voto en el navegador)
   useEffect(() => {
     if (!pack.public_id) return;
     let alive = true;
     viewPack(pack.public_id);
-    getPackInteractions(pack.public_id).then((d) => { if (alive && d) setStats((s) => ({ ...s, ...d })); });
+    getPackInteractions(pack.public_id).then((d) => {
+      if (!alive || !d) return;
+      setStats((s) => (authed ? { ...s, ...d } : overlayPackStats({ ...s, ...d }, pack.public_id)));
+    });
     return () => { alive = false; };
-  }, [pack.public_id]);
+  }, [pack.public_id, authed]);
 
   // Avatar del canal (uploader)
   useEffect(() => {
@@ -162,16 +173,36 @@ export default function PackDetalle({ packId }) {
 
   async function toggleLike() {
     if (!pack.public_id) return;
-    const d = await likePack(pack.public_id, stats.myVote === 'like' ? 'none' : 'like');
-    if (d) setStats((s) => ({ ...s, ...d }));
+    if (authed) {
+      const d = await likePack(pack.public_id, stats.myVote === 'like' ? 'none' : 'like');
+      if (d) setStats((s) => ({ ...s, ...d }));
+      return;
+    }
+    setStats((s) => {
+      const prev = s.myVote;
+      const next = guestTogglePackLike(pack.public_id, s.myVote === 'like' ? 'none' : 'like');
+      return { ...s, myVote: next, likes: s.likes + (next === 'like' ? 1 : 0) - (prev === 'like' ? 1 : 0) };
+    });
   }
   async function toggleDislike() {
     if (!pack.public_id) return;
-    const d = await likePack(pack.public_id, stats.myVote === 'dislike' ? 'none' : 'dislike');
-    if (d) setStats((s) => ({ ...s, ...d }));
+    if (authed) {
+      const d = await likePack(pack.public_id, stats.myVote === 'dislike' ? 'none' : 'dislike');
+      if (d) setStats((s) => ({ ...s, ...d }));
+      return;
+    }
+    setStats((s) => {
+      const prev = s.myVote;
+      const next = guestTogglePackLike(pack.public_id, s.myVote === 'dislike' ? 'none' : 'dislike');
+      return { ...s, myVote: next, dislikes: s.dislikes + (next === 'dislike' ? 1 : 0) - (prev === 'dislike' ? 1 : 0) };
+    });
   }
   async function toggleSave() {
     if (!pack.public_id) return;
+    if (!authed) {
+      setStats((s) => ({ ...s, saved: guestTogglePackSave(pack.public_id) }));
+      return;
+    }
     const d = await savePack(pack.public_id);
     if (d) setStats((s) => ({ ...s, ...d }));
   }
@@ -181,6 +212,11 @@ export default function PackDetalle({ packId }) {
   }
   async function registrarDescarga() {
     if (!pack.public_id) return;
+    if (!authed) {
+      guestAddPackDownload(pack.public_id);
+      setStats((s) => ({ ...s, downloads: s.downloads + 1 }));
+      return;
+    }
     const d = await downloadPack(pack.public_id);
     if (d) setStats((s) => ({ ...s, downloads: d.descargas }));
   }

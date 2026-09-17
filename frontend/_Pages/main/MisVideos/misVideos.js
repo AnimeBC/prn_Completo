@@ -6,6 +6,9 @@ import styles from './misVideos.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
+import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
+import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
+import { getGuestData } from '@/_Extras/Interacciones/local.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
@@ -35,6 +38,25 @@ function parseDuration(text) {
   const parts = String(text).split(':').map(Number);
   if (parts.some(Number.isNaN)) return 0;
   return parts.reduce((acc, p) => acc * 60 + p, 0);
+}
+
+// Invitado: arma la lista (guardados/me gusta/descargas) desde su navegador.
+function buildGuestItems(which, videos) {
+  const d = getGuestData();
+  let ids = [];
+  if (which === 'saved') ids = d.videoSaved;
+  else if (which === 'downloads') ids = d.videoDownloads;
+  else if (which === 'likes') ids = Object.entries(d.videoLikes).filter(([, tipo]) => tipo === 'like').map(([id]) => id);
+  const byId = new Map(videos.map((v) => [String(v.id), v]));
+  return ids.map((id) => byId.get(String(id))).filter(Boolean).map((v) => ({
+    id: v.id,
+    title: v.title,
+    channel: v.channel,
+    views: v.views,
+    duration: v.duration,
+    src: v.src,
+    thumb: v.thumb,
+  }));
 }
 
 function InFeedAd() {
@@ -87,6 +109,8 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
   const router = useRouter();
   const { locale } = useLanguage();
   const es = locale !== 'en';
+  const { authed } = useAuth();
+  const { videos } = useContenido();
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -98,6 +122,13 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
 
   useEffect(() => {
     let alive = true;
+    // Invitado: guardados / me gusta / descargas salen de su almacén local.
+    // El historial sí es del server (vistas anónimas por dispositivo).
+    if (!authed && ['saved', 'likes', 'downloads'].includes(endpoint)) {
+      setItems(buildGuestItems(endpoint, videos));
+      setLoading(false);
+      return () => { alive = false; };
+    }
     const key = getUserKey();
     if (!key) { setLoading(false); return; }
     setLoading(true);
@@ -122,10 +153,11 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
       }
     })();
     return () => { alive = false; };
-  }, [endpoint, es]);
+  }, [endpoint, es, authed, videos]);
 
   // Redis realtime: refresca al cambiar likes/guardados/descargas/historial
   useEffect(() => {
+    if (!authed) return undefined;
     const onChange = () => {
       const key = getUserKey();
       if (!key) return;
@@ -144,7 +176,7 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
     };
     window.addEventListener('pikantepe:change', onChange);
     return () => window.removeEventListener('pikantepe:change', onChange);
-  }, [endpoint, es]);
+  }, [endpoint, es, authed]);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');

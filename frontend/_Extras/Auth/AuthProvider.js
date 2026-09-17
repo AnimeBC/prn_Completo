@@ -1,8 +1,9 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { API_URL } from '@/_Extras/Api/api.js';
-import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
+import { getUserKey, importGuestData } from '@/_Extras/Interacciones/interactions.js';
+import { hasGuestData, getGuestImportPayload, clearGuestData } from '@/_Extras/Interacciones/local.js';
 
 const KEY = 'pkp_user_key';
 
@@ -51,6 +52,25 @@ export function AuthProvider({ children }) {
       window.removeEventListener('pikantepe:change', onChange);
     };
   }, [load]);
+
+  // Al iniciar sesión (o verificar la cuenta) sube la actividad guardada
+  // en el navegador cuando era invitado y limpia el almacén local.
+  const importedForRef = useRef('');
+  useEffect(() => {
+    if (!ready || !authed || !user?.user_key) return;
+    if (importedForRef.current === user.user_key) return;
+    if (!hasGuestData()) return;
+    importedForRef.current = user.user_key;
+    (async () => {
+      const r = await importGuestData(user.user_key, getGuestImportPayload());
+      if (r?.ok) {
+        clearGuestData();
+        try { window.dispatchEvent(new Event('pkp:me')); } catch { /* noop */ }
+      } else {
+        importedForRef.current = '';
+      }
+    })();
+  }, [ready, authed, user]);
 
   /** Se llama al iniciar sesión / registrarse / verificar: guarda y avisa a toda la app. */
   const setAccount = useCallback((userObj) => {

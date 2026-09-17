@@ -738,11 +738,12 @@ r.post('/reportes', async (req, res, next) => {
     const tipo = ['post', 'comentario', 'mensaje', 'story', 'comunidad'].includes(b.tipo) ? b.tipo : 'post';
     const target = intOrNull(b.target_id);
     if (!target) return res.status(400).json({ error: 'Objetivo inválido' });
+    const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim().slice(0, 60) || null;
     await query(
-      `INSERT INTO comunidad_reportes (tipo, target_id, comunidad_id, user_key, motivo, detalle)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO comunidad_reportes (tipo, target_id, comunidad_id, user_key, motivo, detalle, ip)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [tipo, target, intOrNull(b.comunidad_id), user?.user_key || null,
-       String(b.motivo || '').slice(0, 80) || null, String(b.detalle || '').slice(0, 2000) || null]
+       String(b.motivo || '').slice(0, 80) || null, String(b.detalle || '').slice(0, 2000) || null, ip]
     );
     res.status(201).json({ ok: true });
     await notify('comunidad_reporte', { tipo, target });

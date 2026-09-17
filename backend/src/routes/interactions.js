@@ -134,11 +134,12 @@ r.post('/videos/:id/report', async (req, res, next) => {
     const { userKey, motivo, detalle } = req.body || {};
     const slug = String(motivo || 'otro').trim().slice(0, 60) || 'otro';
     const nota = detalle ? String(detalle).trim().slice(0, 1000) : null;
+    const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim().slice(0, 60) || null;
 
     await query(
-      `INSERT INTO reports (video_id, user_key, motivo, motivo_slug, detalle, estado)
-       VALUES ($1, $2, $3, $4, $5, 'pendiente')`,
-      [v.id, userKey || null, slug, slug, nota]
+      `INSERT INTO reports (video_id, user_key, motivo, motivo_slug, detalle, estado, ip)
+       VALUES ($1, $2, $3, $4, $5, 'pendiente', $6)`,
+      [v.id, userKey || null, slug, slug, nota, ip]
     );
 
     await publishEvent('video_report', { id: v.id });

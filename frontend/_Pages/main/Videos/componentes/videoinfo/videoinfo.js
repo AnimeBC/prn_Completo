@@ -7,7 +7,6 @@ import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import CompartirModal from '@/_Pages/main/Videos/componentes/compartir';
 import ReportModal from '@/_Pages/main/Videos/componentes/reportar';
-import AuthModal from '@/_Pages/main/Auth/AuthModal';
 import DescargaModal from '@/_Pages/main/Packs/componentes/descarga';
 import { SMARTLINK_URL } from '@/_Pages/main/Home/componentes/anuncio/ads.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
@@ -21,6 +20,15 @@ import {
   downloadVideo,
   followChannel,
 } from '@/_Extras/Interacciones/interactions.js';
+import {
+  overlayVideoStats,
+  overlayFollow,
+  guestToggleVideoLike,
+  guestToggleVideoSave,
+  guestToggleVideoDownload,
+  guestToggleFollow,
+  guestMarkReport,
+} from '@/_Extras/Interacciones/local.js';
 
 function formatCount(n) {
   const num = Number(n) || 0;
@@ -46,14 +54,7 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
   const [stats, setStats] = useState({ likes: 0, dislikes: 0, views: 0, subscribers: 0, myVote: null, saved: false, following: false, reported: false });
 
   const { authed } = useAuth();
-  const [authOpen, setAuthOpen] = useState(false);
-  const [authReason, setAuthReason] = useState('like');
   const [channelAvatar, setChannelAvatar] = useState('');
-
-  function requireAuth(reason) {
-    setAuthReason(reason);
-    setAuthOpen(true);
-  }
 
   // Foto del canal (perfil público) para mostrarla junto al nombre
   useEffect(() => {
@@ -69,36 +70,73 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
 
   useEffect(() => {
     let alive = true;
-    getInteractions(videoId).then((d) => { if (alive && d) setStats((s) => ({ ...s, ...d })); });
-    // cuenta la vista al abrir el video (sin cuenta)
-    viewVideo(videoId).then((d) => { if (alive && d) setStats((s) => ({ ...s, ...d })); });
+    // El invitado ve los conteos globales del server y encima su estado local.
+    const apply = (d) => {
+      if (!alive || !d) return;
+      setStats((s) => {
+        let merged = { ...s, ...d };
+        if (!authed) {
+          merged = overlayVideoStats(merged, videoId);
+          merged = overlayFollow(merged, info.channel);
+        }
+        return merged;
+      });
+    };
+    getInteractions(videoId).then(apply);
+    // cuenta la vista al abrir el video (anonima, sirve tambien sin cuenta)
+    viewVideo(videoId).then(apply);
     return () => { alive = false; };
-  }, [videoId]);
+  }, [videoId, authed, info.channel]);
 
   async function toggleLike() {
-    if (!authed) return requireAuth('like');
-    const d = await likeVideo(videoId, stats.myVote === 'like' ? 'none' : 'like');
-    if (d) setStats((s) => ({ ...s, ...d }));
+    if (authed) {
+      const d = await likeVideo(videoId, stats.myVote === 'like' ? 'none' : 'like');
+      if (d) setStats((s) => ({ ...s, ...d }));
+      return;
+    }
+    setStats((s) => {
+      const prev = s.myVote;
+      const next = guestToggleVideoLike(videoId, s.myVote === 'like' ? 'none' : 'like');
+      return { ...s, myVote: next, likes: s.likes + (next === 'like' ? 1 : 0) - (prev === 'like' ? 1 : 0) };
+    });
   }
 
   async function toggleDislike() {
-    if (!authed) return requireAuth('like');
-    const d = await likeVideo(videoId, stats.myVote === 'dislike' ? 'none' : 'dislike');
-    if (d) setStats((s) => ({ ...s, ...d }));
+    if (authed) {
+      const d = await likeVideo(videoId, stats.myVote === 'dislike' ? 'none' : 'dislike');
+      if (d) setStats((s) => ({ ...s, ...d }));
+      return;
+    }
+    setStats((s) => {
+      const prev = s.myVote;
+      const next = guestToggleVideoLike(videoId, s.myVote === 'dislike' ? 'none' : 'dislike');
+      return { ...s, myVote: next, dislikes: s.dislikes + (next === 'dislike' ? 1 : 0) - (prev === 'dislike' ? 1 : 0) };
+    });
   }
 
   async function toggleSave() {
+    if (!authed) {
+      setStats((s) => ({ ...s, saved: guestToggleVideoSave(videoId) }));
+      return;
+    }
     const d = await saveVideo(videoId);
     if (d) setStats((s) => ({ ...s, ...d }));
   }
 
   async function toggleFollow() {
-    if (!authed) return requireAuth('follow');
+    if (!authed) {
+      setStats((s) => {
+        const following = guestToggleFollow(info.channel);
+        return { ...s, following, subscribers: s.subscribers + (following ? 1 : 0) - (s.following ? 1 : 0) };
+      });
+      return;
+    }
     const d = await followChannel(info.channel);
     if (d) setStats((s) => ({ ...s, following: d.following, subscribers: d.subscribers }));
   }
 
   async function recordDownload() {
+    if (!authed) { guestToggleVideoDownload(videoId); return; }
     const d = await downloadVideo(videoId);
     if (d) setStats((s) => ({ ...s, ...d }));
   }
@@ -208,10 +246,11 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
         open={reportOpen}
         onClose={() => setReportOpen(false)}
         videoId={videoId}
-        onReported={() => setStats((s) => ({ ...s, reported: true }))}
+        onReported={() => {
+          if (!authed) guestMarkReport('video', videoId);
+          setStats((s) => ({ ...s, reported: true }));
+        }}
       />
-
-      <AuthModal open={authOpen} reason={authReason} onClose={() => setAuthOpen(false)} />
 
       <DescargaModal
         open={dlOpen}

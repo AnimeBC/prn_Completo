@@ -678,10 +678,11 @@ r.post('/capitulos/:capId/report', async (req, res, next) => {
     const userKey = uk(req.body?.userKey);
     const motivo = String(req.body?.motivo || 'otro').trim().slice(0, 60) || 'otro';
     const detalle = req.body?.detalle ? String(req.body.detalle).trim().slice(0, 1000) : null;
+    const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim().slice(0, 60) || null;
 
     await query(
-      `INSERT INTO hentai_reports (capitulo_id, user_key, motivo, detalle) VALUES ($1, $2, $3, $4)`,
-      [capId, userKey, motivo, detalle]
+      `INSERT INTO hentai_reports (capitulo_id, user_key, motivo, detalle, ip) VALUES ($1, $2, $3, $4, $5)`,
+      [capId, userKey, motivo, detalle, ip]
     );
     await publishEvent('hentai_report', { id: capId });
     res.json({ ok: true, reported: true });

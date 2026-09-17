@@ -259,13 +259,30 @@ async function migrateGuestData(guestKey, accountKey) {
 }
 
 // GET /api/auth/profile?userKey=  -> perfil + estadísticas (siempre fresco)
+// Si el userKey no tiene cuenta, devuelve un invitado VIRTUAL sin crear fila en la BD:
+// los invitados guardan su actividad en el navegador y la suben al registrarse.
 r.get('/profile', async (req, res, next) => {
   try {
     const userKey = normalizeUserKey(req.query.userKey);
     if (!userKey) return res.status(400).json({ error: 'userKey inválido' });
 
-    const user = await ensureUser(userKey);
-    res.json({ ok: true, user: publicUser(user), stats: await getUserStats(userKey) });
+    const existing = await findUserByKey(userKey);
+    if (!existing) {
+      const guest = {
+        user_key: userKey,
+        nombre: `Invitado ${userKey.slice(-4)}`,
+        rol: 'user',
+        provider: 'local',
+        email_verified: false,
+      };
+      return res.json({
+        ok: true,
+        virtual: true,
+        user: { ...publicUser(guest), virtual: true },
+        stats: { likes: 0, saved: 0, following: 0, downloads: 0 },
+      });
+    }
+    res.json({ ok: true, user: publicUser(existing), stats: await getUserStats(userKey) });
   } catch (e) { next(e); }
 });
 
@@ -293,7 +310,8 @@ r.put('/profile', async (req, res, next) => {
     const userKey = normalizeUserKey(rawKey);
     if (!userKey) return res.status(400).json({ error: 'userKey inválido' });
 
-    await ensureUser(userKey);
+    const exists = await findUserByKey(userKey);
+    if (!exists) return res.status(401).json({ error: 'Inicia sesión para guardar tu perfil' });
 
     const cleanNombre = nombre === undefined ? null : (String(nombre).trim().slice(0, 120) || null);
     const cleanUsuario = usuario === undefined ? null : (String(usuario).trim().toLowerCase().slice(0, 40) || null);
@@ -341,6 +359,231 @@ r.put('/profile', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /api/auth/profile/import-guest  { userKey, data }
+// Sube (una sola vez) la actividad que el invitado guardó en su navegador.
+// Se llama al registrarse / iniciar sesión / entrar con Google.
+r.post('/profile/import-guest', async (req, res, next) => {
+  try {
+    const userKey = normalizeUserKey(req.body?.userKey);
+    if (!userKey) return res.status(400).json({ error: 'userKey inválido' });
+    const user = await findUserByKey(userKey);
+    if (!user) return res.status(401).json({ error: 'Inicia sesión para importar tus datos' });
+
+    const d = req.body?.data || {};
+    const MAX = 3000;
+    const asMap = (o) => (o && typeof o === 'object' ? o : {});
+    const asIds = (a) => (Array.isArray(a) ? a : [])
+      .map((x) => Number.parseInt(String(x), 10))
+      .filter((n) => Number.isInteger(n) && n > 0)
+      .slice(0, MAX);
+    const uniq = (a) => [...new Set(a)];
+
+    const existingIds = async (table, ids) => {
+      if (!ids.length) return [];
+      const { rows } = await query(`SELECT id FROM ${table} WHERE id = ANY($1::int[])`, [ids]);
+      return rows.map((row) => row.id);
+    };
+
+    const out = { videoLikes: 0, videoSaved: 0, videoDownloads: 0, following: 0, packLikes: 0, packSaved: 0, packDownloads: 0, hentaiLikes: 0, hentaiSaved: 0, hentaiDownloads: 0 };
+
+    // ---- videos ----
+    const vLikes = asMap(d?.videos?.likes);
+    const vLikeIds = [];
+    const vLikeTipos = [];
+    for (const [k, tipo] of Object.entries(vLikes)) {
+      const id = Number.parseInt(String(k), 10);
+      if (!Number.isInteger(id) || id <= 0) continue;
+      if (tipo !== 'like' && tipo !== 'dislike') continue;
+      vLikeIds.push(id);
+      vLikeTipos.push(tipo);
+      if (vLikeIds.length >= MAX) break;
+    }
+    const vLikeValid = await existingIds('videos', uniq(vLikeIds));
+    const okIds = [];
+    const okTipos = [];
+    for (let i = 0; i < vLikeIds.length; i += 1) {
+      if (vLikeValid.includes(vLikeIds[i])) { okIds.push(vLikeIds[i]); okTipos.push(vLikeTipos[i]); }
+    }
+    if (okIds.length) {
+      await query(
+        `INSERT INTO video_likes (video_id, user_key, tipo)
+         SELECT x, $2, t FROM UNNEST($1::int[], $3::text[]) AS v(x, t)
+         ON CONFLICT (video_id, user_key) DO UPDATE SET tipo = EXCLUDED.tipo, created_at = NOW()`,
+        [okIds, userKey, okTipos]
+      );
+      await query(
+        `UPDATE videos SET
+           likes    = (SELECT COUNT(*) FROM video_likes WHERE video_id = videos.id AND tipo = 'like'),
+           dislikes = (SELECT COUNT(*) FROM video_likes WHERE video_id = videos.id AND tipo = 'dislike')
+         WHERE id = ANY($1::int[])`,
+        [uniq(okIds)]
+      );
+      out.videoLikes = okIds.length;
+    }
+
+    const vSaved = await existingIds('videos', uniq(asIds(d?.videos?.saved)));
+    if (vSaved.length) {
+      await query(
+        `INSERT INTO saved_videos (video_id, user_key)
+         SELECT x, $2 FROM UNNEST($1::int[]) AS x ON CONFLICT DO NOTHING`,
+        [vSaved, userKey]
+      );
+      out.videoSaved = vSaved.length;
+    }
+
+    const vDown = await existingIds('videos', uniq(asIds(d?.videos?.downloads)));
+    if (vDown.length) {
+      await query(
+        `INSERT INTO downloads (video_id, user_key)
+         SELECT x, $2 FROM UNNEST($1::int[]) AS x
+         WHERE NOT EXISTS (SELECT 1 FROM downloads dl WHERE dl.video_id = x AND dl.user_key = $2)`,
+        [vDown, userKey]
+      );
+      out.videoDownloads = vDown.length;
+    }
+
+    // ---- canales seguidos ----
+    const channels = (Array.isArray(d?.following) ? d.following : [])
+      .map((c) => String(c || '').trim().slice(0, 120)).filter(Boolean).slice(0, MAX);
+    const uniqChannels = [...new Set(channels)];
+    if (uniqChannels.length) {
+      await query(
+        `INSERT INTO subscriptions (channel, user_key)
+         SELECT x, $2 FROM UNNEST($1::text[]) AS x ON CONFLICT DO NOTHING`,
+        [uniqChannels, userKey]
+      );
+      await query(
+        `UPDATE channels SET seguidores = (SELECT COUNT(*) FROM subscriptions WHERE channel = channels.nombre)
+         WHERE nombre = ANY($1::text[])`,
+        [uniqChannels]
+      );
+      out.following = uniqChannels.length;
+    }
+
+    // ---- packs ----
+    const pLikes = asMap(d?.packs?.likes);
+    const pIds = [];
+    const pTipos = [];
+    for (const [k, tipo] of Object.entries(pLikes)) {
+      const id = Number.parseInt(String(k), 10);
+      if (!Number.isInteger(id) || id <= 0) continue;
+      if (tipo !== 'like' && tipo !== 'dislike') continue;
+      pIds.push(id); pTipos.push(tipo);
+      if (pIds.length >= MAX) break;
+    }
+    const pValid = await existingIds('packs', uniq(pIds));
+    const pOkIds = [];
+    const pOkTipos = [];
+    for (let i = 0; i < pIds.length; i += 1) {
+      if (pValid.includes(pIds[i])) { pOkIds.push(pIds[i]); pOkTipos.push(pTipos[i]); }
+    }
+    if (pOkIds.length) {
+      await query(
+        `INSERT INTO pack_likes (pack_id, user_key, tipo)
+         SELECT x, $2, t FROM UNNEST($1::int[], $3::text[]) AS v(x, t)
+         ON CONFLICT (pack_id, user_key) DO UPDATE SET tipo = EXCLUDED.tipo, created_at = NOW()`,
+        [pOkIds, userKey, pOkTipos]
+      );
+      out.packLikes = pOkIds.length;
+    }
+    const pSaved = await existingIds('packs', uniq(asIds(d?.packs?.saved)));
+    if (pSaved.length) {
+      await query(
+        `INSERT INTO pack_saves (pack_id, user_key)
+         SELECT x, $2 FROM UNNEST($1::int[]) AS x ON CONFLICT DO NOTHING`,
+        [pSaved, userKey]
+      );
+      out.packSaved = pSaved.length;
+    }
+    const pDown = await existingIds('packs', uniq(asIds(d?.packs?.downloads)));
+    if (pDown.length) {
+      const ins = await query(
+        `INSERT INTO pack_downloads (pack_id, user_key)
+         SELECT x, $2 FROM UNNEST($1::int[]) AS x
+         WHERE NOT EXISTS (SELECT 1 FROM pack_downloads dl WHERE dl.pack_id = x AND dl.user_key = $2)
+         RETURNING pack_id`,
+        [pDown, userKey]
+      );
+      if (ins.rows.length) {
+        const counts = new Map();
+        for (const row of ins.rows) counts.set(row.pack_id, (counts.get(row.pack_id) || 0) + 1);
+        const ids2 = [...counts.keys()];
+        const ns = ids2.map((x) => counts.get(x));
+        await query(
+          `UPDATE packs p SET descargas = COALESCE(p.descargas,0) + v.n
+           FROM (SELECT * FROM UNNEST($1::int[], $2::int[]) AS t(id, n)) v
+           WHERE p.id = v.id`,
+          [ids2, ns]
+        );
+      }
+      out.packDownloads = pDown.length;
+    }
+    if (pOkIds.length || pSaved.length) {
+      const touch = uniq([...pOkIds, ...pSaved]);
+      await query(
+        `UPDATE packs SET
+           likes     = (SELECT COUNT(*) FROM pack_likes WHERE pack_id = packs.id AND tipo = 'like'),
+           dislikes  = (SELECT COUNT(*) FROM pack_likes WHERE pack_id = packs.id AND tipo = 'dislike'),
+           guardados = (SELECT COUNT(*) FROM pack_saves WHERE pack_id = packs.id)
+         WHERE id = ANY($1::int[])`,
+        [touch]
+      );
+    }
+
+    // ---- hentai ----
+    const hLikes = asMap(d?.hentai?.likes);
+    const hIds = [];
+    const hTipos = [];
+    for (const [k, tipo] of Object.entries(hLikes)) {
+      const id = Number.parseInt(String(k), 10);
+      if (!Number.isInteger(id) || id <= 0) continue;
+      if (tipo !== 'like' && tipo !== 'dislike') continue;
+      hIds.push(id); hTipos.push(tipo);
+      if (hIds.length >= MAX) break;
+    }
+    const hValid = await existingIds('hentai_capitulos', uniq(hIds));
+    const hOkIds = [];
+    const hOkTipos = [];
+    for (let i = 0; i < hIds.length; i += 1) {
+      if (hValid.includes(hIds[i])) { hOkIds.push(hIds[i]); hOkTipos.push(hTipos[i]); }
+    }
+    if (hOkIds.length) {
+      await query(
+        `INSERT INTO hentai_likes (capitulo_id, user_key, tipo)
+         SELECT x, $2, t FROM UNNEST($1::int[], $3::text[]) AS v(x, t)
+         ON CONFLICT (capitulo_id, user_key) DO UPDATE SET tipo = EXCLUDED.tipo, created_at = NOW()`,
+        [hOkIds, userKey, hOkTipos]
+      );
+      out.hentaiLikes = hOkIds.length;
+    }
+    const hSaved = await existingIds('hentai_capitulos', uniq(asIds(d?.hentai?.saved)));
+    if (hSaved.length) {
+      await query(
+        `INSERT INTO hentai_saved (capitulo_id, user_key)
+         SELECT x, $2 FROM UNNEST($1::int[]) AS x ON CONFLICT DO NOTHING`,
+        [hSaved, userKey]
+      );
+      out.hentaiSaved = hSaved.length;
+    }
+    const hDown = await existingIds('hentai_capitulos', uniq(asIds(d?.hentai?.downloads)));
+    if (hDown.length) {
+      const ins = await query(
+        `INSERT INTO hentai_downloads (capitulo_id, user_key)
+         SELECT x, $2 FROM UNNEST($1::int[]) AS x
+         WHERE NOT EXISTS (SELECT 1 FROM hentai_downloads dl WHERE dl.capitulo_id = x AND dl.user_key = $2)
+         RETURNING id`,
+        [hDown, userKey]
+      );
+      out.hentaiDownloads = ins.rows.length;
+    }
+
+    await cacheDel('cache:stats');
+    await publishEvent('user_import_guest', { userKey });
+
+    res.json({ ok: true, imported: out, stats: await getUserStats(userKey) });
+  } catch (e) { next(e); }
+});
+
 // POST /api/auth/profile/avatar  (multipart: avatar)  { userKey }
 r.post('/profile/avatar', avatarUpload.single('avatar'), async (req, res, next) => {
   try {
@@ -349,7 +592,11 @@ r.post('/profile/avatar', avatarUpload.single('avatar'), async (req, res, next) 
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'Adjunta una imagen' });
 
-    const user = await ensureUser(userKey);
+    const user = await findUserByKey(userKey);
+    if (!user) {
+      fs.rm(file.path, { force: true }, () => {});
+      return res.status(401).json({ error: 'Inicia sesión para cambiar tu avatar' });
+    }
     removeAvatarFolder(user.avatar);
 
     const destDir = path.join(DIRS.avatars, avatarFolderName(userKey));

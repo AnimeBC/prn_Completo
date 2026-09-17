@@ -5,6 +5,7 @@ import styles from './perfil.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { getUserKey } from '@/_Extras/Interacciones/interactions.js';
+import { getGuestData } from '@/_Extras/Interacciones/local.js';
 import { verifyField } from '@/_Extras/Auth/availability.js';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import ImageCropModal from '@/_Extras/Imagen/ImageCropModal.js';
@@ -18,8 +19,8 @@ const TABS = [
   { id: 'descargas', icon: 'download-outline', label: ['Descargas', 'Downloads'] },
 ];
 
-// Como invitado no existen "Me gusta" ni "Suscripciones" (requieren cuenta)
-const GUEST_TABS = ['perfil', 'guardados', 'descargas'];
+// El invitado guarda todo en su navegador: puede ver guardados, me gusta y descargas.
+const GUEST_TABS = ['perfil', 'guardados', 'likes', 'descargas'];
 
 // id de pestaña -> endpoint real del backend
 const LIST_ENDPOINT = {
@@ -115,7 +116,18 @@ export default function PerfilClient() {
         return;
       }
       setUser(j.user || null);
-      setStats(j.stats || EMPTY_STATS);
+      if (j.virtual) {
+        // Invitado: las estadísticas salen de lo que guardó en el navegador.
+        const g = getGuestData();
+        setStats({
+          likes: Object.values(g.videoLikes).filter((tipo) => tipo === 'like').length,
+          saved: g.videoSaved.length,
+          following: g.following.length,
+          downloads: g.videoDownloads.length,
+        });
+      } else {
+        setStats(j.stats || EMPTY_STATS);
+      }
       setForm({
         nombre: j.user?.nombre || '',
         usuario: j.user?.usuario || '',
@@ -476,7 +488,7 @@ export default function PerfilClient() {
     { key: 'saved', value: stats.saved, label: es ? 'Guardados' : 'Saved', icon: 'bookmark-outline' },
     { key: 'following', value: stats.following, label: es ? 'Siguiendo' : 'Following', icon: 'people-outline' },
     { key: 'downloads', value: stats.downloads, label: es ? 'Descargas' : 'Downloads', icon: 'download-outline' },
-  ].filter((s) => authed || s.key === 'saved' || s.key === 'downloads');
+  ];
 
   if (loading) {
     return (

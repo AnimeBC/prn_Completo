@@ -8,7 +8,6 @@ import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { channelSlug } from '@/_Extras/Canales/canal.js';
 import { SMARTLINK_URL } from '@/_Pages/main/Home/componentes/anuncio/ads.js';
-import AuthModal from '@/_Pages/main/Auth/AuthModal';
 import DescargaModal from '@/_Pages/main/Packs/componentes/descarga';
 import CompartirModal from '@/_Pages/main/Videos/componentes/compartir';
 import ReportModal from '@/_Pages/main/Videos/componentes/reportar';
@@ -21,6 +20,15 @@ import {
   followChannel,
   reportHentai,
 } from '@/_Extras/Interacciones/interactions.js';
+import {
+  overlayHentaiStats,
+  overlayFollow,
+  guestToggleHentaiLike,
+  guestToggleHentaiSave,
+  guestToggleFollow,
+  guestMarkReport,
+  guestAddHentaiDownload,
+} from '@/_Extras/Interacciones/local.js';
 
 const EMPTY_STATS = { likes: 0, dislikes: 0, views: 0, subscribers: 0, myVote: null, saved: false, following: false, reported: false };
 
@@ -50,15 +58,25 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
   const [dlOpen, setDlOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
     if (!capituloId) return;
     let alive = true;
-    getHentaiInteractions(capituloId).then((d) => { if (alive && d) setStats((s) => ({ ...s, ...d })); });
-    viewHentai(capituloId).then((d) => { if (alive && d) setStats((s) => ({ ...s, ...d })); });
+    const apply = (d) => {
+      if (!alive || !d) return;
+      setStats((s) => {
+        let merged = { ...s, ...d };
+        if (!authed) {
+          merged = overlayHentaiStats(merged, capituloId);
+          merged = overlayFollow(merged, info.channel);
+        }
+        return merged;
+      });
+    };
+    getHentaiInteractions(capituloId).then(apply);
+    viewHentai(capituloId).then(apply);
     return () => { alive = false; };
-  }, [capituloId]);
+  }, [capituloId, authed, info.channel]);
 
   // Foto de perfil del canal (perfil público)
   useEffect(() => {
@@ -73,31 +91,58 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
   }, [info.channel]);
 
   async function toggleLike() {
-    if (!authed) { setAuthOpen(true); return; }
-    const d = await likeHentai(capituloId, stats.myVote === 'like' ? 'none' : 'like');
-    if (d) setStats((s) => ({ ...s, ...d }));
+    if (!capituloId) return;
+    if (authed) {
+      const d = await likeHentai(capituloId, stats.myVote === 'like' ? 'none' : 'like');
+      if (d) setStats((s) => ({ ...s, ...d }));
+      return;
+    }
+    setStats((s) => {
+      const prev = s.myVote;
+      const next = guestToggleHentaiLike(capituloId, s.myVote === 'like' ? 'none' : 'like');
+      return { ...s, myVote: next, likes: s.likes + (next === 'like' ? 1 : 0) - (prev === 'like' ? 1 : 0) };
+    });
   }
 
   async function toggleDislike() {
-    if (!authed) { setAuthOpen(true); return; }
-    const d = await likeHentai(capituloId, stats.myVote === 'dislike' ? 'none' : 'dislike');
-    if (d) setStats((s) => ({ ...s, ...d }));
+    if (!capituloId) return;
+    if (authed) {
+      const d = await likeHentai(capituloId, stats.myVote === 'dislike' ? 'none' : 'dislike');
+      if (d) setStats((s) => ({ ...s, ...d }));
+      return;
+    }
+    setStats((s) => {
+      const prev = s.myVote;
+      const next = guestToggleHentaiLike(capituloId, s.myVote === 'dislike' ? 'none' : 'dislike');
+      return { ...s, myVote: next, dislikes: s.dislikes + (next === 'dislike' ? 1 : 0) - (prev === 'dislike' ? 1 : 0) };
+    });
   }
 
   async function toggleSave() {
     if (!capituloId) return;
+    if (!authed) {
+      setStats((s) => ({ ...s, saved: guestToggleHentaiSave(capituloId) }));
+      return;
+    }
     const d = await saveHentai(capituloId);
     if (d) setStats((s) => ({ ...s, ...d }));
   }
 
   async function toggleFollow() {
-    if (!authed) { setAuthOpen(true); return; }
+    if (!authed) {
+      setStats((s) => {
+        const following = guestToggleFollow(info.channel);
+        return { ...s, following, subscribers: s.subscribers + (following ? 1 : 0) - (s.following ? 1 : 0) };
+      });
+      return;
+    }
     const d = await followChannel(info.channel);
     if (d) setStats((s) => ({ ...s, following: d.following, subscribers: d.subscribers }));
   }
 
   async function recordDownload() {
     if (!capituloId) return;
+    if (!authed) { guestAddHentaiDownload(capituloId); return; }
     const d = await downloadHentai(capituloId);
     if (d) setStats((s) => ({ ...s, ...d }));
   }
@@ -237,12 +282,13 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
       <ReportModal
         open={reportOpen}
         onClose={() => setReportOpen(false)}
-        onReported={() => setStats((s) => ({ ...s, reported: true }))}
+        onReported={() => {
+          if (!authed && capituloId) guestMarkReport('hentai', capituloId);
+          setStats((s) => ({ ...s, reported: true }));
+        }}
         submitFn={capituloId ? (motivo, detalle) => reportHentai(capituloId, motivo, detalle) : null}
         title={es ? 'Reportar episodio' : 'Report episode'}
       />
-
-      <AuthModal open={authOpen} reason="like" onClose={() => setAuthOpen(false)} />
 
       <div className={styles.descBox}>
         <div className={styles.tagsRow}>

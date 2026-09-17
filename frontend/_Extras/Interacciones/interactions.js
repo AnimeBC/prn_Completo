@@ -47,6 +47,9 @@ export const downloadVideo = (id) => post(`/api/videos/${id}/download`, { userKe
 export const shareVideo = (id, red) => post(`/api/videos/${id}/share`, { userKey: getUserKey(), red });
 export const followChannel = (channel) => post('/api/channels/follow', { userKey: getUserKey(), channel });
 
+/** Sube a la cuenta la actividad que el invitado guardó en el navegador. */
+export const importGuestData = (userKey, data) => post('/api/auth/profile/import-guest', { userKey, data });
+
 /* ---------- packs ---------- */
 export const getPackInteractions = (id) =>
   api(`/api/packs/${id}/interactions?userKey=${encodeURIComponent(getUserKey())}`);
