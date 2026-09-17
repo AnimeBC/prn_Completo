@@ -148,6 +148,7 @@ export default function HentaiAdmin() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const [dialog, setDialog] = useState(null);
   const editorRef = useRef(null);
 
   const [capForm, setCapForm] = useState({ numero: '1' });
@@ -330,27 +331,63 @@ export default function HentaiAdmin() {
   async function saveSerie(e) {
     e.preventDefault();
     if (!editing) return;
+    const payload = {
+      modo: modeTab,
+      titulo: clean(form.titulo_es), titulo_alt: clean(form.titulo_ja), descripcion: clean(form.desc_es),
+      tags: tagsEs.map(clean).filter(Boolean).join(', '), tipo: clean(form.tipo), anio: form.anio, temporada: clean(form.temporada),
+      titulos_extras: titulosExtras.map(clean).filter(Boolean).join(', '),
+      estado: clean(form.estado), canal: clean(form.canal),
+    };
+    const label = MODOS.find((m) => m.id === modeTab)?.label;
     setBusy(true); setError(''); setMsg('');
+    console.log('[hentai] PUT /api/hentai/%s payload:', editing.id, payload);
     try {
       const r = await fetch(`${API}/api/hentai/${editing.id}`, {
         method: 'PUT',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          modo: modeTab,
-          titulo: clean(form.titulo_es), titulo_alt: clean(form.titulo_ja), descripcion: clean(form.desc_es),
-          tags: tagsEs.map(clean).filter(Boolean).join(', '), tipo: clean(form.tipo), anio: form.anio, temporada: clean(form.temporada),
-          titulos_extras: titulosExtras.map(clean).filter(Boolean).join(', '),
-          estado: clean(form.estado), canal: clean(form.canal),
-        }),
+        body: JSON.stringify(payload),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setError(j.error || 'No se pudo guardar'); return; }
-      setEditing((s) => ({ ...(s || {}), canal: j.serie?.canal || s?.canal }));
-      setModos((prev) => ({ ...prev, [modeTab]: captureMode() }));
-      setMsg(`Modo «${MODOS.find((m) => m.id === modeTab)?.label}» guardado.`);
+      console.log('[hentai] PUT status:', r.status, 'response:', j);
+      if (!r.ok) {
+        setDialog({
+          type: 'error',
+          title: 'No se pudo guardar',
+          text: j.error || `El servidor respondió ${r.status}.`,
+          detail: JSON.stringify(payload, null, 2),
+        });
+        return;
+      }
+
+      // Re-sincroniza la UI con lo que quedó guardado en el servidor.
+      const server = j.modos?.[modeTab];
+      if (server) {
+        setForm((f) => ({
+          ...f,
+          titulo_es: server.titulo || '', titulo_ja: server.titulo_alt || '', desc_es: server.descripcion || '',
+          tipo: server.tipo || '', anio: server.anio ? String(server.anio) : '',
+          temporada: normTemporada(server.temporada), estado: server.estado || 'En emisión',
+        }));
+        setTagsEs((server.tags || []).map(clean).filter(Boolean));
+        setTitulosExtras((server.titulos_extras || []).map(clean).filter(Boolean));
+        setModos((prev) => ({ ...prev, [modeTab]: server }));
+      } else {
+        setModos((prev) => ({ ...prev, [modeTab]: captureMode() }));
+      }
+      setEditing((s) => ({ ...s, canal: j.serie?.canal || s?.canal }));
+      setMsg(`Modo «${label}» guardado.`);
+      setDialog({ type: 'ok', title: 'Guardado', text: `Modo «${label}» guardado correctamente.` });
       loadList(qRef.current, tab, page);
-    } catch { setError('No hay conexión con el servidor.'); }
-    finally { setBusy(false); }
+      refreshEpisodes();
+    } catch (err) {
+      console.error('[hentai] PUT error:', err);
+      setDialog({
+        type: 'error',
+        title: 'Error de red',
+        text: err?.message || 'No se pudo conectar con el servidor.',
+        detail: JSON.stringify(payload, null, 2),
+      });
+    } finally { setBusy(false); }
   }
 
   async function uploadCover(file) {
@@ -903,6 +940,32 @@ export default function HentaiAdmin() {
           </div>
         )}
       </section>
+
+      {/* ===== Modal de aviso (guardado / error) ===== */}
+      {dialog && (
+        <div className={styles.modalOverlay} onClick={() => setDialog(null)}>
+          <div className={styles.modalBox} onClick={(ev) => ev.stopPropagation()}>
+            <div className={styles.modalHead}>
+              <ion-icon
+                name={dialog.type === 'ok' ? 'checkmark-circle' : 'alert-circle'}
+                className={dialog.type === 'ok' ? styles.modalOkIcon : styles.modalErrIcon}
+                suppressHydrationWarning
+              ></ion-icon>
+              <h3 className={styles.modalTitle}>{dialog.title}</h3>
+            </div>
+            <p className={styles.modalText}>{dialog.text}</p>
+            {dialog.detail && (
+              <details className={styles.modalDetails}>
+                <summary>Ver datos enviados</summary>
+                <pre className={styles.modalPre}>{dialog.detail}</pre>
+              </details>
+            )}
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.primaryBtn} onClick={() => setDialog(null)}>Entendido</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -285,6 +285,8 @@ r.put('/:id', authRequired, async (req, res, next) => {
     const temporada = b.temporada !== undefined ? (String(b.temporada).trim().slice(0, 40) || null) : null;
     const estado = b.estado !== undefined ? (String(b.estado).trim().slice(0, 30) || null) : null;
 
+    console.log('[hentai] PUT', id, 'modo=', modo, JSON.stringify({ titulo, tituloAlt, tags, titulosExtras, tipo, anio, temporada, estado, canal: b.canal }));
+
     await query(
       `INSERT INTO hentai_modos (hentai_id, modo, titulo, titulo_alt, titulos_extras, descripcion, tags, tipo, anio, temporada, estado)
        VALUES ($1, $2, $3, $4, $5::text[], $6, COALESCE($7::text[], '{}'::text[]), $8, $9, $10, COALESCE($11, 'En emisión'))
@@ -316,6 +318,7 @@ r.put('/:id', authRequired, async (req, res, next) => {
     if (tags) await saveHentaiTags(tags);
 
     await publishEvent('hentai_updated', { id });
+    await cacheDel('cache:stats');
     res.json({ ok: true, serie: await getSerie(id), modos: await getModos(id) });
   } catch (e) { next(e); }
 });

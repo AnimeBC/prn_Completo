@@ -555,3 +555,15 @@
 .capEditor .drop{ width:100%; max-width:260px }
 .editBtn{ display:inline-flex; align-items:center; gap:5px; padding:7px 12px; border-radius:999px; cursor:pointer; border:1px solid var(--border,#27272A); background:transparent; color:var(--text-secondary,#A1A1AA); font-size:12px; font-weight:700; font-family:inherit; white-space:nowrap }
 .editBtn:hover{ border-color:var(--primary,#F20D16); color:var(--primary,#F20D16) }
+
+/* ===== Modal de aviso (guardado / error) ===== */
+.modalOverlay{ position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.65); display:flex; align-items:center; justify-content:center; padding:20px }
+.modalBox{ width:min(560px,96vw); max-height:86vh; overflow:auto; background:var(--bg-card,#121215); border:1px solid var(--border,#27272A); border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:12px; box-shadow:0 20px 60px rgba(0,0,0,.6) }
+.modalHead{ display:flex; align-items:center; gap:10px }
+.modalOkIcon{ color:#22c55e; font-size:26px }
+.modalErrIcon{ color:#ff6b6b; font-size:26px }
+.modalTitle{ margin:0; font-size:16px; font-weight:800 }
+.modalText{ margin:0; font-size:13.5px; color:var(--text-secondary,#A1A1AA); line-height:1.4 }
+.modalDetails summary{ cursor:pointer; font-size:12px; font-weight:700; color:var(--primary,#F20D16) }
+.modalPre{ margin:8px 0 0; padding:12px; border-radius:10px; background:var(--bg-surface,#0D0D0F); border:1px solid var(--border,#27272A); font-size:12px; white-space:pre-wrap; word-break:break-word; max-height:280px; overflow:auto }
+.modalActions{ display:flex; justify-content:flex-end }
