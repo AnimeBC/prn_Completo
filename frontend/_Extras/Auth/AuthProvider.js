@@ -28,6 +28,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [userKey, setUserKeyState] = useState('');
   const [ready, setReady] = useState(false);
+  const authed = !!(user && user.email_verified);
 
   const load = useCallback(async (key) => {
     const k = key || getUserKey();
@@ -93,7 +94,7 @@ export function AuthProvider({ children }) {
     user,
     userKey,
     ready,
-    authed: !!(user && user.email_verified),
+    authed,
     load,
     setAccount,
     logout,
