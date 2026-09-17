@@ -5,6 +5,7 @@ import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import PackDetalle from '@/_Pages/main/Packs/componentes/detalle';
 import styles from '@/app/(main)/page.module.css';
 import { apiGet } from '@/_Extras/Datos/server.js';
+import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
 /** Si llega un id numérico viejo, resuélvelo a su public_id. */
 async function resolvePublicId(id) {
@@ -32,7 +33,15 @@ export async function generateMetadata({ params }) {
     title: titulo,
     description: base,
     alternates: { canonical: `/packs/${pack.public_id}` },
-    openGraph: { title: `${titulo} | pikante pe`, description: base, images: pack.thumb ? [pack.thumb] : undefined },
+    openGraph: buildOpenGraph({
+      title: titulo,
+      description: base,
+      url: `/packs/${pack.public_id}`,
+      image: pack.thumb,
+      imageAlt: titulo,
+      type: 'website',
+    }),
+    twitter: buildTwitter({ title: titulo, description: base, image: pack.thumb }),
   };
 }
 

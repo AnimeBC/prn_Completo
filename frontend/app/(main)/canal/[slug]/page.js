@@ -5,6 +5,7 @@ import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import CanalClient from '@/_Pages/main/Canal/canal.js';
 import styles from '@/app/(main)/page.module.css';
 import { apiGet, mediaUrl } from '@/_Extras/Datos/server.js';
+import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
 const getChannel = cache(async (slug) => {
   const r = await apiGet(`/api/channels/${encodeURIComponent(slug)}`);
@@ -26,12 +27,15 @@ export async function generateMetadata({ params }) {
     title: ch.nombre,
     description: desc,
     alternates: { canonical: `/canal/${slug}` },
-    openGraph: {
-      type: 'profile',
-      title: `${ch.nombre} | pikante pe`,
+    openGraph: buildOpenGraph({
+      title: ch.nombre,
       description: desc,
-      images: image ? [image] : undefined,
-    },
+      url: `/canal/${slug}`,
+      image,
+      imageAlt: ch.nombre,
+      type: 'profile',
+    }),
+    twitter: buildTwitter({ title: ch.nombre, description: desc, image }),
   };
 }
 

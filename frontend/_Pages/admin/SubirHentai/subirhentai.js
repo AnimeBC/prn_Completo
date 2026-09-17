@@ -23,6 +23,19 @@ const EMPTY = {
 
 const TIPOS = ['', 'TV', 'OVA', 'ONA', 'Especial', 'Película'];
 const ESTADOS = ['En emisión', 'Finalizado', 'Próximamente', 'En pausa'];
+const TEMPORADAS = ['', 'Invierno', 'Primavera', 'Verano', 'Otoño'];
+
+/** Limpia espacios al inicio/fin y espacios repetidos. */
+function clean(v) {
+  return String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+}
+
+/** Normaliza la temporada a una de las opciones (o vacío). */
+function normTemporada(v) {
+  const s = clean(v).toLowerCase();
+  if (!s) return '';
+  return TEMPORADAS.slice(1).find((t) => s.includes(t.toLowerCase())) || '';
+}
 const MODOS = [
   { id: 'sub', label: 'Subtitulado ES', short: 'Sub' },
   { id: 'es', label: 'Español (doblado)', short: 'Esp' },
@@ -148,7 +161,7 @@ export default function HentaiAdmin() {
   const shownEpisodes = episodes.filter((c) => (c.fuentes || []).some((f) => f.modo === modeTab));
 
   useEffect(() => {
-    fetch(`${API}/api/hentai/tags`).then((r) => (r.ok ? r.json() : { data: [] })).then((d) => setAllTags(d.data || [])).catch(() => {});
+    fetch(`${API}/api/hentai/tags`).then((r) => (r.ok ? r.json() : { data: [] })).then((d) => setAllTags((d.data || []).map(clean).filter(Boolean))).catch(() => {});
   }, []);
 
   const loadList = useCallback(async (query, t, p) => {
@@ -179,11 +192,19 @@ export default function HentaiAdmin() {
   }
 
   function toggleTag(tag) {
-    setTagsEs((list) => (list.includes(tag) ? list.filter((t) => t !== tag) : [...list, tag]));
+    const t = clean(tag);
+    if (!t) return;
+    setTagsEs((list) => {
+      const key = t.toLowerCase();
+      const exists = list.some((x) => clean(x).toLowerCase() === key);
+      return exists ? list.filter((x) => clean(x).toLowerCase() !== key) : [...list, t];
+    });
   }
   function addTag() {
-    const v = newTag.trim();
-    if (v && !tagsEs.includes(v)) setTagsEs([...tagsEs, v]);
+    const v = clean(newTag);
+    if (v) {
+      setTagsEs((list) => (list.some((x) => clean(x).toLowerCase() === v.toLowerCase()) ? list : [...list, v]));
+    }
     setNewTag('');
   }
 
@@ -199,12 +220,12 @@ export default function HentaiAdmin() {
 
   // ===== Títulos extras (títulos alternos en otros idiomas) =====
   function addTitulo() {
-    const v = newTitulo.trim();
+    const v = clean(newTitulo);
     if (v) setTitulosExtras((list) => mergeTags(list, [v]));
     setNewTitulo('');
   }
   function addAllTitulos() {
-    const parsed = parseTags(bulkTitulos);
+    const parsed = parseTags(bulkTitulos).map(clean).filter(Boolean);
     if (!parsed.length) { setBulkTitulos(''); return; }
     setTitulosExtras((list) => mergeTags(list, parsed));
     setBulkTitulos('');
@@ -225,11 +246,11 @@ export default function HentaiAdmin() {
     setForm((f) => ({
       ...f,
       titulo_es: md.titulo || '', titulo_ja: md.titulo_alt || '', desc_es: md.descripcion || '',
-      tipo: md.tipo || '', anio: md.anio ? String(md.anio) : '', temporada: md.temporada || '',
+      tipo: md.tipo || '', anio: md.anio ? String(md.anio) : '', temporada: normTemporada(md.temporada),
       estado: md.estado || 'En emisión',
     }));
-    setTagsEs(md.tags || []);
-    setTitulosExtras(md.titulos_extras || []);
+    setTagsEs((md.tags || []).map(clean).filter(Boolean));
+    setTitulosExtras((md.titulos_extras || []).map(clean).filter(Boolean));
   }
   function selectMode(m) {
     if (m === modeTab) return;
@@ -273,10 +294,10 @@ export default function HentaiAdmin() {
         desc_es: sub.descripcion || '', desc_en: '',
         canal: j.canal || 'administrador pikante.pe',
         tipo: sub.tipo || '', anio: sub.anio ? String(sub.anio) : '',
-        temporada: sub.temporada || '', estado: sub.estado || 'En emisión',
+        temporada: normTemporada(sub.temporada), estado: sub.estado || 'En emisión',
       });
-      setTagsEs(sub.tags || []);
-      setTitulosExtras(sub.titulos_extras || []);
+      setTagsEs((sub.tags || []).map(clean).filter(Boolean));
+      setTitulosExtras((sub.titulos_extras || []).map(clean).filter(Boolean));
       setCapForm({ numero: String(cap.length + 1) });
       editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch { setError('No hay conexión con el servidor.'); }
@@ -290,11 +311,11 @@ export default function HentaiAdmin() {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
-          titulo_es: form.titulo_es, titulo_ja: form.titulo_ja, titulo_en: form.titulo_en,
-          desc_es: form.desc_es, desc_en: form.desc_en,
-          canal: form.canal, tags: tagsEs.join(', '),
-          titulos_extras: titulosExtras.join(', '),
-          tipo: form.tipo, anio: form.anio, temporada: form.temporada, estado: form.estado,
+          titulo_es: clean(form.titulo_es), titulo_ja: clean(form.titulo_ja), titulo_en: clean(form.titulo_en),
+          desc_es: clean(form.desc_es), desc_en: clean(form.desc_en),
+          canal: clean(form.canal), tags: tagsEs.map(clean).filter(Boolean).join(', '),
+          titulos_extras: titulosExtras.map(clean).filter(Boolean).join(', '),
+          tipo: clean(form.tipo), anio: form.anio, temporada: clean(form.temporada), estado: clean(form.estado),
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -316,10 +337,10 @@ export default function HentaiAdmin() {
         headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           modo: modeTab,
-          titulo: form.titulo_es, titulo_alt: form.titulo_ja, descripcion: form.desc_es,
-          tags: tagsEs.join(', '), tipo: form.tipo, anio: form.anio, temporada: form.temporada,
-          titulos_extras: titulosExtras.join(', '),
-          estado: form.estado, canal: form.canal,
+          titulo: clean(form.titulo_es), titulo_alt: clean(form.titulo_ja), descripcion: clean(form.desc_es),
+          tags: tagsEs.map(clean).filter(Boolean).join(', '), tipo: clean(form.tipo), anio: form.anio, temporada: clean(form.temporada),
+          titulos_extras: titulosExtras.map(clean).filter(Boolean).join(', '),
+          estado: clean(form.estado), canal: clean(form.canal),
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -479,8 +500,9 @@ export default function HentaiAdmin() {
         </select>
       </div>
       <div className={styles.two}>
-        <input className={styles.input} placeholder="Temporada (ej: Verano 2026)" value={form.temporada}
-          onChange={(e) => setForm({ ...form, temporada: e.target.value })} />
+        <select className={styles.input} value={form.temporada} onChange={(e) => setForm({ ...form, temporada: e.target.value })}>
+          {TEMPORADAS.map((tp) => <option key={tp || 'none'} value={tp}>{tp || 'Temporada'}</option>)}
+        </select>
         <select className={styles.input} value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })}>
           {ESTADOS.map((st) => <option key={st} value={st}>{st}</option>)}
         </select>
@@ -496,7 +518,7 @@ export default function HentaiAdmin() {
       <div className={styles.tagRow}>
         {allTags.length === 0 && <span className={styles.tagsHint}>Sin tags aún, agrega uno abajo.</span>}
         {allTags.map((t) => (
-          <button key={t} type="button" className={`${styles.tagBtn} ${tagsEs.includes(t) ? styles.tagBtnActive : ''}`} onClick={() => toggleTag(t)}>
+          <button key={t} type="button" className={`${styles.tagBtn} ${tagsEs.some((x) => clean(x).toLowerCase() === clean(t).toLowerCase()) ? styles.tagBtnActive : ''}`} onClick={() => toggleTag(t)}>
             {t}
           </button>
         ))}
@@ -586,9 +608,11 @@ export default function HentaiAdmin() {
           )}
           <div className={styles.two}>
             <input className={styles.input} placeholder="Título (ES / principal) *" value={form.titulo_es}
-              onChange={(e) => setForm({ ...form, titulo_es: e.target.value })} required />
+              onChange={(e) => setForm({ ...form, titulo_es: e.target.value })}
+              onBlur={() => setForm((f) => ({ ...f, titulo_es: clean(f.titulo_es) }))} required />
             <input className={styles.input} placeholder="Título alterno (JA)" value={form.titulo_ja}
-              onChange={(e) => setForm({ ...form, titulo_ja: e.target.value })} />
+              onChange={(e) => setForm({ ...form, titulo_ja: e.target.value })}
+              onBlur={() => setForm((f) => ({ ...f, titulo_ja: clean(f.titulo_ja) }))} />
           </div>
           {titulosExtrasUI}
           <textarea className={styles.textarea} rows={3} placeholder="Descripción" value={form.desc_es}

@@ -4,6 +4,7 @@ import VideosClient from '@/_Pages/main/Videos/videos.js';
 import styles from '@/app/(main)/page.module.css';
 import { notFound } from 'next/navigation';
 import { apiGet, mediaUrl, sinceOf } from '@/_Extras/Datos/server.js';
+import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
 /** Trae el video desde PostgreSQL (acepta id o slug). */
 async function resolveEntry(slug) {
@@ -55,12 +56,15 @@ export async function generateMetadata({ params }) {
     description,
     keywords: entry.tags,
     alternates: { canonical: `/videos/${entry.slug}` },
-    openGraph: {
-      type: 'video.other',
-      title: `${title} | pikante pe`,
+    openGraph: buildOpenGraph({
+      title,
       description,
-      images: entry.thumb ? [entry.thumb] : undefined,
-    },
+      url: `/videos/${entry.slug}`,
+      image: entry.thumb,
+      imageAlt: title,
+      type: 'video.other',
+    }),
+    twitter: buildTwitter({ title, description, image: entry.thumb }),
   };
 }
 

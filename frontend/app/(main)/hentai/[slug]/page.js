@@ -3,6 +3,7 @@ import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import HentaiPlayer from '@/_Pages/main/Hentai/hentaiPlayer';
 import styles from '@/app/(main)/page.module.css';
 import { apiGet, mediaUrl, sinceOf } from '@/_Extras/Datos/server.js';
+import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
 async function resolveEntry(slug) {
   const r = await apiGet(`/api/hentai/${encodeURIComponent(slug)}`);
@@ -68,12 +69,15 @@ export async function generateMetadata({ params }) {
     description,
     keywords: entry.tags,
     alternates: { canonical: `/hentai/${entry.slug}` },
-    openGraph: {
-      type: 'video.other',
-      title: `${title} | pikante pe`,
+    openGraph: buildOpenGraph({
+      title,
       description,
-      images: entry.thumb ? [entry.thumb] : undefined,
-    },
+      url: `/hentai/${entry.slug}`,
+      image: entry.thumb,
+      imageAlt: title,
+      type: 'video.tv_show',
+    }),
+    twitter: buildTwitter({ title, description, image: entry.thumb }),
   };
 }
 

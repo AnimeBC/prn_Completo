@@ -4,6 +4,7 @@ import Providers from "./Providers.js";
 import { SidebarProvider } from "./sidebarContext.js";
 import AgeGate from "@/_Pages/main/layouts/AgeGate/AgeGate.js";
 import Script from "next/script";
+import { buildOpenGraph, buildTwitter } from "@/_Extras/Seo/og.js";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,26 +52,18 @@ export const metadata = {
     statusBarStyle: 'black-translucent',
     title: 'pikante pe',
   },
-  openGraph: {
-    type: 'website',
-    locale: 'es_PE',
-    url: 'https://pikantepe.com',
-    siteName: 'pikante pe',
+  openGraph: buildOpenGraph({
     title: 'pikante pe — Videos, packs y comunidad picante',
-    description:
-      'Descubre videos, packs exclusivos, fetiches, hentai y comunidad en vivo en pikante pe. El mejor contenido picante peruano.',
-    images: [{ url: '/logo.png', width: 512, height: 512, alt: 'pikante pe logo' }],
-  },
-  twitter: {
-    card: 'summary_large_image',
+    description: 'Descubre videos, packs exclusivos, fetiches, hentai y comunidad en vivo en pikante pe. El mejor contenido picante peruano.',
+    url: '/',
+    image: '/logo.png',
+    imageAlt: 'pikante pe',
+  }),
+  twitter: buildTwitter({
     title: 'pikante pe — Videos, packs y comunidad picante',
-    description:
-      'Videos, packs, fetiches y hentai en pikante pe. Únete a la comunidad.',
-    images: ['/logo.png'],
-  },
-  verification: {
-    google: 'OSkzXC5rIrYiSZXOptfinXaZ5fQW6DnZWxF3Zc3ms4Y',
-  },
+    description: 'Videos, packs, fetiches y hentai en pikante pe. Únete a la comunidad.',
+    image: '/logo.png',
+  }),
 };
 
 export const viewport = {
