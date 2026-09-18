@@ -1,0 +1,981 @@
+.win {
+  position: fixed;
+  right: 20px;
+  bottom: 0;
+  width: 330px;
+  height: 450px;
+  background: var(--bg-card, #18191A);
+  border: 1px solid var(--border, #242526);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 1100;
+}
+
+/* Dentro de un dock (varias ventanas juntas), no es fixed. */
+.winEmbedded {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  height: 450px;
+  max-height: calc(100dvh - 90px);
+}
+
+/* Expandido: ocupa toda la pantalla con el mismo chat. */
+.winFull {
+  position: fixed;
+  inset: 0;
+  right: auto;
+  bottom: auto;
+  width: 100vw;
+  height: 100dvh;
+  max-height: none;
+  border-radius: 0;
+  z-index: 4500;
+}
+
+/* En línea (dentro de /chat): llena el área sin ser ventana flotante. */
+.winInline {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Botón volver (solo en móvil, dentro de /chat inline) */
+.backBtn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-primary, #E4E6EB);
+  font-size: 22px;
+  cursor: pointer;
+}
+.backBtn:hover { background: rgba(255, 255, 255, 0.12); }
+.winThemed .backBtn { color: #fff; }
+@media (max-width: 768px) {
+  .backBtn { display: flex; }
+}
+
+/* Panel de personalización del chat (solo amigos) */
+.ajustes {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: var(--bg-card, #18191A);
+  display: flex;
+  flex-direction: column;
+}
+.ajustesHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border, #242526);
+}
+.ajustesTitle { margin: 0; font-size: 15px; font-weight: 800; color: var(--text-primary, #E4E6EB); }
+.ajustesClose {
+  width: 32px; height: 32px; border: none; border-radius: 50%;
+  background: transparent; color: var(--text-secondary, #B0B3B8);
+  font-size: 22px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.ajustesClose:hover { background: rgba(255, 255, 255, 0.08); }
+.ajustesBody { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.ajustesLabel {
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--text-secondary, #B0B3B8); margin-top: 10px;
+}
+.temasGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.temaSwatch { height: 52px; border-radius: 10px; border: 2px solid transparent; cursor: pointer; }
+.coloresGrid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.colorSwatch { height: 34px; border-radius: 10px; border: 2px solid transparent; cursor: pointer; }
+.temaEmojis { display: flex; flex-wrap: wrap; gap: 6px; }
+.temaEmoji {
+  width: 38px; height: 38px; border-radius: 10px; border: 2px solid transparent;
+  background: var(--bg-surface, #3A3B3C); font-size: 20px; cursor: pointer;
+}
+.temaOn { border-color: #FFFFFF; box-shadow: 0 0 0 2px var(--primary, #F20D16); }
+.ajustesFoot { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border, #242526); }
+.ajustesReset,
+.ajustesSave {
+  flex: 1; border-radius: 10px; padding: 11px;
+  font-family: inherit; font-weight: 800; font-size: 13.5px; cursor: pointer;
+}
+.ajustesReset { border: 1px solid var(--border, #27272A); background: transparent; color: var(--text-primary, #E4E6EB); }
+.ajustesSave { border: none; background: #0084FF; color: #fff; }
+
+/* Cuando hay tema, la ventana completa usa el diseño */
+.winThemed .head { background: transparent !important; border-bottom-color: rgba(255, 255, 255, 0.18); }
+.winThemed .body { background: transparent !important; }
+.winFull.winThemed { background-attachment: fixed; }
+
+/* Adaptar botones/íconos/mensajes para que se vean bien sobre cualquier diseño */
+.winThemed .name,
+.winThemed .state { color: #fff; }
+.winThemed .iconBtn { color: rgba(255, 255, 255, 0.92); }
+.winThemed .iconBtn:hover { background: rgba(255, 255, 255, 0.18); }
+.winThemed .msgAction { color: rgba(255, 255, 255, 0.9); }
+.winThemed .msgAction:hover { color: #fff; }
+.winThemed .bubble { background: rgba(0, 0, 0, 0.45); color: #fff; }
+.winThemed .bubbleMine { background: rgba(0, 132, 255, 0.85); color: #fff; }
+.winThemed .user { color: #fff; }
+.winThemed .text { color: #fff; }
+.winThemed .time { color: rgba(255, 255, 255, 0.8); }
+.winThemed .checks { color: rgba(255, 255, 255, 0.85); }
+.winThemed .checksOn { color: #7cc4ff; }
+.winThemed .visto { color: #cfe7ff; }
+.winThemed .reaction { border-color: rgba(255, 255, 255, 0.45); background: rgba(0, 0, 0, 0.2); color: #fff; }
+.winThemed .reactionMine { border-color: #fff; background: rgba(0, 0, 0, 0.35); }
+.winThemed .quote { background: rgba(0, 0, 0, 0.25); }
+.winThemed .deletedText { color: rgba(255, 255, 255, 0.9); }
+.winThemed .editedLabel { color: rgba(255, 255, 255, 0.75); }
+.winThemed .bubbleDeleted { background: rgba(255, 255, 255, 0.14) !important; border-color: rgba(255, 255, 255, 0.3); }
+.winThemed .empty { color: rgba(255, 255, 255, 0.85); }
+.winThemed .foot { border-top-color: rgba(255, 255, 255, 0.18); }
+.winThemed .tool { color: #fff; }
+.winThemed .tool:hover { background: rgba(255, 255, 255, 0.18); }
+.winThemed .toolOn { color: #fff; background: rgba(255, 255, 255, 0.28); }
+.winThemed .input { background: rgba(255, 255, 255, 0.2); color: #fff; }
+.winThemed .input::placeholder { color: rgba(255, 255, 255, 0.75); }
+.winThemed .send { background: rgba(255, 255, 255, 0.28); color: #fff; }
+.winThemed .replyBar { color: rgba(255, 255, 255, 0.85); border-top-color: rgba(255, 255, 255, 0.18); }
+.winThemed .replyBar strong { color: #fff; }
+
+/* Marca de agua con el emoji elegido */
+.watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 150px;
+  opacity: 0.16;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+/* Preview en vivo dentro del panel de personalización */
+.preview {
+  position: relative;
+  height: 150px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-surface, #0D0D0F);
+  border: 1px solid var(--border, #242526);
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 8px;
+}
+.previewEmoji {
+  position: absolute;
+  right: 6px;
+  bottom: -14px;
+  font-size: 74px;
+  opacity: 0.25;
+  pointer-events: none;
+}
+.previewHead { display: flex; align-items: center; gap: 6px; }
+.previewAvatar {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2); color: #fff;
+  font-size: 12px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.previewWho { display: flex; flex-direction: column; }
+.previewName { font-size: 12px; font-weight: 800; color: #fff; }
+.previewStatus { font-size: 10px; color: rgba(255, 255, 255, 0.75); }
+
+.ajustesInput {
+  width: 100%;
+  background: var(--bg-surface, #3A3B3C);
+  border: 1px solid var(--border, #27272A);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: var(--text-primary, #E4E6EB);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.ajustesInput:focus { border-color: #0084FF; }
+
+.sendEmoji { font-size: 20px; line-height: 1; }
+.previewMsgs { display: flex; flex-direction: column; gap: 5px; margin-top: auto; }
+.previewIn,
+.previewOut {
+  font-size: 11.5px;
+  padding: 5px 9px;
+  border-radius: 12px;
+  max-width: 80%;
+}
+.previewIn { align-self: flex-start; background: rgba(255, 255, 255, 0.22); color: #fff; border-bottom-left-radius: 4px; }
+.previewOut { align-self: flex-end; background: #0084FF; color: #fff; border-bottom-right-radius: 4px; }
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border, #242526);
+  background: var(--bg-surface, #202124);
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg-surface, #3A3B3C);
+  color: #fff;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.headInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.name { font-size: 13.5px; color: var(--text-primary, #E4E6EB); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.state { font-size: 11px; color: #22C55E; }
+
+.iconBtn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary, #B0B3B8);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.iconBtn:hover { background: rgba(255, 255, 255, 0.08); }
+
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scrollbar-width: thin;
+}
+
+.empty { margin: auto; font-size: 12.5px; color: var(--text-secondary, #B0B3B8); }
+
+.row { display: flex; }
+.mine { justify-content: flex-end; }
+
+.bubble {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 84%;
+  background: var(--bg-surface, #3A3B3C);
+  color: var(--text-primary, #E4E6EB);
+  border-radius: 14px 14px 14px 4px;
+  padding: 7px 10px;
+}
+.bubbleMine { background: #0084FF; color: #fff; border-radius: 14px 14px 4px 14px; }
+
+/* Fotos/videos/audio/sticker/gif: sin fondo de burbuja, así nomás. */
+.bubbleMedia {
+  background: transparent !important;
+  padding: 0;
+  color: var(--text-primary, #E4E6EB);
+}
+
+.playerWrap {
+  position: relative;
+  width: 195px;
+  max-width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.expandBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+.expandBtn:hover { background: rgba(242, 13, 22, 0.85); }
+
+/* Ampliar video (lightbox) */
+.videoLightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 5600;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.lightInner {
+  width: min(100vw, calc(100dvh * 16 / 9));
+  max-width: none;
+  border-radius: 0;
+  overflow: hidden;
+}
+.lightClose {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightClose:hover { background: rgba(255, 255, 255, 0.28); }
+
+/* Barra de carga del archivo */
+.uploadRow {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #242526);
+  border-radius: 10px;
+  background: var(--bg-surface, #3A3B3C);
+}
+.uploadTop { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-primary, #E4E6EB); }
+.uploadTop ion-icon { font-size: 16px; color: #4599FF; flex-shrink: 0; }
+.uploadName { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.uploadPct { font-weight: 800; font-size: 11.5px; }
+.uploadBar { height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.uploadFill { height: 100%; background: #0084FF; border-radius: 999px; transition: width 0.2s ease; }
+
+.user { font-size: 11px; font-weight: 800; color: #4599FF; }
+
+.quote {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 6px;
+  margin-bottom: 3px;
+  border-left: 3px solid currentColor;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.18);
+}
+.quote strong { font-size: 10.5px; }
+.quote span { font-size: 11px; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+
+.text { font-size: 13px; line-height: 1.4; word-break: break-word; white-space: pre-wrap; }
+.media { max-width: 200px; border-radius: 10px; margin-top: 3px; }
+.mediaZoom { cursor: zoom-in; }
+
+/* Imagen a pantalla completa con X */
+.imgLightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 5700;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.imgClose {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 26px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.imgClose:hover { background: rgba(255, 255, 255, 0.3); }
+.imgFullImg {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.time {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9.5px;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+/* Checks de leído (doble check azul cuando la otra persona lo vio) */
+.checks { display: inline-flex; vertical-align: middle; margin-left: 4px; font-size: 13px; color: var(--text-secondary, #A1A1AA); }
+.checksOn { color: #0084FF; }
+
+/* Aviso del sistema (cambió diseño/apodos) */
+.sistema {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 6px 0;
+  text-align: center;
+}
+.sistemaText {
+  font-size: 11px;
+  color: var(--text-secondary, #A1A1AA);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.sistemaTime { font-size: 9px; color: var(--text-secondary, #71717A); }
+.winThemed .sistemaText { color: #fff; background: rgba(0, 0, 0, 0.25); }
+.winThemed .sistemaTime { color: rgba(255, 255, 255, 0.8); }
+
+/* Mensaje eliminado (deja rastro) y editado */
+.bubbleDeleted {
+  background: var(--bg-surface, #2A2A2E) !important;
+  border: 1px dashed var(--border, #3A3A3E);
+}
+.deletedText {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--text-secondary, #A1A1AA);
+}
+.editedLabel {
+  align-self: flex-end;
+  margin-top: 1px;
+  font-size: 10px;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+/* Editar mensaje (en línea) */
+.editBox { display: flex; flex-direction: column; gap: 6px; min-width: 170px; }
+.editInput {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.editActions { display: flex; justify-content: flex-end; gap: 6px; }
+.editCancel,
+.editSave {
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.editCancel { background: transparent; color: var(--text-secondary, #B0B3B8); }
+.editSave { background: #0084FF; color: #fff; }
+
+/* Menú de 3 puntos (editar / eliminar) */
+.menuFloat {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 132px;
+  background: var(--bg-card, #18191A);
+  border: 1px solid var(--border, #242526);
+  border-radius: 10px;
+  padding: 4px;
+  z-index: 25;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #E4E6EB);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.menuItem ion-icon { font-size: 17px; }
+.menuItem:hover { background: rgba(255, 255, 255, 0.08); }
+.menuDanger { color: #F87171; }
+
+/* Modal de confirmación de eliminado */
+.delOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5700;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.delCard {
+  width: 100%;
+  max-width: 320px;
+  background: var(--bg-card, #18191A);
+  border: 1px solid var(--border, #242526);
+  border-radius: 14px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.delTitle { margin: 0; font-size: 16px; font-weight: 800; color: var(--text-primary, #E4E6EB); }
+.delText { margin: 0 0 4px; font-size: 12.5px; color: var(--text-secondary, #A1A1AA); }
+.delOpt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border, #27272A);
+  background: var(--bg-surface, #0D0D0F);
+  color: var(--text-primary, #E4E6EB);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 11px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.delOpt ion-icon { font-size: 18px; }
+.delOpt:hover { border-color: #0084FF; }
+.delOptDanger { color: #F87171; }
+.delOptDanger:hover { border-color: #F87171; }
+.delCancel {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #B0B3B8);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px;
+  cursor: pointer;
+}
+.delCancel:hover { color: var(--text-primary, #E4E6EB); }
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.reactions { display: flex; flex-wrap: wrap; gap: 4px; }
+.visto { font-size: 9.5px; color: #4599FF; margin-left: 4px; white-space: nowrap; }
+.reaction {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.reactionMine { border-color: #0084FF; background: rgba(0, 132, 255, 0.25); }
+
+/* Acciones al costado del mensaje: se ven al pasar el mouse (PC). */
+.msgActions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: center;
+  margin: 0 6px;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.row:hover .msgActions { opacity: 1; }
+.msgAction {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #B0B3B8);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 1px 2px;
+  line-height: 1;
+}
+.msgAction:hover { color: var(--primary, #F20D16); }
+.action { border: none; background: transparent; color: inherit; font-size: 14px; cursor: pointer; padding: 0 2px; opacity: .75; }
+.action:hover { opacity: 1; }
+
+/* Paleta flotante pegada al botón: no empuja ni deforma el chat. */
+.paletteFloat {
+  position: absolute;
+  display: flex;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: var(--bg-card, #18191A);
+  border: 1px solid var(--border, #242526);
+  z-index: 20;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+.paletteBtn { border: none; background: transparent; font-size: 16px; cursor: pointer; line-height: 1; padding: 2px 3px; border-radius: 50%; }
+.paletteBtn:hover { background: rgba(255, 255, 255, 0.1); }
+
+.replyBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 12px;
+  font-size: 12.5px;
+  color: var(--text-secondary, #B0B3B8);
+  border-top: 1px solid var(--border, #242526);
+}
+.replyBar strong { color: var(--text-primary, #E4E6EB); }
+.replyClose {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary, #B0B3B8);
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.replyClose:hover { background: rgba(255, 255, 255, 0.1); color: var(--text-primary, #E4E6EB); }
+
+.error { margin: 0; padding: 4px 12px; font-size: 12px; font-weight: 700; color: #F87171; }
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 8px;
+  border-top: 1px solid var(--border, #242526);
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-surface, #3A3B3C);
+  border: none;
+  border-radius: 18px;
+  padding: 8px 12px;
+  color: var(--text-primary, #E4E6EB);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+.send {
+  width: 36px; height: 36px;
+  border: none; border-radius: 50%;
+  background: #0084FF; color: #fff; font-size: 18px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.send:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Botones del compositor (audio, adjuntar, sticker, GIF, emoji) */
+.tool {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--chat-composer-btn, #4599FF);
+  font-size: 19px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+  padding: 0;
+}
+.tool:hover { background: rgba(255, 255, 255, 0.1); }
+.toolOn { color: #0084FF; background: rgba(0, 132, 255, 0.15); }
+.toolRec { color: #F87171; }
+.toolGif { font-size: 9px; font-weight: 800; letter-spacing: .3px; }
+.toolGif span { padding: 2px 3px; border: 1.5px solid currentColor; border-radius: 5px; }
+
+/* Panel de emojis / stickers / gif con pestañas */
+.picker {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border, #242526);
+  background: rgba(32, 33, 36, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.pickerHead {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px 4px;
+}
+.pickerTabs {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+.pickerClose {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary, #B0B3B8);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pickerClose:hover { background: rgba(255, 255, 255, 0.12); color: var(--text-primary, #E4E6EB); }
+.pickerTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #B0B3B8);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pickerTab ion-icon { font-size: 15px; }
+.pickerTab:hover { background: rgba(255, 255, 255, 0.08); }
+.pickerTabActive { background: rgba(0, 132, 255, 0.18); color: #4599FF; }
+.pickerGrid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  padding: 4px 8px 8px;
+  height: 280px;
+  align-content: start;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+/* Emojis por categorías, con scroll vertical */
+.emojiScroll {
+  height: 280px;
+  overflow-y: auto;
+  padding: 4px 8px 10px;
+  scrollbar-width: thin;
+}
+.emojiCat { margin-bottom: 6px; }
+.emojiCatTitle {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary, #B0B3B8);
+  margin: 4px 2px 2px;
+}
+.emojiGrid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+}
+.pickerEmoji {
+  border: none; background: transparent; font-size: 19px; cursor: pointer;
+  padding: 3px; border-radius: 8px; line-height: 1;
+}
+.pickerEmoji:hover { background: rgba(255, 255, 255, 0.1); }
+.pickerSticker {
+  border: none; background: transparent; font-size: 30px; cursor: pointer;
+  padding: 2px; border-radius: 10px; line-height: 1;
+}
+.pickerSticker:hover { background: rgba(255, 255, 255, 0.1); }
+.pickerSticker:disabled { cursor: default; }
+
+/* Stickers/GIF bloqueados por Premium */
+.lockedWrap { position: relative; }
+.lockOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 14px;
+  background: rgba(10, 10, 12, 0.72);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+.lockIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(242, 13, 22, 0.15);
+  color: var(--primary, #F20D16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+.lockText {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary, #E4E6EB);
+  max-width: 220px;
+  line-height: 1.35;
+}
+.lockBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary, #F20D16);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.lockBtn:hover { filter: brightness(1.1); }
+
+/* Sticker / GIF recibido */
+.sticker { font-size: 42px; line-height: 1.1; display: block; }
+
+/* Barra de grabación de audio (reemplaza al input) */
+.recBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border, #242526);
+}
+.recTrash {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #F87171;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.recTrash:hover { background: rgba(248, 113, 113, 0.12); }
+.recPause {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-primary, #E4E6EB);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.recPause:hover { background: rgba(255, 255, 255, 0.1); }
+.recDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #EF4444;
+  flex-shrink: 0;
+  animation: recPulse 1s ease-in-out infinite;
+}
+.recDotPaused { animation: none; opacity: 0.5; }
+.recTime { font-size: 13px; font-weight: 800; color: var(--text-primary, #E4E6EB); font-variant-numeric: tabular-nums; }
+.recLive { flex: 1; font-size: 12px; color: var(--text-secondary, #B0B3B8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+@keyframes recPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* Light theme */
+[data-theme="light"] .win { background: #fff; border-color: #E4E4E7; }
+[data-theme="light"] .head { background: #F4F4F5; }
+[data-theme="light"] .picker { background: rgba(255, 255, 255, 0.8); }
+[data-theme="light"] .pickerTab:hover { background: rgba(0, 0, 0, 0.06); }
+[data-theme="light"] .pickerClose:hover { background: rgba(0, 0, 0, 0.08); }
+[data-theme="light"] .bubble { background: #F4F4F5; color: #09090B; }
+[data-theme="light"] .name { color: #09090B; }
+[data-theme="light"] .input { background: #F4F4F5; color: #09090B; }
+
+@media (max-width: 560px) {
+  .win { right: 8px; left: 8px; width: auto; height: 70vh; }
+  .winEmbedded { position: relative; right: auto; left: auto; width: 88vw; height: 70vh; }
+  /* En móvil no hay hover: las acciones siempre visibles. */
+  .msgActions { opacity: 1; }
+  .msgAction { font-size: 18px; }
+}

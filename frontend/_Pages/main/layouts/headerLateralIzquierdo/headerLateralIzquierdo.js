@@ -23,12 +23,6 @@ const tusGuardados = [
   { icon: 'thumbs-up-outline', label: 'nav.meGusta', href: '/me-gusta' },
 ];
 
-const categorias = [
-  { icon: 'star-outline', label: 'Amateur', href: '/categorias/amateur' },
-  { icon: 'briefcase-outline', label: 'MILF', href: '/categorias/milf' },
-  { icon: 'earth-outline', label: 'Latina', href: '/categorias/latina' },
-];
-
 // Rutas habilitadas al publicar; el resto muestra modal de mantenimiento.
 const ENABLED_ROUTES = ['/', '/videos', '/tendencias', '/fetiches', '/packs', '/comunidad', '/hentai', '/favoritos', '/historial', '/me-gusta', '/perfil'];
 
@@ -52,10 +46,6 @@ export default function HeaderLateralIzquierdo() {
     if (pathname !== href) {
       router.push(href);
     }
-  }
-
-  function handleVerTodas() {
-    openMaint();
   }
 
   function renderItem(item) {
@@ -104,19 +94,6 @@ export default function HeaderLateralIzquierdo() {
         <nav className={styles.nav}>
           <span className={styles.sectionLabel}>{t('nav.tusGuardados')}</span>
           {tusGuardados.map(renderItem)}
-        </nav>
-
-        <nav className={styles.nav}>
-          <span className={styles.sectionLabel}>{t('nav.categorias')}</span>
-          {categorias.map(renderItem)}
-          <button
-            className={styles.moreBtn}
-            type="button"
-            onClick={handleVerTodas}
-          >
-            <ion-icon name="grid-outline" className={styles.moreIcon} suppressHydrationWarning></ion-icon>
-            <span>{t('nav.verTodas')}</span>
-          </button>
         </nav>
       </aside>
       {isOpen && <div className={styles.overlay} onClick={close}></div>}

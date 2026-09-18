@@ -1,11 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './comunidad.module.css';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import AuthModal from '@/_Pages/main/Auth/AuthModal';
+import { useChatDock } from '@/_Extras/ChatDock/ChatDockProvider.js';
+import Mantenimiento from '@/_Pages/main/Chat/componentes/mantenimiento';
 import { apiComunidad, comunidadMedia, comprimirImagen } from '@/_Extras/Comunidad/api.js';
+import { soloUnoPlay } from '@/_Extras/Media/onlyOne.js';
 import { hace, fecha } from '@/_Extras/Fecha/fecha.js';
 
 function ini(name) {
@@ -58,6 +62,7 @@ export default function ComunidadClient() {
   const { t, locale } = useLanguage();
   const es = locale !== 'en';
   const { user, userKey, authed } = useAuth();
+  const router = useRouter();
 
   const [authOpen, setAuthOpen] = useState(false);
   const [feed, setFeed] = useState([]);
@@ -93,6 +98,8 @@ export default function ComunidadClient() {
   const [grupos, setGrupos] = useState([]);
   const [destacados, setDestacados] = useState([]);
   const [presencia, setPresencia] = useState([]);
+  const { abrir: abrirDock } = useChatDock();
+  const [mantGrupo, setMantGrupo] = useState(false);
   const [chats, setChats] = useState([]);
   const [maxWindows, setMaxWindows] = useState(3);
 
@@ -552,14 +559,9 @@ export default function ComunidadClient() {
     return out;
   }
 
-  function abrirChat(g) {
-    const puede = !!authed && (g.miembro || g.soy_dueno);
-    setChats((prev) => ordenarChats(
-      prev.some((c) => c.id === g.id)
-        ? prev.map((c) => (c.id === g.id ? { ...c, minimizado: false, cerrando: false, grupo: g, puedeEscribir: puede } : c))
-        : [...prev, { id: g.id, grupo: g, mensajes: [], borrador: '', minimizado: false, cerrando: false, puedeEscribir: puede, respondiendo: null }]
-    ));
-    cargarMensajesChat(g.id);
+  function abrirChat() {
+    // Los grupos están en mantenimiento por ahora.
+    setMantGrupo(true);
   }
 
   function cerrarChat(id) {
@@ -742,9 +744,9 @@ export default function ComunidadClient() {
                     {p.media.map((m, i) => (
                       <div key={`${p.id}-${i}`} className={styles.mediaItem}>
                         {m.tipo === 'video' ? (
-                          <video src={comunidadMedia(m.url)} controls preload="metadata" playsInline />
+                          <video src={comunidadMedia(m.url)} controls preload="metadata" playsInline onPlay={(e) => soloUnoPlay(e.currentTarget)} />
                         ) : m.tipo === 'audio' ? (
-                          <audio src={comunidadMedia(m.url)} controls />
+                          <audio src={comunidadMedia(m.url)} controls onPlay={(e) => soloUnoPlay(e.currentTarget)} />
                         ) : (
                           <img src={comunidadMedia(m.url)} alt="" loading="lazy" />
                         )}
@@ -925,12 +927,21 @@ export default function ComunidadClient() {
                 }}
               >
                 {onlineFiltrados.slice(0, onlineLimit).map((u) => (
-                  <div key={u.user_key} className={styles.onlineItem}>
+                  <div
+                    key={u.user_key}
+                    className={styles.onlineItem}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => abrirDock({ user_key: u.user_key, usuario: u.usuario, avatar: u.avatar }, 'dm')}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirDock({ user_key: u.user_key, usuario: u.usuario, avatar: u.avatar }, 'dm'); } }}
+                    title={es ? 'Enviar mensaje' : 'Send message'}
+                  >
                     <span className={styles.avatarSm}>{u.avatar ? <img src={comunidadMedia(u.avatar)} alt="" /> : ini(u.usuario)}</span>
                     <div>
                       <span className={styles.onlineName}>{u.usuario}</span>
                       <span className={styles.onlineState}>{es ? 'en línea' : 'online'}</span>
                     </div>
+                    <ion-icon name="chatbubble-ellipses-outline" className={styles.onlineChatIcon} suppressHydrationWarning></ion-icon>
                   </div>
                 ))}
               </div>
@@ -1125,6 +1136,9 @@ export default function ComunidadClient() {
                   <div className={styles.chatHead}>
                     <span className={styles.avatarSm}>{c.grupo.avatar ? <img src={comunidadMedia(c.grupo.avatar)} alt="" /> : ini(c.grupo.nombre)}</span>
                     <strong>{c.grupo.nombre}</strong>
+                    <button type="button" className={styles.iconBtn} onClick={() => router.push(`/chat?conv=${c.id}`)} title={es ? 'Expandir' : 'Expand'}>
+                      <ion-icon name="expand-outline" suppressHydrationWarning></ion-icon>
+                    </button>
                     <button type="button" className={styles.iconBtn} onClick={() => minimizarChat(c.id)} title="Minimizar">
                       <ion-icon name="remove-outline" suppressHydrationWarning></ion-icon>
                     </button>
@@ -1145,8 +1159,8 @@ export default function ComunidadClient() {
                             </div>
                           )}
                           {m.media && m.tipo === 'foto' && <img className={styles.msgMedia} src={comunidadMedia(m.media)} alt="" />}
-                          {m.media && m.tipo === 'video' && <video className={styles.msgMedia} src={comunidadMedia(m.media)} controls playsInline />}
-                          {m.media && m.tipo === 'audio' && <audio src={comunidadMedia(m.media)} controls />}
+                          {m.media && m.tipo === 'video' && <video className={styles.msgMedia} src={comunidadMedia(m.media)} controls playsInline onPlay={(e) => soloUnoPlay(e.currentTarget)} />}
+                          {m.media && m.tipo === 'audio' && <audio src={comunidadMedia(m.media)} controls onPlay={(e) => soloUnoPlay(e.currentTarget)} />}
                           {m.texto && <p className={styles.msgText}>{m.texto}</p>}
 
                           {Array.isArray(m.reacciones) && m.reacciones.length > 0 && (
@@ -1253,6 +1267,9 @@ export default function ComunidadClient() {
           </div>
         </div>
       )}
+
+      {/* El chat flotante de un amigo ahora vive en el dock global (useChatDock). */}
+      <Mantenimiento open={mantGrupo} onClose={() => setMantGrupo(false)} />
 
       {/* ===== Pedir entrar a un grupo privado (con mensaje a admins) ===== */}
       {pedirGrupo && (

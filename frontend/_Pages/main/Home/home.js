@@ -4,7 +4,6 @@ import styles from './home.module.css';
 import Hero from '@/_Pages/main/Home/componentes/hero';
 import Carrusel from '@/_Pages/main/Home/componentes/carrusel';
 import Fila from '@/_Pages/main/Home/componentes/fila';
-import Categorias from '@/_Pages/main/Home/componentes/categorias';
 import Packs from '@/_Pages/main/Home/componentes/packs';
 import Comunidad from '@/_Pages/main/Home/componentes/comunidad';
 import Lives from '@/_Pages/main/Home/componentes/lives';
@@ -29,7 +28,7 @@ export default function HomeClient() {
             limit={30}
           />
           <Fila
-            title={t('secciones.todosAnimes')}
+            title={t('secciones.hentaiRicos')}
             href="/hentai"
             icon="videocam-outline"
             source="hentai"
@@ -42,7 +41,7 @@ export default function HomeClient() {
             src="https://www.highrevenueformat.com/e483940fff110a871ea3ba9b07dd3259/invoke.js"
           />
           <Packs />
-          <Categorias />
+          <Lives />
           <Comunidad />
           <AdBanner
             adKey="e483940fff110a871ea3ba9b07dd3259"
@@ -50,7 +49,6 @@ export default function HomeClient() {
             height={90}
             src="https://www.highrevenueformat.com/e483940fff110a871ea3ba9b07dd3259/invoke.js"
           />
-          <Lives />
         </div>
         <aside className={styles.rail}>
           <AdBanner

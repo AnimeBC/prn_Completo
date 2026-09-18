@@ -14,6 +14,7 @@ const NO_REFRESH = new Set([
   'comment_created', 'comment_like', 'comment_deleted',
   'user_profile', 'user_register', 'user_verified', 'user_migrate',
   'user_google_login', 'admin_login',
+  'notificacion', 'notificacion_admin',
 ]);
 
 const RealtimeContext = createContext({ connected: false, lastEvent: null });

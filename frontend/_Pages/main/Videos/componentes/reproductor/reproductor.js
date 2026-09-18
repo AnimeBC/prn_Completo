@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import styles from './reproductor.module.css';
 import VastPostRoll from '@/_Extras/Ads/VastPostRoll.js';
+import { soloUnoPlay, soloUnoStop } from '@/_Extras/Media/onlyOne.js';
 
 const SPEEDS = [1, 1.25, 1.5, 2];
 
@@ -15,7 +16,17 @@ function fmt(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export default function Reproductor({ src = '/videos/1.mov', renditions = [], theater, onToggleTheater }) {
+const Reproductor = forwardRef(function Reproductor({
+  src = '/videos/1.mov',
+  renditions = [],
+  theater,
+  onToggleTheater,
+  compact = false,
+  onPlay = null,
+  ads = true,
+  startTime = 0,
+  onTime = null,
+}, ref) {
   const videoRef = useRef(null);
   const wrapRef = useRef(null);
   const resumeRef = useRef(null);
@@ -137,6 +148,11 @@ export default function Reproductor({ src = '/videos/1.mov', renditions = [], th
     else if (wrapRef.current) wrapRef.current.requestFullscreen();
   }
 
+  // Permite ampliar a pantalla completa desde afuera (ej. el botón del chat).
+  useImperativeHandle(ref, () => ({
+    fullscreen: () => { if (wrapRef.current) wrapRef.current.requestFullscreen(); },
+  }), []);
+
   async function togglePip() {
     try {
       const v = videoRef.current;
@@ -160,15 +176,15 @@ export default function Reproductor({ src = '/videos/1.mov', renditions = [], th
           onContextMenu={(e) => e.preventDefault()}
           onClick={togglePlay}
           onLoadStart={() => setWaiting(true)}
-          onPlay={() => { setPlaying(true); setWaiting(false); }}
-          onPause={() => setPlaying(false)}
+          onPlay={() => { soloUnoPlay(videoRef.current); setPlaying(true); setWaiting(false); if (onPlay) onPlay(); }}
+          onPause={() => { setPlaying(false); soloUnoStop(videoRef.current); }}
           onWaiting={() => setWaiting(true)}
           onStalled={() => setWaiting(true)}
           onSeeking={() => setWaiting(true)}
           onSeeked={() => setWaiting(true)}
           onPlaying={() => setWaiting(false)}
           onCanPlayThrough={() => setWaiting(false)}
-          onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
+          onTimeUpdate={(e) => { setCurrent(e.currentTarget.currentTime); if (onTime) onTime(e.currentTarget.currentTime); }}
           onProgress={(e) => syncBuffered(e.currentTarget)}
           onLoadedMetadata={(e) => {
             syncDuration(e.currentTarget);
@@ -177,12 +193,14 @@ export default function Reproductor({ src = '/videos/1.mov', renditions = [], th
               try { e.currentTarget.currentTime = r.time; } catch { /* ignore */ }
               if (r.playing) e.currentTarget.play().catch(() => {});
               resumeRef.current = null;
+            } else if (startTime > 0) {
+              try { e.currentTarget.currentTime = startTime; } catch { /* ignore */ }
             }
           }}
           onDurationChange={(e) => syncDuration(e.currentTarget)}
           onCanPlay={(e) => { setVideoError(false); setWaiting(false); syncDuration(e.currentTarget); }}
           onError={() => { setVideoError(true); setWaiting(false); }}
-          onEnded={() => adRef.current?.request()}
+          onEnded={() => { if (!compact && ads) adRef.current?.request(); }}
         />
         {waiting && !videoError && (
           <div className={styles.spinnerOverlay} aria-hidden="true">
@@ -231,47 +249,57 @@ export default function Reproductor({ src = '/videos/1.mov', renditions = [], th
               <button className={styles.ctrlBtn} type="button" aria-label={playing ? 'Pausar' : 'Reproducir'} onClick={togglePlay}>
                 <ion-icon name={playing ? 'pause-sharp' : 'play-sharp'} className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
-              <button className={styles.ctrlBtn} type="button" aria-label="Siguiente video">
-                <ion-icon name="play-skip-forward-sharp" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
-              </button>
+              {!compact && (
+                <button className={styles.ctrlBtn} type="button" aria-label="Siguiente video">
+                  <ion-icon name="play-skip-forward-sharp" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                </button>
+              )}
               <div className={styles.volumeWrap}>
                 <button className={styles.ctrlBtn} type="button" aria-label={muted ? 'Activar sonido' : 'Silenciar'} onClick={toggleMute}>
                   <ion-icon name={volumeIcon()} className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
                 </button>
-                <input
-                  className={styles.volumeSlider}
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={muted ? 0 : volume}
-                  onChange={changeVolume}
-                  aria-label="Volumen"
-                  style={{
-                    background: `linear-gradient(to right, #F20D16 ${(muted ? 0 : volume) * 100}%, rgba(242,13,22,0.22) ${(muted ? 0 : volume) * 100}%)`,
-                  }}
-                />
+                {!compact && (
+                  <input
+                    className={styles.volumeSlider}
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={muted ? 0 : volume}
+                    onChange={changeVolume}
+                    aria-label="Volumen"
+                    style={{
+                      background: `linear-gradient(to right, #F20D16 ${(muted ? 0 : volume) * 100}%, rgba(242,13,22,0.22) ${(muted ? 0 : volume) * 100}%)`,
+                    }}
+                  />
+                )}
               </div>
               <span className={styles.time}>{fmt(current)} / {fmt(duration)}</span>
             </div>
             <div className={styles.controlsRight}>
               <button className={styles.speedBtn} type="button" aria-label="Velocidad" onClick={cycleSpeed}>{speed}x</button>
               <button className={`${styles.ctrlBtn} ${qualityOpen ? styles.ctrlActive : ''}`} type="button" aria-label="Calidad del video" onClick={() => setQualityOpen((p) => !p)}>
-                <ion-icon name="settings-sharp" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                <ion-icon name="expand-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
-              <button className={styles.ctrlBtn} type="button" aria-label="Mini reproductor" onClick={togglePip}>
-                <ion-icon name="albums-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
-              </button>
-              <button className={`${styles.ctrlBtn} ${theater ? styles.ctrlActive : ''}`} type="button" aria-label="Modo teatro" onClick={onToggleTheater}>
-                <ion-icon name="square-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
-              </button>
+              {!compact && (
+                <button className={styles.ctrlBtn} type="button" aria-label="Mini reproductor" onClick={togglePip}>
+                  <ion-icon name="albums-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                </button>
+              )}
+              {!compact && (
+                <button className={`${styles.ctrlBtn} ${theater ? styles.ctrlActive : ''}`} type="button" aria-label="Modo teatro" onClick={onToggleTheater}>
+                  <ion-icon name="square-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                </button>
+              )}
               <button className={styles.ctrlBtn} type="button" aria-label="Pantalla completa" onClick={toggleFullscreen}>
                 <ion-icon name="expand-sharp" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
             </div>
         </div>
       </div>
-      <VastPostRoll ref={adRef} />
+      {!compact && ads && <VastPostRoll ref={adRef} />}
     </div>
   );
-}
+});
+
+export default Reproductor;

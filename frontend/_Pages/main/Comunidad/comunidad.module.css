@@ -468,7 +468,7 @@
 .commentText { font-size: 12px; color: var(--text-secondary, #A1A1AA); margin: 0; }
 .commentRow { display: flex; gap: 8px; align-items: center; }
 
-/* ================= CHAT / EN L�?NEA ================= */
+/* ================= CHAT / EN LINEA ================= */
 .chatItem {
   display: flex;
   align-items: center;
@@ -492,9 +492,12 @@
   text-overflow: ellipsis;
   max-width: 170px;
 }
-.onlineItem { display: flex; align-items: center; gap: 10px; }
+.onlineItem { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 4px 6px; border-radius: 8px; transition: background .15s ease; }
+.onlineItem:hover { background: var(--bg-surface, #18181B); }
 .onlineName { font-size: 12px; font-weight: 700; display: block; }
 .onlineState { font-size: 10px; color: #22C55E; }
+.onlineChatIcon { margin-left: auto; font-size: 16px; color: var(--text-secondary, #A1A1AA); }
+.onlineItem:hover .onlineChatIcon { color: var(--primary, #F20D16); }
 
 /* ================= MODALES ================= */
 .modal {

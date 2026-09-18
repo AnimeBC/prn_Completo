@@ -9,6 +9,8 @@ import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { videoUrl } from '@/_Extras/Datos/urls.js';
+import Notificaciones from '@/_Pages/main/layouts/Header/componentes/notificaciones';
+import Mensajes from '@/_Pages/main/layouts/Header/componentes/mensajes';
 
 const filters = [
   { value: 'recientes', label: 'filtros.recientes' },
@@ -170,14 +172,9 @@ export default function Header() {
         </div>
 
         <div className={styles.actionsContainer}>
-          <div className={styles.notificationWrapper}>
-            <ion-icon name="notifications-outline" className={styles.bellIcon} suppressHydrationWarning></ion-icon>
-            <span className={styles.badge}>3</span>
-          </div>
+          <Notificaciones />
 
-          <div className={styles.messageWrapper}>
-            <ion-icon name="mail-outline" className={styles.messageIcon} suppressHydrationWarning></ion-icon>
-          </div>
+          <Mensajes />
 
           <div className={styles.divider}></div>
 

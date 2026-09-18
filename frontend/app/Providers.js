@@ -6,6 +6,7 @@ import { AuthProvider } from "@/_Extras/Auth/AuthProvider.js";
 import { ContenidoProvider } from "@/_Extras/Datos/ContenidoProvider.js";
 import { RealtimeProvider } from "@/_Extras/TiempoReal/RealtimeProvider.js";
 import { PwaProvider } from "@/_Extras/PWA/PwaProvider.js";
+import { ChatDockProvider } from "@/_Extras/ChatDock/ChatDockProvider.js";
 
 export default function Providers({ children }) {
   return (
@@ -15,7 +16,9 @@ export default function Providers({ children }) {
           <ThemeProvider>
             <RealtimeProvider>
               <PwaProvider>
-                {children}
+                <ChatDockProvider>
+                  {children}
+                </ChatDockProvider>
               </PwaProvider>
             </RealtimeProvider>
           </ThemeProvider>

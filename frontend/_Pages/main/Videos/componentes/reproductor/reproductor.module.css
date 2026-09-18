@@ -252,14 +252,20 @@
 }
 
 .volumeWrap {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0;
 }
 
+/* El slider flota (no empuja los botones ni deforma el video). */
 .volumeSlider {
   -webkit-appearance: none;
   appearance: none;
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
   width: 0;
   opacity: 0;
   height: 6px;
@@ -267,8 +273,10 @@
   border: 1px solid rgba(242, 13, 22, 0.35);
   border-radius: 999px;
   cursor: pointer;
-  transition: width 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
-  margin-left: 0;
+  transition: width 0.2s ease, opacity 0.2s ease;
+  margin: 0;
+  z-index: 6;
+  pointer-events: none;
 }
 
 .volumeSlider::-webkit-slider-runnable-track {
@@ -323,7 +331,7 @@
 .volumeWrap:focus-within .volumeSlider {
   width: 84px;
   opacity: 1;
-  margin-left: 10px;
+  pointer-events: auto;
 }
 
 .ctrlBtn {

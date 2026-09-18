@@ -13,7 +13,7 @@ const NAV = [
   { href: '/admin/subirhentai', label: 'Subir hentai', icon: 'images-outline' },
   { href: '/admin/subirpacks', label: 'Agregar pack', icon: 'cube-outline' },
   { href: '/admin/comunidad', label: 'Controlar comunidad', icon: 'people-outline' },
-  { href: '/admin/redes', label: 'Redes sociales', icon: 'share-social-outline' },
+  { href: '/admin/redes', label: 'Notificaciones', icon: 'notifications-outline' },
   { href: '/admin/configuracion', label: 'Configuración', icon: 'settings-outline' },
 ];
 

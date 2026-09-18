@@ -24,8 +24,46 @@ const jsonPost = (body) => ({
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body),
 });
+const jsonPut = (body) => ({
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+const jsonDelete = (body) => ({
+  method: 'DELETE',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body || {}),
+});
+
+/** POST multipart con progreso (XHR). Resuelve { ...json } o { error }. */
+function xhrSend(path, fd, onProgress) {
+  return new Promise((resolve) => {
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API}${path}`);
+      const t = authHeaders();
+      if (t.Authorization) xhr.setRequestHeader('Authorization', t.Authorization);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        let j = {};
+        try { j = JSON.parse(xhr.responseText); } catch { /* noop */ }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(j);
+        else resolve({ error: j.error || 'No se pudo enviar' });
+      };
+      xhr.onerror = () => resolve({ error: 'Sin conexión con el servidor' });
+      xhr.onabort = () => resolve({ error: 'Subida cancelada' });
+      xhr.send(fd);
+    } catch {
+      resolve({ error: 'Sin conexión con el servidor' });
+    }
+  });
+}
 
 export const apiComunidad = {
+  // Temas (diseños del chat entre amigos)
+  temas: () => req('/api/comunidad/temas'),
   // Feed
   feed: (filtro = 'recientes', userKey = '', grupo = null) => {
     const p = new URLSearchParams({ filtro });
@@ -88,7 +126,34 @@ export const apiComunidad = {
   // Chat
   mensajes: (id, userKey = '') => req(`/api/comunidad/grupos/${id}/mensajes${userKey ? `?userKey=${encodeURIComponent(userKey)}` : ''}`),
   enviarMensaje: (id, fd) => req(`/api/comunidad/grupos/${id}/mensajes`, { method: 'POST', headers: authHeaders(), body: fd }),
+  enviarMensajeXHR: (id, fd, onProgress) => xhrSend(`/api/comunidad/grupos/${id}/mensajes`, fd, onProgress),
+  editarMensaje: (id, msjId, userKey, texto) => req(`/api/comunidad/grupos/${id}/mensajes/${msjId}`, jsonPut({ userKey, texto })),
+  eliminarMensaje: (id, msjId, userKey, paraTodos = false) => req(`/api/comunidad/grupos/${id}/mensajes/${msjId}`, jsonDelete({ userKey, paraTodos })),
   reaccionarMensaje: (msjId, userKey, emoji) => req(`/api/comunidad/mensajes/${msjId}/reaccion`, jsonPost({ userKey, emoji })),
+  /** Bandeja estilo Messenger: conversaciones (grupos) del usuario. */
+  chats: (userKey) => req(`/api/comunidad/chats?userKey=${encodeURIComponent(userKey)}`),
+  marcarChatLeido: (id, userKey) => req(`/api/comunidad/chats/${id}/leido`, jsonPost({ userKey })),
+  /** Mensajes directos (1 a 1). */
+  dmChats: (userKey) => req(`/api/comunidad/dm/chats?userKey=${encodeURIComponent(userKey)}`),
+  dmMensajes: (otroKey, userKey) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes?userKey=${encodeURIComponent(userKey)}`),
+  dmEnviar: (otroKey, userKey, texto, replyTo = null) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes`, jsonPost({ userKey, texto, reply_to: replyTo || undefined })),
+  dmEnviarFd: (otroKey, fd) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes`, { method: 'POST', body: fd }),
+  dmEnviarXHR: (otroKey, fd, onProgress) => xhrSend(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes`, fd, onProgress),
+  dmApodo: (otroKey, userKey, miApodo, suApodo) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/apodo`, jsonPut({ userKey, miApodo, suApodo })),
+  dmTema: (otroKey, userKey, tema = {}) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/tema`, jsonPost({ userKey, gradient: tema.gradient || '', color: tema.color || '', emoji: tema.emoji || '' })),
+  dmEditarMensaje: (otroKey, msjId, userKey, texto) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes/${msjId}`, jsonPut({ userKey, texto })),
+  dmEliminarMensaje: (otroKey, msjId, userKey, paraTodos = false) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes/${msjId}`, jsonDelete({ userKey, paraTodos })),
+  dmLeido: (otroKey, userKey) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/leido`, jsonPost({ userKey })),
+  dmReaccionar: (msjId, userKey, emoji) => req(`/api/comunidad/dm/mensajes/${msjId}/reaccion`, jsonPost({ userKey, emoji })),
+
+  /** Buscar usuarios para escribirles. */
+  buscarUsuarios: (q = '', userKey) => {
+    const p = new URLSearchParams({ userKey });
+    if (q) p.set('q', q);
+    return req(`/api/comunidad/usuarios?${p.toString()}`);
+  },
+  /** Mensaje en masa a varios usuarios. */
+  mensajeMasivo: (userKey, ids, texto) => req('/api/comunidad/mensajes-directos', jsonPost({ userKey, ids, texto })),
 
   // Presencia
   presencia: () => req('/api/comunidad/presencia'),
