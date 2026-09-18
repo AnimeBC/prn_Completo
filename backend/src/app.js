@@ -21,6 +21,7 @@ import interactionsRoutes from './routes/interactions.js';
 import translationsRoutes from './routes/translations.js';
 import commentsRoutes from './routes/comments.js';
 import channelsRoutes from './routes/channels.js';
+import notificacionesRoutes from './routes/notificaciones.js';
 
 const app = express();
 
@@ -76,6 +77,8 @@ app.use('/api', translationsRoutes);
 app.use('/api', commentsRoutes);
 // canales / perfiles públicos (/api/channels/:slug, /videos, /follow)
 app.use('/api/channels', channelsRoutes);
+// notificaciones (/api/notificaciones)
+app.use('/api/notificaciones', notificacionesRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db/pool.js';
 import { publishEvent } from '../db/redis.js';
+import { notificarDueno, notificarMenciones } from './notificaciones.js';
 
 const r = Router();
 
@@ -105,6 +106,25 @@ async function createComment({ videoId = null, targetType, targetId, req }) {
   );
 
   await publishEvent('comment_created', { targetType, targetId });
+
+  // Notificaciones: respuesta al comentario + menciones @usuario
+  const actor = { user_key: userKey, nombre: name, avatar: user.avatar || null };
+  const url = targetType === 'video' ? `/videos/${targetId}`
+    : targetType === 'hentai' ? `/hentai/${targetId}` : null;
+  try {
+    if (parentId) {
+      const parent = await query('SELECT user_key FROM comments WHERE id = $1', [parentId]);
+      await notificarDueno(parent.rows[0]?.user_key, {
+        tipo: 'respuesta',
+        titulo: `${name} respondió a tu comentario`,
+        texto,
+        url,
+        icono: 'return-down-forward',
+        actor,
+      });
+    }
+    await notificarMenciones(texto, { actor, url, contexto: 'un comentario' });
+  } catch { /* notificaciones opcionales */ }
 
   return {
     data: {
@@ -218,6 +238,17 @@ r.post('/comments/:id/like', async (req, res, next) => {
     const likes = count.rows[0].n;
     await query('UPDATE comments SET likes = $2 WHERE id = $1', [id, likes]);
     await publishEvent('comment_like', { id });
+
+    if (liked) {
+      const c = await query('SELECT user_key FROM comments WHERE id = $1', [id]);
+      await notificarDueno(c.rows[0]?.user_key, {
+        tipo: 'like',
+        titulo: `A ${user.nombre || user.usuario || 'alguien'} le gustó tu comentario`,
+        url: null,
+        icono: 'heart',
+        actor: { user_key: userKey, nombre: user.nombre || user.usuario, avatar: user.avatar || null },
+      });
+    }
 
     res.json({ ok: true, my_like: liked, likes });
   } catch (e) { next(e); }

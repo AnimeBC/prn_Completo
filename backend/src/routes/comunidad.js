@@ -8,6 +8,7 @@ import {
   communityUpload, communityRootDir, communityUserFolder,
   publicOf, moveFileSync, avatarUpload,
 } from '../services/upload.js';
+import { crearNotificacion, notificarDueno, notificarMenciones } from './notificaciones.js';
 
 const r = Router();
 
@@ -107,6 +108,14 @@ function mediaKind(mimetype = '', name = '') {
 // ============================================================
 // COMUNIDADES (GRUPOS)
 // ============================================================
+
+// GET /api/comunidad/temas  -> diseños (gradientes) disponibles para el chat
+r.get('/temas', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT id, nombre, gradient FROM chat_temas WHERE activo = TRUE ORDER BY id');
+    res.json({ data: rows });
+  } catch (e) { next(e); }
+});
 
 // GET /api/comunidad/mi-limite?userKey=  -> { mb: -1 (sin límite) | 200 | N }
 r.get('/mi-limite', async (req, res, next) => {
@@ -276,6 +285,17 @@ r.post('/grupos/:id/join', async (req, res, next) => {
         [id, user.user_key, nameOf(user), String(req.body?.mensaje || '').slice(0, 500) || null]
       );
       await notify('comunidad_solicitud', { comunidad_id: id, user_key: user.user_key });
+      const gOwner = await query('SELECT user_key, nombre FROM comunidades WHERE id = $1', [id]);
+      const solRow = await query('SELECT id FROM comunidad_solicitudes WHERE comunidad_id = $1 AND user_key = $2', [id, user.user_key]);
+      await notificarDueno(gOwner.rows[0]?.user_key, {
+        tipo: 'solicitud',
+        titulo: `${nameOf(user)} quiere unirse a "${gOwner.rows[0]?.nombre || 'tu comunidad'}"`,
+        texto: String(req.body?.mensaje || '').trim().slice(0, 300) || null,
+        url: `/comunidad?grupo=${id}`,
+        icono: 'person-add',
+        actor: user,
+        meta: { comunidad_id: id, sol_id: solRow.rows[0]?.id || null, tipo: 'solicitud' },
+      });
       return res.json({ ok: true, pending: true });
     }
 
@@ -330,6 +350,18 @@ r.put('/grupos/:id/solicitudes/:solId', async (req, res, next) => {
     }
     res.json({ ok: true, estado });
     await notify('comunidad_solicitud', { comunidad_id: id, estado });
+    if (estado === 'aprobado' || estado === 'rechazado') {
+      const gInfo = await query('SELECT nombre FROM comunidades WHERE id = $1', [id]);
+      await crearNotificacion({
+        userKey: sol.rows[0].user_key,
+        tipo: estado === 'aprobado' ? 'solicitud_aceptada' : 'solicitud_rechazada',
+        titulo: estado === 'aprobado' ? 'Aceptaron tu solicitud' : 'Rechazaron tu solicitud',
+        texto: `Comunidad: ${gInfo.rows[0]?.nombre || ''}`,
+        url: `/comunidad?grupo=${id}`,
+        icono: estado === 'aprobado' ? 'checkmark-circle' : 'close-circle',
+        meta: { comunidad_id: id, tipo: estado },
+      });
+    }
   } catch (e) { next(e); }
 });
 
@@ -402,7 +434,7 @@ r.post('/posts', communityUpload.array('media', 6), async (req, res, next) => {
     const media = [];
     for (const f of files) {
       const kind = mediaKind(f.mimetype, f.originalname);
-      const url = saveFile(f, user.user_key, 'posts');
+      const url = saveFile(f, user.user_key, `posts/${kind}`);
       media.push({ url, tipo: kind });
     }
     const tipo = media.length === 0 ? 'texto'
@@ -417,6 +449,7 @@ r.post('/posts', communityUpload.array('media', 6), async (req, res, next) => {
     );
     res.status(201).json({ ok: true, post: ins.rows[0] });
     await notify('comunidad_post', { id: ins.rows[0].id, grupo });
+    await notificarMenciones(texto, { actor: user, url: `/comunidad?post=${ins.rows[0].id}`, contexto: 'una publicación' });
   } catch (e) { next(e); }
 });
 
@@ -436,6 +469,16 @@ r.post('/posts/:id/like', async (req, res, next) => {
     await query('UPDATE comunidad_posts SET likes = likes + 1 WHERE id = $1', [id]);
     res.json({ ok: true, liked: true });
     await notify('comunidad_post_like', { id });
+    const post = await query('SELECT user_key, texto FROM comunidad_posts WHERE id = $1', [id]);
+    await notificarDueno(post.rows[0]?.user_key, {
+      tipo: 'like',
+      titulo: `A ${nameOf(user)} le gustó tu publicación`,
+      texto: post.rows[0]?.texto || null,
+      url: `/comunidad?post=${id}`,
+      icono: 'heart',
+      actor: user,
+      meta: { post_id: id },
+    });
   } catch (e) { next(e); }
 });
 
@@ -498,6 +541,17 @@ r.post('/posts/:id/comments', async (req, res, next) => {
     await query('UPDATE comunidad_posts SET comentarios = comentarios + 1 WHERE id = $1', [id]);
     res.status(201).json({ ok: true, comentario: ins.rows[0] });
     await notify('comunidad_comment', { post_id: id, id: ins.rows[0].id });
+    const post = await query('SELECT user_key FROM comunidad_posts WHERE id = $1', [id]);
+    await notificarDueno(post.rows[0]?.user_key, {
+      tipo: 'comentario',
+      titulo: `${nameOf(user)} comentó tu publicación`,
+      texto,
+      url: `/comunidad?post=${id}`,
+      icono: 'chatbubble-ellipses',
+      actor: user,
+      meta: { post_id: id },
+    });
+    await notificarMenciones(texto, { actor: user, url: `/comunidad?post=${id}`, contexto: 'un comentario' });
   } catch (e) { next(e); }
 });
 
@@ -540,7 +594,7 @@ r.post('/stories', communityUpload.single('media'), async (req, res, next) => {
     let tipo = 'texto';
     if (req.file) {
       tipo = mediaKind(req.file.mimetype, req.file.originalname) === 'video' ? 'video' : 'foto';
-      media = saveFile(req.file, user.user_key, 'stories');
+      media = saveFile(req.file, user.user_key, `stories/${tipo}`);
     }
     if (!media && !texto) return res.status(400).json({ error: 'Adjunta una foto/video o escribe algo' });
     const ins = await query(
@@ -588,6 +642,16 @@ r.post('/stories/:id/reaccion', async (req, res, next) => {
     );
     res.status(201).json({ ok: true });
     await notify('comunidad_story_reaccion', { id, emoji: emoji || '' });
+    const st = await query('SELECT user_key FROM comunidad_stories WHERE id = $1', [id]);
+    await notificarDueno(st.rows[0]?.user_key, {
+      tipo: 'reaccion',
+      titulo: `${nameOf(user)} reaccionó a tu historia`,
+      texto: emoji || texto || null,
+      url: '/comunidad',
+      icono: 'sparkles',
+      actor: user,
+      meta: { story_id: id },
+    });
   } catch (e) { next(e); }
 });
 
@@ -603,7 +667,14 @@ r.get('/grupos/:id/mensajes', async (req, res, next) => {
     const userKey = String(req.query.userKey || '').trim();
     const { rows } = await query(
       `SELECT m.id, m.user_key, m.usuario, m.avatar, m.texto, m.tipo, m.media, m.created_at, m.reply_to,
+              m.editado, m.eliminado,
               r.usuario AS reply_usuario, r.texto AS reply_texto,
+              (SELECT COUNT(*)::int FROM comunidad_chat_leido cl
+                 WHERE cl.comunidad_id = m.comunidad_id AND cl.user_key <> m.user_key
+                   AND cl.ultimo_leido >= m.created_at) AS leidos,
+              (SELECT MIN(cl.ultimo_leido) FROM comunidad_chat_leido cl
+                 WHERE cl.comunidad_id = m.comunidad_id AND cl.user_key <> m.user_key
+                   AND cl.ultimo_leido >= m.created_at) AS visto_en,
               (SELECT COALESCE(json_agg(json_build_object('emoji', x.emoji, 'n', x.n, 'mi', x.mi) ORDER BY x.emoji), '[]'::json)
                  FROM (
                    SELECT emoji, COUNT(*)::int AS n, BOOL_OR(user_key = $2) AS mi
@@ -614,10 +685,22 @@ r.get('/grupos/:id/mensajes', async (req, res, next) => {
          FROM comunidad_mensajes m
          LEFT JOIN comunidad_mensajes r ON r.id = m.reply_to
         WHERE m.comunidad_id = $1 AND m.activo = TRUE
+          AND NOT ($2 = ANY(COALESCE(m.oculto_para, '{}'::text[])))
         ORDER BY m.created_at DESC LIMIT 100`,
       [id, userKey]
     );
     res.json({ data: rows.reverse() });
+    // Al abrir el chat, el miembro queda al día.
+    if (userKey) {
+      try {
+        await query(
+          `INSERT INTO comunidad_chat_leido (comunidad_id, user_key, ultimo_leido)
+           VALUES ($1, $2, NOW())
+           ON CONFLICT (comunidad_id, user_key) DO UPDATE SET ultimo_leido = NOW()`,
+          [id, userKey]
+        );
+      } catch { /* opcional */ }
+    }
   } catch (e) { next(e); }
 });
 
@@ -641,8 +724,9 @@ r.post('/grupos/:id/mensajes', communityUpload.single('media'), async (req, res,
     let tipo = TIPOS_MSJ.includes(req.body?.tipo) ? req.body.tipo : 'texto';
     let media = null;
     if (req.file) {
-      media = saveFile(req.file, user.user_key, 'chat');
-      tipo = mediaKind(req.file.mimetype, req.file.originalname);
+      const kind = mediaKind(req.file.mimetype, req.file.originalname);
+      media = saveFile(req.file, user.user_key, `chat/${kind}`);
+      tipo = kind;
     }
     if (!media && !texto) return res.status(400).json({ error: 'Mensaje vacío' });
     const replyTo = intOrNull(req.body?.reply_to);
@@ -654,6 +738,69 @@ r.post('/grupos/:id/mensajes', communityUpload.single('media'), async (req, res,
     );
     res.status(201).json({ ok: true, mensaje: ins.rows[0] });
     await notify('comunidad_mensaje', { id: ins.rows[0].id, comunidad_id: id });
+    const gOwner = await query('SELECT user_key FROM comunidades WHERE id = $1', [id]);
+    await notificarDueno(gOwner.rows[0]?.user_key, {
+      tipo: 'mensaje',
+      titulo: `${nameOf(user)} escribió en el chat`,
+      texto: texto || `[${tipo}]`,
+      url: `/comunidad?grupo=${id}`,
+      icono: 'chatbubbles',
+      actor: user,
+      meta: { comunidad_id: id },
+    });
+    if (replyTo) {
+      const rp = await query('SELECT user_key FROM comunidad_mensajes WHERE id = $1', [replyTo]);
+      await notificarDueno(rp.rows[0]?.user_key, {
+        tipo: 'respuesta',
+        titulo: `${nameOf(user)} respondió a tu mensaje`,
+        texto: texto || `[${tipo}]`,
+        url: `/comunidad?grupo=${id}`,
+        icono: 'return-down-forward',
+        actor: user,
+      });
+    }
+  } catch (e) { next(e); }
+});
+
+// PUT /api/comunidad/grupos/:id/mensajes/:msjId  { userKey, texto }  (editar)
+r.put('/grupos/:id/mensajes/:msjId', async (req, res, next) => {
+  try {
+    const id = intOrNull(req.params.id);
+    const msjId = intOrNull(req.params.msjId);
+    const user = await resolveUser(req.body?.userKey);
+    const texto = String(req.body?.texto || '').trim().slice(0, 2000);
+    if (!id || !msjId || !user) return res.status(401).json({ error: 'Inicia sesión' });
+    if (!texto) return res.status(400).json({ error: 'El mensaje no puede estar vacío' });
+    const m = await query('SELECT user_key FROM comunidad_mensajes WHERE id = $1 AND comunidad_id = $2 AND activo = TRUE', [msjId, id]);
+    if (!m.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
+    if (String(m.rows[0].user_key) !== String(user.user_key)) return res.status(403).json({ error: 'Solo puedes editar tus mensajes' });
+    await query('UPDATE comunidad_mensajes SET texto = $2, media = NULL, editado = TRUE WHERE id = $1', [msjId, texto]);
+    await notify('comunidad_mensaje', { id: msjId, comunidad_id: id });
+    res.json({ ok: true, texto });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/comunidad/grupos/:id/mensajes/:msjId  { userKey }  (deja rastro)
+r.delete('/grupos/:id/mensajes/:msjId', async (req, res, next) => {
+  try {
+    const id = intOrNull(req.params.id);
+    const msjId = intOrNull(req.params.msjId);
+    const user = await resolveUser(req.body?.userKey || req.query.userKey);
+    if (!id || !msjId || !user) return res.status(401).json({ error: 'Inicia sesión' });
+    const paraTodos = req.body?.paraTodos === true;
+    const m = await query('SELECT user_key FROM comunidad_mensajes WHERE id = $1 AND comunidad_id = $2 AND activo = TRUE', [msjId, id]);
+    if (!m.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
+    if (paraTodos) {
+      if (String(m.rows[0].user_key) !== String(user.user_key)) return res.status(403).json({ error: 'Solo puedes eliminar para todos tus mensajes' });
+      await query('UPDATE comunidad_mensajes SET eliminado = TRUE, texto = NULL, media = NULL WHERE id = $1', [msjId]);
+    } else {
+      await query(
+        `UPDATE comunidad_mensajes SET oculto_para = array_append(COALESCE(oculto_para, '{}'::text[]), $2) WHERE id = $1`,
+        [msjId, user.user_key]
+      );
+    }
+    await notify('comunidad_mensaje', { id: msjId, comunidad_id: id });
+    res.json({ ok: true, paraTodos });
   } catch (e) { next(e); }
 });
 
@@ -664,9 +811,10 @@ r.post('/mensajes/:msjId/reaccion', async (req, res, next) => {
     const user = await resolveUser(req.body?.userKey);
     const emoji = String(req.body?.emoji || '').slice(0, 8);
     if (!msjId || !user || !emoji) return res.status(401).json({ error: 'Inicia sesión para reaccionar' });
-    const m = await query('SELECT comunidad_id FROM comunidad_mensajes WHERE id = $1 AND activo = TRUE', [msjId]);
+    const m = await query('SELECT comunidad_id, user_key FROM comunidad_mensajes WHERE id = $1 AND activo = TRUE', [msjId]);
     if (!m.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
     const comId = m.rows[0].comunidad_id;
+    const msjOwner = m.rows[0].user_key;
     // Solo miembros (o dueño) pueden reaccionar en grupos privados.
     if (comId) {
       const g = await query('SELECT privacidad, user_key FROM comunidades WHERE id = $1', [comId]);
@@ -689,6 +837,436 @@ r.post('/mensajes/:msjId/reaccion', async (req, res, next) => {
     );
     res.json({ ok: true });
     await notify('comunidad_reaccion', { id: msjId, comunidad_id: comId });
+    await notificarDueno(msjOwner, {
+      tipo: 'reaccion',
+      titulo: `${nameOf(user)} reaccionó a tu mensaje`,
+      texto: emoji,
+      url: `/comunidad?grupo=${comId || ''}`,
+      icono: 'happy-outline',
+      actor: user,
+      meta: { mensaje_id: msjId },
+    });
+  } catch (e) { next(e); }
+});
+
+// ============================================================
+// CHATS (bandeja estilo Messenger): conversaciones del usuario
+// ============================================================
+
+// GET /api/comunidad/chats?userKey=  -> grupos donde participa + último mensaje
+r.get('/chats', async (req, res, next) => {
+  try {
+    const userKey = String(req.query.userKey || '').trim();
+    if (!userKey) return res.json({ data: [] });
+    const { rows } = await query(
+      `WITH mis AS (
+         SELECT c.id FROM comunidades c WHERE c.user_key = $1 AND c.activo = TRUE
+         UNION
+         SELECT cm.comunidad_id FROM comunidad_miembros cm WHERE cm.user_key = $1
+       )
+       SELECT c.id, c.nombre, c.avatar, c.descripcion, c.privacidad, c.miembros,
+              m.texto AS ultimo_texto, m.tipo AS ultimo_tipo, m.usuario AS ultimo_usuario,
+              m.user_key AS ultimo_user_key, m.media AS ultimo_media, m.created_at AS ultimo_creado,
+              (SELECT COUNT(*)::int
+                 FROM comunidad_mensajes msg
+                WHERE msg.comunidad_id = c.id AND msg.activo = TRUE
+                  AND msg.user_key <> $1
+                  AND msg.created_at > COALESCE(cl.ultimo_leido, 'epoch'::timestamptz)
+              ) AS no_leidos
+         FROM comunidades c
+         JOIN mis ON mis.id = c.id
+         LEFT JOIN comunidad_chat_leido cl ON cl.comunidad_id = c.id AND cl.user_key = $1
+         LEFT JOIN LATERAL (
+           SELECT texto, tipo, usuario, user_key, media, created_at
+             FROM comunidad_mensajes
+            WHERE comunidad_id = c.id AND activo = TRUE
+            ORDER BY created_at DESC LIMIT 1
+         ) m ON TRUE
+        WHERE c.activo = TRUE
+        ORDER BY COALESCE(m.created_at, c.created_at) DESC
+        LIMIT 60`,
+      [userKey]
+    );
+    res.json({ data: rows });
+  } catch (e) { next(e); }
+});
+
+// POST /api/comunidad/chats/:id/leido  { userKey }
+r.post('/chats/:id/leido', async (req, res, next) => {
+  try {
+    const id = intOrNull(req.params.id);
+    const userKey = String(req.body?.userKey || '').trim();
+    if (!id || !userKey) return res.status(400).json({ error: 'Datos inválidos' });
+    await query(
+      `INSERT INTO comunidad_chat_leido (comunidad_id, user_key, ultimo_leido)
+       VALUES ($1, $2, NOW())
+       ON CONFLICT (comunidad_id, user_key) DO UPDATE SET ultimo_leido = NOW()`,
+      [id, userKey]
+    );
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// ============================================================
+// MENSAJES DIRECTOS (1 a 1, para los "amigos")
+// ============================================================
+
+function dmPar(a, b) {
+  const x = String(a); const y = String(b);
+  return x < y ? [x, y] : [y, x];
+}
+
+async function dmConversacion(a, b, crear = false) {
+  const [x, y] = dmPar(a, b);
+  const found = await query('SELECT * FROM dm_conversaciones WHERE a_key = $1 AND b_key = $2', [x, y]);
+  if (found.rows[0]) return found.rows[0];
+  if (!crear) return null;
+  const ins = await query(
+    `INSERT INTO dm_conversaciones (a_key, b_key) VALUES ($1, $2)
+     ON CONFLICT (a_key, b_key) DO UPDATE SET updated_at = NOW()
+     RETURNING *`,
+    [x, y]
+  );
+  return ins.rows[0];
+}
+
+/** Inserta un aviso del sistema en el chat (ej. cambió el diseño / apodos). */
+async function insertarSistema(conv, user, codigo) {
+  try {
+    await query(
+      `INSERT INTO dm_mensajes (conversacion_id, user_key, usuario, avatar, texto, tipo)
+       VALUES ($1, $2, $3, $4, $5, 'sistema')`,
+      [conv.id, user.user_key, nameOf(user), user.avatar || null, codigo]
+    );
+  } catch { /* opcional */ }
+}
+
+// GET /api/comunidad/dm/chats?userKey=  -> conversaciones 1a1 con último mensaje
+r.get('/dm/chats', async (req, res, next) => {
+  try {
+    const userKey = String(req.query.userKey || '').trim();
+    if (!userKey) return res.json({ data: [] });
+    const { rows } = await query(
+      `SELECT c.id,
+              CASE WHEN c.a_key = $1 THEN c.b_key ELSE c.a_key END AS otro_key,
+              u.usuario AS otro_usuario, u.nombre AS otro_nombre, u.avatar AS otro_avatar,
+              m.texto AS ultimo_texto, m.tipo AS ultimo_tipo, m.user_key AS ultimo_user_key,
+              m.created_at AS ultimo_creado,
+              (SELECT COUNT(*)::int FROM dm_mensajes dm
+                WHERE dm.conversacion_id = c.id AND dm.activo = TRUE AND dm.user_key <> $1
+                  AND dm.created_at > COALESCE(dl.ultimo_leido, 'epoch'::timestamptz)) AS no_leidos
+         FROM dm_conversaciones c
+         LEFT JOIN users u ON u.user_key = CASE WHEN c.a_key = $1 THEN c.b_key ELSE c.a_key END
+         LEFT JOIN dm_leido dl ON dl.conversacion_id = c.id AND dl.user_key = $1
+         LEFT JOIN LATERAL (
+           SELECT texto, tipo, user_key, created_at FROM dm_mensajes
+            WHERE conversacion_id = c.id AND activo = TRUE
+            ORDER BY created_at DESC LIMIT 1
+         ) m ON TRUE
+        WHERE c.a_key = $1 OR c.b_key = $1
+        ORDER BY COALESCE(m.created_at, c.updated_at) DESC
+        LIMIT 60`,
+      [userKey]
+    );
+    res.json({ data: rows });
+  } catch (e) { next(e); }
+});
+
+// GET /api/comunidad/dm/:otroKey/mensajes?userKey=
+r.get('/dm/:otroKey/mensajes', async (req, res, next) => {
+  try {
+    const userKey = String(req.query.userKey || '').trim();
+    const otroKey = String(req.params.otroKey || '').trim();
+    if (!userKey || !otroKey) return res.json({ data: [] });
+    const conv = await dmConversacion(userKey, otroKey, false);
+    if (!conv) return res.json({ data: [] });
+    const { rows } = await query(
+      `SELECT m.id, m.user_key, m.usuario, m.avatar, m.texto, m.tipo, m.media, m.created_at, m.reply_to,
+              m.editado, m.eliminado,
+              r.usuario AS reply_usuario, r.texto AS reply_texto,
+              EXISTS(SELECT 1 FROM dm_leido dl
+                      WHERE dl.conversacion_id = m.conversacion_id AND dl.user_key <> m.user_key
+                        AND dl.ultimo_leido >= m.created_at) AS leido,
+              (SELECT MIN(dl.ultimo_leido) FROM dm_leido dl
+                WHERE dl.conversacion_id = m.conversacion_id AND dl.user_key <> m.user_key
+                  AND dl.ultimo_leido >= m.created_at) AS visto_en,
+              (SELECT COALESCE(json_agg(json_build_object('emoji', x.emoji, 'n', x.n, 'mi', x.mi) ORDER BY x.emoji), '[]'::json)
+                 FROM (
+                   SELECT emoji, COUNT(*)::int AS n, BOOL_OR(user_key = $2) AS mi
+                     FROM dm_mensaje_reacciones WHERE mensaje_id = m.id GROUP BY emoji
+                 ) x) AS reacciones
+         FROM dm_mensajes m
+         LEFT JOIN dm_mensajes r ON r.id = m.reply_to
+        WHERE m.conversacion_id = $1 AND m.activo = TRUE
+          AND NOT ($2 = ANY(COALESCE(m.oculto_para, '{}'::text[])))
+        ORDER BY m.created_at DESC LIMIT 100`,
+      [conv.id, userKey]
+    );
+    const ap = (await query('SELECT a_alias, b_alias FROM dm_apodos WHERE conversacion_id = $1', [conv.id])).rows[0] || {};
+    const esA = String(conv.a_key) === String(userKey);
+    const miApodo = (esA ? ap.a_alias : ap.b_alias) || null;
+    const suApodo = (esA ? ap.b_alias : ap.a_alias) || null;
+    const tema = {
+      gradient: conv.tema_gradient || '',
+      color: conv.tema_color || '',
+      emoji: conv.tema_emoji || '',
+    };
+    res.json({ data: rows.reverse(), miApodo, suApodo, tema });
+    try {
+      await query(
+        `INSERT INTO dm_leido (conversacion_id, user_key, ultimo_leido) VALUES ($1, $2, NOW())
+         ON CONFLICT (conversacion_id, user_key) DO UPDATE SET ultimo_leido = NOW()`,
+        [conv.id, userKey]
+      );
+    } catch { /* opcional */ }
+  } catch (e) { next(e); }
+});
+
+// POST /api/comunidad/dm/:otroKey/mensajes  (multipart: media)  { userKey, texto, tipo, reply_to }
+r.post('/dm/:otroKey/mensajes', communityUpload.single('media'), async (req, res, next) => {
+  try {
+    const user = await resolveUser(req.body?.userKey);
+    if (!user) return res.status(401).json({ error: 'Inicia sesión para escribir' });
+    const otro = await resolveUser(req.params.otroKey);
+    if (!otro) return res.status(404).json({ error: 'Usuario no encontrado' });
+    const texto = String(req.body?.texto || '').trim().slice(0, 2000);
+    if (rechazarLimite(res, req.file ? [req.file] : [], await limiteSubidaMb(user.user_key))) return;
+
+    let tipo = TIPOS_MSJ.includes(req.body?.tipo) ? req.body.tipo : 'texto';
+    let media = null;
+    if (req.file) {
+      const kind = mediaKind(req.file.mimetype, req.file.originalname);
+      media = saveFile(req.file, user.user_key, `dm/${kind}`);
+      tipo = kind;
+    }
+    if (!media && !texto) return res.status(400).json({ error: 'Mensaje vacío' });
+
+    const conv = await dmConversacion(user.user_key, otro.user_key, true);
+    const replyTo = intOrNull(req.body?.reply_to);
+    const ins = await query(
+      `INSERT INTO dm_mensajes (conversacion_id, user_key, usuario, avatar, texto, tipo, media, reply_to)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, user_key, usuario, avatar, texto, tipo, media, created_at, reply_to`,
+      [conv.id, user.user_key, nameOf(user), user.avatar || null, texto || null, tipo, media, replyTo]
+    );
+    await query('UPDATE dm_conversaciones SET updated_at = NOW() WHERE id = $1', [conv.id]);
+    res.status(201).json({ ok: true, mensaje: ins.rows[0] });
+    await notify('comunidad_dm', { conv: conv.id, de: user.user_key, para: otro.user_key });
+    // No te notifiques a ti mismo.
+    if (String(otro.user_key) !== String(user.user_key)) {
+      await crearNotificacion({
+        userKey: otro.user_key,
+        tipo: 'mensaje',
+        titulo: `${nameOf(user)} te envió un mensaje`,
+        texto: texto || `[${tipo}]`,
+        url: '/comunidad',
+        icono: 'mail',
+        actor: user,
+        meta: { dm: true, de: user.user_key },
+      });
+    }
+  } catch (e) { next(e); }
+});
+
+// PUT /api/comunidad/dm/:otroKey/mensajes/:msjId  { userKey, texto }  (editar DM)
+r.put('/dm/:otroKey/mensajes/:msjId', async (req, res, next) => {
+  try {
+    const msjId = intOrNull(req.params.msjId);
+    const user = await resolveUser(req.body?.userKey);
+    const otroKey = String(req.params.otroKey || '').trim();
+    const texto = String(req.body?.texto || '').trim().slice(0, 2000);
+    if (!msjId || !user || !otroKey) return res.status(401).json({ error: 'Inicia sesión' });
+    if (!texto) return res.status(400).json({ error: 'El mensaje no puede estar vacío' });
+    const conv = await dmConversacion(user.user_key, otroKey, false);
+    if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
+    const m = await query('SELECT user_key FROM dm_mensajes WHERE id = $1 AND conversacion_id = $2 AND activo = TRUE', [msjId, conv.id]);
+    if (!m.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
+    if (String(m.rows[0].user_key) !== String(user.user_key)) return res.status(403).json({ error: 'Solo puedes editar tus mensajes' });
+    await query('UPDATE dm_mensajes SET texto = $2, media = NULL, editado = TRUE WHERE id = $1', [msjId, texto]);
+    await notify('comunidad_dm', { conv: conv.id });
+    res.json({ ok: true, texto });
+  } catch (e) { next(e); }
+});
+
+// DELETE /api/comunidad/dm/:otroKey/mensajes/:msjId  { userKey }  (deja rastro)
+r.delete('/dm/:otroKey/mensajes/:msjId', async (req, res, next) => {
+  try {
+    const msjId = intOrNull(req.params.msjId);
+    const user = await resolveUser(req.body?.userKey || req.query.userKey);
+    const otroKey = String(req.params.otroKey || '').trim();
+    if (!msjId || !user || !otroKey) return res.status(401).json({ error: 'Inicia sesión' });
+    const conv = await dmConversacion(user.user_key, otroKey, false);
+    if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
+    const paraTodos = req.body?.paraTodos === true;
+    const m = await query('SELECT user_key FROM dm_mensajes WHERE id = $1 AND conversacion_id = $2 AND activo = TRUE', [msjId, conv.id]);
+    if (!m.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
+    if (paraTodos) {
+      if (String(m.rows[0].user_key) !== String(user.user_key)) return res.status(403).json({ error: 'Solo puedes eliminar para todos tus mensajes' });
+      await query('UPDATE dm_mensajes SET eliminado = TRUE, texto = NULL, media = NULL WHERE id = $1', [msjId]);
+    } else {
+      await query(
+        `UPDATE dm_mensajes SET oculto_para = array_append(COALESCE(oculto_para, '{}'::text[]), $2) WHERE id = $1`,
+        [msjId, user.user_key]
+      );
+    }
+    await notify('comunidad_dm', { conv: conv.id });
+    res.json({ ok: true, paraTodos });
+  } catch (e) { next(e); }
+});
+
+// POST /api/comunidad/dm/:otroKey/tema  { userKey, gradient, color, emoji }
+//   El tema es COMPARTIDO: ambos lo ven. Genera avisos si cambia fondo/icono.
+r.post('/dm/:otroKey/tema', async (req, res, next) => {
+  try {
+    const user = await resolveUser(req.body?.userKey);
+    const otroKey = String(req.params.otroKey || '').trim();
+    if (!user || !otroKey) return res.status(401).json({ error: 'Inicia sesión' });
+    const gradient = String(req.body?.gradient || '').slice(0, 300) || null;
+    const color = String(req.body?.color || '').slice(0, 20) || null;
+    const emoji = String(req.body?.emoji || '').trim().slice(0, 8) || null;
+    const conv = await dmConversacion(user.user_key, otroKey, true);
+
+    const fondoCambio = (conv.tema_gradient || null) !== gradient || (conv.tema_color || null) !== color;
+    const emojiCambio = (conv.tema_emoji || null) !== emoji;
+
+    await query(
+      'UPDATE dm_conversaciones SET tema_gradient = $2, tema_color = $3, tema_emoji = $4 WHERE id = $1',
+      [conv.id, gradient, color, emoji]
+    );
+    if (fondoCambio) await insertarSistema(conv, user, 'diseno');
+    if (emojiCambio) await insertarSistema(conv, user, `icono|${emoji || ''}`);
+
+    await notify('comunidad_dm', { conv: conv.id, tema: true });
+    res.json({ ok: true, tema: { gradient: gradient || '', color: color || '', emoji: emoji || '' } });
+  } catch (e) { next(e); }
+});
+
+// PUT /api/comunidad/dm/:otroKey/apodo  { userKey, alias }  (compartido entre ambos)
+r.put('/dm/:otroKey/apodo', async (req, res, next) => {
+  try {
+    const user = await resolveUser(req.body?.userKey);
+    const otroKey = String(req.params.otroKey || '').trim();
+    if (!user || !otroKey) return res.status(401).json({ error: 'Inicia sesión' });
+    const mi = String(req.body?.miApodo || '').trim().slice(0, 60) || null;
+    const su = String(req.body?.suApodo || '').trim().slice(0, 60) || null;
+    const conv = await dmConversacion(user.user_key, otroKey, true);
+    const esA = String(conv.a_key) === String(user.user_key);
+    const aAlias = esA ? mi : su;
+    const bAlias = esA ? su : mi;
+    const prev = (await query('SELECT a_alias, b_alias FROM dm_apodos WHERE conversacion_id = $1', [conv.id])).rows[0] || {};
+    await query(
+      `INSERT INTO dm_apodos (conversacion_id, a_alias, b_alias, updated_at) VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (conversacion_id) DO UPDATE SET a_alias = EXCLUDED.a_alias, b_alias = EXCLUDED.b_alias, updated_at = NOW()`,
+      [conv.id, aAlias, bAlias]
+    );
+    // Aviso en el chat (mensaje de sistema) si cambió algún apodo.
+    if ((prev.a_alias || null) !== aAlias || (prev.b_alias || null) !== bAlias) {
+      await insertarSistema(conv, user, 'apodos');
+    }
+    await notify('comunidad_dm', { conv: conv.id, apodo: true });
+    res.json({ ok: true, miApodo: mi, suApodo: su });
+  } catch (e) { next(e); }
+});
+
+// POST /api/comunidad/dm/:otroKey/leido  { userKey }
+r.post('/dm/:otroKey/leido', async (req, res, next) => {
+  try {
+    const userKey = String(req.body?.userKey || '').trim();
+    const otroKey = String(req.params.otroKey || '').trim();
+    if (!userKey || !otroKey) return res.status(400).json({ error: 'Datos inválidos' });
+    const conv = await dmConversacion(userKey, otroKey, false);
+    if (conv) {
+      await query(
+        `INSERT INTO dm_leido (conversacion_id, user_key, ultimo_leido) VALUES ($1, $2, NOW())
+         ON CONFLICT (conversacion_id, user_key) DO UPDATE SET ultimo_leido = NOW()`,
+        [conv.id, userKey]
+      );
+    }
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// POST /api/comunidad/dm/mensajes/:msjId/reaccion  { userKey, emoji }
+r.post('/dm/mensajes/:msjId/reaccion', async (req, res, next) => {
+  try {
+    const msjId = intOrNull(req.params.msjId);
+    const user = await resolveUser(req.body?.userKey);
+    const emoji = String(req.body?.emoji || '').slice(0, 8);
+    if (!msjId || !user || !emoji) return res.status(401).json({ error: 'Inicia sesión para reaccionar' });
+    const existe = await query('SELECT 1 FROM dm_mensajes WHERE id = $1 AND activo = TRUE', [msjId]);
+    if (!existe.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
+    const prev = await query('SELECT emoji FROM dm_mensaje_reacciones WHERE mensaje_id = $1 AND user_key = $2', [msjId, user.user_key]);
+    if (prev.rows[0]?.emoji === emoji) {
+      await query('DELETE FROM dm_mensaje_reacciones WHERE mensaje_id = $1 AND user_key = $2', [msjId, user.user_key]);
+      return res.json({ ok: true, quitada: true });
+    }
+    await query(
+      `INSERT INTO dm_mensaje_reacciones (mensaje_id, user_key, emoji) VALUES ($1, $2, $3)
+       ON CONFLICT (mensaje_id, user_key) DO UPDATE SET emoji = EXCLUDED.emoji`,
+      [msjId, user.user_key, emoji]
+    );
+    res.json({ ok: true });
+    await notify('comunidad_dm', { msj: msjId });
+  } catch (e) { next(e); }
+});
+
+// GET /api/comunidad/usuarios?q=&userKey=  -> buscar usuarios (para mensajes)
+r.get('/usuarios', async (req, res, next) => {
+  try {
+    const me = String(req.query.userKey || '').trim();
+    if (!me) return res.json({ data: [] });
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const params = [me];
+    let where = 'user_key <> $1 AND email_verified = TRUE';
+    if (q) {
+      params.push(`%${q}%`);
+      where += ` AND (lower(usuario) LIKE $${params.length} OR lower(COALESCE(nombre,'')) LIKE $${params.length})`;
+    }
+    const { rows } = await query(
+      `SELECT id, usuario, nombre, avatar
+         FROM users
+        WHERE ${where}
+        ORDER BY (usuario IS NULL), usuario ASC
+        LIMIT 20`,
+      params
+    );
+    res.json({ data: rows });
+  } catch (e) { next(e); }
+});
+
+// POST /api/comunidad/mensajes-directos  { userKey, ids: [..], texto }
+// Envía un mensaje en masa: crea una notificación personal para cada usuario.
+r.post('/mensajes-directos', async (req, res, next) => {
+  try {
+    const user = await resolveUser(req.body?.userKey);
+    if (!user) return res.status(401).json({ error: 'Inicia sesión para enviar mensajes' });
+    const texto = String(req.body?.texto || '').trim().slice(0, 1000);
+    if (!texto) return res.status(400).json({ error: 'Escribe un mensaje' });
+    const ids = (Array.isArray(req.body?.ids) ? req.body.ids : [])
+      .map((n) => Number.parseInt(String(n), 10))
+      .filter((n) => Number.isInteger(n) && n > 0)
+      .slice(0, 100);
+    if (!ids.length) return res.status(400).json({ error: 'Elige al menos un destinatario' });
+
+    const { rows } = await query(
+      'SELECT user_key FROM users WHERE id = ANY($1::int[]) AND user_key <> $2',
+      [ids, user.user_key]
+    );
+    let enviados = 0;
+    for (const u of rows) {
+      const id = await crearNotificacion({
+        userKey: u.user_key,
+        tipo: 'mensaje',
+        titulo: `${nameOf(user)} te envió un mensaje`,
+        texto,
+        url: '/chat',
+        icono: 'mail',
+        actor: user,
+        meta: { directo: true },
+      });
+      if (id) enviados += 1;
+    }
+    res.json({ ok: true, enviados });
   } catch (e) { next(e); }
 });
 
@@ -902,6 +1480,18 @@ r.put('/admin/solicitudes/:id', authRequired, async (req, res, next) => {
         'UPDATE comunidades SET miembros = (SELECT COUNT(*) FROM comunidad_miembros WHERE comunidad_id = $1) WHERE id = $1',
         [s.comunidad_id]
       );
+    }
+    if (estado === 'aprobado' || estado === 'rechazado') {
+      const gInfo = await query('SELECT nombre FROM comunidades WHERE id = $1', [s.comunidad_id]);
+      await crearNotificacion({
+        userKey: s.user_key,
+        tipo: estado === 'aprobado' ? 'solicitud_aceptada' : 'solicitud_rechazada',
+        titulo: estado === 'aprobado' ? 'Aceptaron tu solicitud' : 'Rechazaron tu solicitud',
+        texto: `Comunidad: ${gInfo.rows[0]?.nombre || ''}`,
+        url: `/comunidad?grupo=${s.comunidad_id}`,
+        icono: estado === 'aprobado' ? 'checkmark-circle' : 'close-circle',
+        meta: { comunidad_id: s.comunidad_id, tipo: estado },
+      });
     }
     res.json({ ok: true });
   } catch (e) { next(e); }
