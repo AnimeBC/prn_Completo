@@ -15,6 +15,13 @@ const r = Router();
 const FILTROS = ['recientes', 'videos', 'fotos', 'populares', 'guardados'];
 const TIPOS_MSJ = ['texto', 'foto', 'video', 'audio', 'sticker', 'emoji'];
 
+// Un mensaje solo puede editarse/eliminarse (para todos) dentro de estas horas.
+const MSJ_EDITABLE_HORAS = 24;
+function esEditable(createdAt) {
+  if (!createdAt) return true;
+  return (Date.now() - new Date(createdAt).getTime()) < MSJ_EDITABLE_HORAS * 3600 * 1000;
+}
+
 function intOrNull(v) {
   if (v === undefined || v === null || v === '') return null;
   const n = Number.parseInt(String(v), 10);
@@ -144,6 +151,8 @@ r.get('/grupos', async (req, res, next) => {
     }
     if (soloDestacados) where.push('c.destacado = TRUE');
     const whereSql = where.join(' AND ');
+    // Params solo del WHERE (para el COUNT); el userKey se usa después en el SELECT.
+    const countParams = [...params];
 
     let miembro = 'FALSE';
     let dueno = 'FALSE';
@@ -155,7 +164,7 @@ r.get('/grupos', async (req, res, next) => {
       solicitud = `(SELECT cs.estado FROM comunidad_solicitudes cs WHERE cs.comunidad_id = c.id AND cs.user_key = $${params.length} LIMIT 1)`;
     }
 
-    const totalQ = await query(`SELECT COUNT(*)::int AS n FROM comunidades c WHERE ${whereSql}`, params);
+    const totalQ = await query(`SELECT COUNT(*)::int AS n FROM comunidades c WHERE ${whereSql}`, countParams);
     const limitIdx = params.length + 1;
     const offsetIdx = params.length + 2;
 
@@ -665,6 +674,8 @@ r.get('/grupos/:id/mensajes', async (req, res, next) => {
     const id = intOrNull(req.params.id);
     if (!id) return res.json({ data: [] });
     const userKey = String(req.query.userKey || '').trim();
+    const before = intOrNull(req.query.before);
+    const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 50));
     const { rows } = await query(
       `SELECT m.id, m.user_key, m.usuario, m.avatar, m.texto, m.tipo, m.media, m.created_at, m.reply_to,
               m.editado, m.eliminado,
@@ -686,21 +697,12 @@ r.get('/grupos/:id/mensajes', async (req, res, next) => {
          LEFT JOIN comunidad_mensajes r ON r.id = m.reply_to
         WHERE m.comunidad_id = $1 AND m.activo = TRUE
           AND NOT ($2 = ANY(COALESCE(m.oculto_para, '{}'::text[])))
-        ORDER BY m.created_at DESC LIMIT 100`,
-      [id, userKey]
+          AND ($3::int IS NULL OR m.id < $3)
+        ORDER BY m.created_at DESC, m.id DESC LIMIT $4`,
+      [id, userKey, before, limit]
     );
-    res.json({ data: rows.reverse() });
-    // Al abrir el chat, el miembro queda al día.
-    if (userKey) {
-      try {
-        await query(
-          `INSERT INTO comunidad_chat_leido (comunidad_id, user_key, ultimo_leido)
-           VALUES ($1, $2, NOW())
-           ON CONFLICT (comunidad_id, user_key) DO UPDATE SET ultimo_leido = NOW()`,
-          [id, userKey]
-        );
-      } catch { /* opcional */ }
-    }
+    // NO se marca leido aqui: solo el chat ACTIVO marca leido (POST /chats/:id/leido).
+    res.json({ data: rows.reverse(), hasMore: rows.length === limit });
   } catch (e) { next(e); }
 });
 
@@ -737,17 +739,9 @@ r.post('/grupos/:id/mensajes', communityUpload.single('media'), async (req, res,
       [id, user.user_key, nameOf(user), user.avatar || null, texto || null, tipo, media, replyTo]
     );
     res.status(201).json({ ok: true, mensaje: ins.rows[0] });
-    await notify('comunidad_mensaje', { id: ins.rows[0].id, comunidad_id: id });
-    const gOwner = await query('SELECT user_key FROM comunidades WHERE id = $1', [id]);
-    await notificarDueno(gOwner.rows[0]?.user_key, {
-      tipo: 'mensaje',
-      titulo: `${nameOf(user)} escribió en el chat`,
-      texto: texto || `[${tipo}]`,
-      url: `/comunidad?grupo=${id}`,
-      icono: 'chatbubbles',
-      actor: user,
-      meta: { comunidad_id: id },
-    });
+    await notify('comunidad_mensaje', { id: ins.rows[0].id, comunidad_id: id, de: user.user_key });
+    // No se notifica por cada mensaje del chat de grupo (evita spam).
+    // Solo si es una respuesta directa a tu mensaje.
     if (replyTo) {
       const rp = await query('SELECT user_key FROM comunidad_mensajes WHERE id = $1', [replyTo]);
       await notificarDueno(rp.rows[0]?.user_key, {
@@ -771,9 +765,10 @@ r.put('/grupos/:id/mensajes/:msjId', async (req, res, next) => {
     const texto = String(req.body?.texto || '').trim().slice(0, 2000);
     if (!id || !msjId || !user) return res.status(401).json({ error: 'Inicia sesión' });
     if (!texto) return res.status(400).json({ error: 'El mensaje no puede estar vacío' });
-    const m = await query('SELECT user_key FROM comunidad_mensajes WHERE id = $1 AND comunidad_id = $2 AND activo = TRUE', [msjId, id]);
+    const m = await query('SELECT user_key, created_at FROM comunidad_mensajes WHERE id = $1 AND comunidad_id = $2 AND activo = TRUE', [msjId, id]);
     if (!m.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
     if (String(m.rows[0].user_key) !== String(user.user_key)) return res.status(403).json({ error: 'Solo puedes editar tus mensajes' });
+    if (!esEditable(m.rows[0].created_at)) return res.status(403).json({ error: 'El mensaje es muy antiguo para editarse' });
     await query('UPDATE comunidad_mensajes SET texto = $2, media = NULL, editado = TRUE WHERE id = $1', [msjId, texto]);
     await notify('comunidad_mensaje', { id: msjId, comunidad_id: id });
     res.json({ ok: true, texto });
@@ -788,10 +783,11 @@ r.delete('/grupos/:id/mensajes/:msjId', async (req, res, next) => {
     const user = await resolveUser(req.body?.userKey || req.query.userKey);
     if (!id || !msjId || !user) return res.status(401).json({ error: 'Inicia sesión' });
     const paraTodos = req.body?.paraTodos === true;
-    const m = await query('SELECT user_key FROM comunidad_mensajes WHERE id = $1 AND comunidad_id = $2 AND activo = TRUE', [msjId, id]);
+    const m = await query('SELECT user_key, created_at FROM comunidad_mensajes WHERE id = $1 AND comunidad_id = $2 AND activo = TRUE', [msjId, id]);
     if (!m.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
     if (paraTodos) {
       if (String(m.rows[0].user_key) !== String(user.user_key)) return res.status(403).json({ error: 'Solo puedes eliminar para todos tus mensajes' });
+      if (!esEditable(m.rows[0].created_at)) return res.status(403).json({ error: 'El mensaje es muy antiguo para eliminarse' });
       await query('UPDATE comunidad_mensajes SET eliminado = TRUE, texto = NULL, media = NULL WHERE id = $1', [msjId]);
     } else {
       await query(
@@ -950,6 +946,9 @@ r.get('/dm/chats', async (req, res, next) => {
       `SELECT c.id,
               CASE WHEN c.a_key = $1 THEN c.b_key ELSE c.a_key END AS otro_key,
               u.usuario AS otro_usuario, u.nombre AS otro_nombre, u.avatar AS otro_avatar,
+              (SELECT ch.slug FROM channels ch
+                WHERE ch.user_key = CASE WHEN c.a_key = $1 THEN c.b_key ELSE c.a_key END
+                LIMIT 1) AS otro_canal_slug,
               m.texto AS ultimo_texto, m.tipo AS ultimo_tipo, m.user_key AS ultimo_user_key,
               m.created_at AS ultimo_creado,
               (SELECT COUNT(*)::int FROM dm_mensajes dm
@@ -978,6 +977,8 @@ r.get('/dm/:otroKey/mensajes', async (req, res, next) => {
     const userKey = String(req.query.userKey || '').trim();
     const otroKey = String(req.params.otroKey || '').trim();
     if (!userKey || !otroKey) return res.json({ data: [] });
+    const before = intOrNull(req.query.before);
+    const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 50));
     const conv = await dmConversacion(userKey, otroKey, false);
     if (!conv) return res.json({ data: [] });
     const { rows } = await query(
@@ -999,8 +1000,9 @@ r.get('/dm/:otroKey/mensajes', async (req, res, next) => {
          LEFT JOIN dm_mensajes r ON r.id = m.reply_to
         WHERE m.conversacion_id = $1 AND m.activo = TRUE
           AND NOT ($2 = ANY(COALESCE(m.oculto_para, '{}'::text[])))
-        ORDER BY m.created_at DESC LIMIT 100`,
-      [conv.id, userKey]
+          AND ($3::int IS NULL OR m.id < $3)
+        ORDER BY m.created_at DESC, m.id DESC LIMIT $4`,
+      [conv.id, userKey, before, limit]
     );
     const ap = (await query('SELECT a_alias, b_alias FROM dm_apodos WHERE conversacion_id = $1', [conv.id])).rows[0] || {};
     const esA = String(conv.a_key) === String(userKey);
@@ -1011,14 +1013,10 @@ r.get('/dm/:otroKey/mensajes', async (req, res, next) => {
       color: conv.tema_color || '',
       emoji: conv.tema_emoji || '',
     };
-    res.json({ data: rows.reverse(), miApodo, suApodo, tema });
-    try {
-      await query(
-        `INSERT INTO dm_leido (conversacion_id, user_key, ultimo_leido) VALUES ($1, $2, NOW())
-         ON CONFLICT (conversacion_id, user_key) DO UPDATE SET ultimo_leido = NOW()`,
-        [conv.id, userKey]
-      );
-    } catch { /* opcional */ }
+    const otroUsuarioKey = String(conv.a_key) === String(userKey) ? conv.b_key : conv.a_key;
+    const canal = (await query('SELECT slug FROM channels WHERE user_key = $1 LIMIT 1', [otroUsuarioKey])).rows[0] || null;
+    // NO se marca leido aqui: solo el chat ACTIVO marca leido (POST /dm/:otroKey/leido).
+    res.json({ data: rows.reverse(), hasMore: rows.length === limit, miApodo, suApodo, tema, canal_slug: canal ? canal.slug : null });
   } catch (e) { next(e); }
 });
 
@@ -1042,6 +1040,14 @@ r.post('/dm/:otroKey/mensajes', communityUpload.single('media'), async (req, res
     if (!media && !texto) return res.status(400).json({ error: 'Mensaje vacío' });
 
     const conv = await dmConversacion(user.user_key, otro.user_key, true);
+    // ¿Es el PRIMER mensaje que esta persona le envía? Solo ahí se notifica
+    // (para no crear una alerta por cada mensaje).
+    const previo = await query(
+      'SELECT 1 FROM dm_mensajes WHERE conversacion_id = $1 AND user_key = $2 AND activo = TRUE LIMIT 1',
+      [conv.id, user.user_key]
+    );
+    const esPrimero = !previo.rows[0];
+
     const replyTo = intOrNull(req.body?.reply_to);
     const ins = await query(
       `INSERT INTO dm_mensajes (conversacion_id, user_key, usuario, avatar, texto, tipo, media, reply_to)
@@ -1052,8 +1058,8 @@ r.post('/dm/:otroKey/mensajes', communityUpload.single('media'), async (req, res
     await query('UPDATE dm_conversaciones SET updated_at = NOW() WHERE id = $1', [conv.id]);
     res.status(201).json({ ok: true, mensaje: ins.rows[0] });
     await notify('comunidad_dm', { conv: conv.id, de: user.user_key, para: otro.user_key });
-    // No te notifiques a ti mismo.
-    if (String(otro.user_key) !== String(user.user_key)) {
+    // Notificación solo la primera vez (persona nueva). No te notifiques a ti mismo.
+    if (esPrimero && String(otro.user_key) !== String(user.user_key)) {
       await crearNotificacion({
         userKey: otro.user_key,
         tipo: 'mensaje',
@@ -1079,9 +1085,10 @@ r.put('/dm/:otroKey/mensajes/:msjId', async (req, res, next) => {
     if (!texto) return res.status(400).json({ error: 'El mensaje no puede estar vacío' });
     const conv = await dmConversacion(user.user_key, otroKey, false);
     if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
-    const m = await query('SELECT user_key FROM dm_mensajes WHERE id = $1 AND conversacion_id = $2 AND activo = TRUE', [msjId, conv.id]);
+    const m = await query('SELECT user_key, created_at FROM dm_mensajes WHERE id = $1 AND conversacion_id = $2 AND activo = TRUE', [msjId, conv.id]);
     if (!m.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
     if (String(m.rows[0].user_key) !== String(user.user_key)) return res.status(403).json({ error: 'Solo puedes editar tus mensajes' });
+    if (!esEditable(m.rows[0].created_at)) return res.status(403).json({ error: 'El mensaje es muy antiguo para editarse' });
     await query('UPDATE dm_mensajes SET texto = $2, media = NULL, editado = TRUE WHERE id = $1', [msjId, texto]);
     await notify('comunidad_dm', { conv: conv.id });
     res.json({ ok: true, texto });
@@ -1098,10 +1105,11 @@ r.delete('/dm/:otroKey/mensajes/:msjId', async (req, res, next) => {
     const conv = await dmConversacion(user.user_key, otroKey, false);
     if (!conv) return res.status(404).json({ error: 'Conversación no encontrada' });
     const paraTodos = req.body?.paraTodos === true;
-    const m = await query('SELECT user_key FROM dm_mensajes WHERE id = $1 AND conversacion_id = $2 AND activo = TRUE', [msjId, conv.id]);
+    const m = await query('SELECT user_key, created_at FROM dm_mensajes WHERE id = $1 AND conversacion_id = $2 AND activo = TRUE', [msjId, conv.id]);
     if (!m.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
     if (paraTodos) {
       if (String(m.rows[0].user_key) !== String(user.user_key)) return res.status(403).json({ error: 'Solo puedes eliminar para todos tus mensajes' });
+      if (!esEditable(m.rows[0].created_at)) return res.status(403).json({ error: 'El mensaje es muy antiguo para eliminarse' });
       await query('UPDATE dm_mensajes SET eliminado = TRUE, texto = NULL, media = NULL WHERE id = $1', [msjId]);
     } else {
       await query(
@@ -1273,6 +1281,99 @@ r.post('/mensajes-directos', async (req, res, next) => {
 // ============================================================
 // PRESENCIA (usuarios en línea)
 // ============================================================
+
+// ============================================================
+// AMISTADES (solicitudes, amigos y favoritos)
+// ============================================================
+function parAmistad(a, b) {
+  const x = String(a); const y = String(b);
+  return x < y ? [x, y] : [y, x];
+}
+
+// GET /api/comunidad/amistad/:userKey?me=  -> estado entre dos usuarios
+r.get('/amistad/:userKey', async (req, res, next) => {
+  try {
+    const me = String(req.query.me || '').trim();
+    const otro = String(req.params.userKey || '').trim();
+    if (!me || !otro) return res.json({ estado: null });
+    if (me === otro) return res.json({ estado: 'yo' });
+    const [a, b] = parAmistad(me, otro);
+    const { rows } = await query('SELECT * FROM amistades WHERE a_key = $1 AND b_key = $2', [a, b]);
+    const row = rows[0];
+    if (!row) return res.json({ estado: null });
+    const soyA = String(row.a_key) === String(me);
+    return res.json({
+      estado: row.estado,
+      solicitante: row.solicitante,
+      miSolicitud: String(row.solicitante) === String(me),
+      favorito: soyA ? row.favorito_a : row.favorito_b,
+    });
+  } catch (e) { next(e); }
+});
+
+// POST /api/comunidad/amistad/:userKey  { userKey: me, accion }
+r.post('/amistad/:userKey', async (req, res, next) => {
+  try {
+    const me = String(req.body?.userKey || '').trim();
+    const otro = String(req.params.userKey || '').trim();
+    const accion = String(req.body?.accion || '').trim();
+    if (!me || !otro || me === otro) return res.status(400).json({ error: 'Datos inválidos' });
+    const [a, b] = parAmistad(me, otro);
+    const soyA = a === me;
+
+    if (accion === 'solicitar') {
+      await query(
+        `INSERT INTO amistades (a_key, b_key, solicitante, estado) VALUES ($1, $2, $3, 'pendiente')
+         ON CONFLICT (a_key, b_key) DO UPDATE SET solicitante = $3, estado = 'pendiente', updated_at = NOW()
+         WHERE amistades.estado <> 'aceptado'`,
+        [a, b, me]
+      );
+      try {
+        const u = await query('SELECT user_key, usuario, nombre, avatar FROM users WHERE user_key = $1', [me]);
+        const actor = u.rows[0] || null;
+        await crearNotificacion({
+          userKey: otro,
+          tipo: 'amistad',
+          titulo: 'Nueva solicitud de amistad',
+          texto: `${nameOf(actor || {})} quiere ser tu amigo`,
+          url: '/notificaciones',
+          icono: 'person-add',
+          actor,
+          meta: { de: me },
+        });
+      } catch { /* opcional */ }
+    } else if (accion === 'cancelar') {
+      await query("DELETE FROM amistades WHERE a_key = $1 AND b_key = $2 AND estado = 'pendiente' AND solicitante = $3", [a, b, me]);
+    } else if (accion === 'aceptar') {
+      await query("UPDATE amistades SET estado = 'aceptado', updated_at = NOW() WHERE a_key = $1 AND b_key = $2 AND estado = 'pendiente' AND solicitante = $3", [a, b, otro]);
+      try {
+        const u = await query('SELECT user_key, usuario, nombre, avatar FROM users WHERE user_key = $1', [me]);
+        await crearNotificacion({
+          userKey: otro,
+          tipo: 'amistad',
+          titulo: 'Solicitud aceptada',
+          texto: `${nameOf(u.rows[0] || {})} aceptó tu solicitud de amistad`,
+          url: `/canal/${me}`,
+          icono: 'people',
+          actor: u.rows[0] || null,
+          meta: { de: me },
+        });
+      } catch { /* opcional */ }
+    } else if (accion === 'rechazar') {
+      await query("DELETE FROM amistades WHERE a_key = $1 AND b_key = $2 AND estado = 'pendiente' AND solicitante = $3", [a, b, otro]);
+    } else if (accion === 'eliminar') {
+      await query('DELETE FROM amistades WHERE a_key = $1 AND b_key = $2', [a, b]);
+    } else if (accion === 'favorito' || accion === 'nofavorito') {
+      const col = soyA ? 'favorito_a' : 'favorito_b';
+      await query(`UPDATE amistades SET ${col} = $3, updated_at = NOW() WHERE a_key = $1 AND b_key = $2`, [a, b, accion === 'favorito']);
+    } else {
+      return res.status(400).json({ error: 'Acción inválida' });
+    }
+
+    await notify('amistad', { de: me, para: otro });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
 
 // GET /api/comunidad/presencia
 r.get('/presencia', async (req, res, next) => {

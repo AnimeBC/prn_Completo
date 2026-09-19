@@ -15,6 +15,25 @@
   overflow: hidden;
 }
 
+/* Con diseño activo, la interfaz completa (incluida la lista) usa el tema. */
+.panelThemed .sidebar { border-right-color: rgba(255, 255, 255, 0.18); }
+.panelThemed .sideTitle,
+.panelThemed .convName,
+.panelThemed .convNameNew { color: #fff; }
+.panelThemed .sideIcon { background: rgba(255, 255, 255, 0.18); color: #fff; }
+.panelThemed .searchBox { background: rgba(0, 0, 0, 0.28); }
+.panelThemed .searchIcon { color: rgba(255, 255, 255, 0.8); }
+.panelThemed .searchInput { color: #fff; }
+.panelThemed .searchInput::placeholder { color: rgba(255, 255, 255, 0.75); }
+.panelThemed .chip { color: rgba(255, 255, 255, 0.88); }
+.panelThemed .chip:hover { background: rgba(255, 255, 255, 0.16); }
+.panelThemed .chipActive { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.panelThemed .muted { color: rgba(255, 255, 255, 0.85); }
+.panelThemed .conv:hover { background: rgba(255, 255, 255, 0.12); }
+.panelThemed .convActive { background: rgba(255, 255, 255, 0.2); }
+.panelThemed .convPreview,
+.panelThemed .convPreviewNew { color: rgba(255, 255, 255, 0.85); }
+
 /* ===== Sidebar ===== */
 .sidebar {
   width: 340px;
@@ -107,7 +126,16 @@
   display: flex;
   flex-direction: column;
   scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
 }
+
+.convList::-webkit-scrollbar { width: 6px; }
+.convList::-webkit-scrollbar-track { background: transparent; }
+.convList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+.convList:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.32); }
 
 .muted {
   margin: 0;

@@ -1,0 +1,116 @@
+.spacer {
+  display: none;
+}
+
+.nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .spacer {
+    display: block;
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 300;
+    display: flex;
+    align-items: stretch;
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background-color: var(--bg-card, #18191A);
+    border-top: 1px solid var(--border, #242526);
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+    box-sizing: border-box;
+  }
+
+  .item {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary, #B0B3B8);
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Separadores delgados entre items. */
+  .item + .item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 24%;
+    bottom: 24%;
+    width: 1px;
+    background-color: var(--border, #242526);
+  }
+
+  .iconWrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon {
+    font-size: 22px;
+    color: inherit;
+  }
+
+  .label {
+    font-size: 10px;
+    font-weight: 600;
+    color: inherit;
+    white-space: nowrap;
+  }
+
+  .itemActive {
+    color: var(--primary, #F20D16);
+  }
+
+  /* Item central (En Vivo): elevado y resaltado. */
+  .itemCenter {
+    color: var(--primary, #F20D16);
+  }
+
+  .itemCenter::before,
+  .itemCenter + .item::before {
+    display: none;
+  }
+
+  .itemCenter .iconWrap {
+    width: 44px;
+    height: 44px;
+    margin-top: -22px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #FF2A33, #C40A11);
+    border: 3px solid var(--bg-card, #18191A);
+    box-shadow: 0 8px 18px rgba(242, 13, 22, 0.5);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .itemCenter .icon {
+    color: #fff;
+  }
+
+  .itemCenter .label {
+    color: var(--primary, #F20D16);
+    font-weight: 800;
+    margin-top: 2px;
+  }
+
+  .itemCenter:active .iconWrap {
+    transform: scale(0.94);
+    box-shadow: 0 4px 10px rgba(242, 13, 22, 0.45);
+  }
+}

@@ -22,7 +22,7 @@ const filters = [
 
 export default function Header() {
   const { isDark, toggleTheme } = useTheme();
-  const { isOpen, toggle: toggleSidebar } = useSidebar();
+  const { isOpen, toggle: toggleSidebar, openMaint } = useSidebar();
   const { t, locale } = useLanguage();
   const es = locale !== 'en';
   const [searchOpen, setSearchOpen] = useState(false);
@@ -38,6 +38,36 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const profileRef = useRef(null);
   const initial = (me?.nombre || me?.email || '?').trim().charAt(0).toUpperCase();
+
+  // Header de chat (celular): se muestra al entrar a una conversación.
+  const [isMobile, setIsMobile] = useState(false);
+  const [chatInfo, setChatInfo] = useState(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const upd = () => setIsMobile(mq.matches);
+    upd();
+    mq.addEventListener('change', upd);
+    return () => mq.removeEventListener('change', upd);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    if (window.__pkpChatInfo) setChatInfo(window.__pkpChatInfo);
+    const onChat = (e) => setChatInfo(e?.detail || null);
+    window.addEventListener('pkp:chatopen', onChat);
+    return () => window.removeEventListener('pkp:chatopen', onChat);
+  }, []);
+
+  function volverDelChat() {
+    window.dispatchEvent(new CustomEvent('pkp:chatback'));
+  }
+
+  function irAlCanal() {
+    if (chatInfo?.canal_slug) router.push(`/canal/${chatInfo.canal_slug}`);
+    else openMaint();
+  }
 
   // Cierra el menú del perfil al hacer clic fuera o cambiar de página
   useEffect(() => {
@@ -130,6 +160,41 @@ export default function Header() {
           </button>
         ))}
       </div>
+    );
+  }
+
+  if (isMobile && chatInfo && chatInfo.open) {
+    return (
+      <header className={styles.chatHeader}>
+        <button type="button" className={styles.chatHeadBtn} onClick={volverDelChat} aria-label={es ? 'Volver' : 'Back'}>
+          <ion-icon name="arrow-back-outline" suppressHydrationWarning></ion-icon>
+        </button>
+        <div
+          className={styles.chatHeadUser}
+          role="button"
+          tabIndex={0}
+          onClick={irAlCanal}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); irAlCanal(); } }}
+        >
+          <span className={styles.chatHeadAvatar}>
+            {chatInfo.avatar
+              ? <img src={mediaUrl(chatInfo.avatar)} alt="" />
+              : <span className={styles.chatHeadInitial}>{String(chatInfo.nombre || '?').trim().charAt(0).toUpperCase()}</span>}
+          </span>
+          <span className={styles.chatHeadName}>{chatInfo.nombre}</span>
+        </div>
+        <div className={styles.chatHeadActions}>
+          <button type="button" className={styles.chatHeadBtn} onClick={openMaint} aria-label={es ? 'Llamada de voz' : 'Voice call'} title={es ? 'Próximamente' : 'Coming soon'}>
+            <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
+          </button>
+          <button type="button" className={styles.chatHeadBtn} onClick={openMaint} aria-label={es ? 'Videollamada' : 'Video call'} title={es ? 'Próximamente' : 'Coming soon'}>
+            <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
+          </button>
+          <button type="button" className={styles.chatHeadBtn} onClick={irAlCanal} aria-label={es ? 'Información' : 'Info'}>
+            <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
+          </button>
+        </div>
+      </header>
     );
   }
 

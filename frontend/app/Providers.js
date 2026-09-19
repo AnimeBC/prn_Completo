@@ -7,6 +7,7 @@ import { ContenidoProvider } from "@/_Extras/Datos/ContenidoProvider.js";
 import { RealtimeProvider } from "@/_Extras/TiempoReal/RealtimeProvider.js";
 import { PwaProvider } from "@/_Extras/PWA/PwaProvider.js";
 import { ChatDockProvider } from "@/_Extras/ChatDock/ChatDockProvider.js";
+import { CallProvider } from "@/_Extras/Llamadas/CallProvider.js";
 
 export default function Providers({ children }) {
   return (
@@ -17,7 +18,9 @@ export default function Providers({ children }) {
             <RealtimeProvider>
               <PwaProvider>
                 <ChatDockProvider>
-                  {children}
+                  <CallProvider>
+                    {children}
+                  </CallProvider>
                 </ChatDockProvider>
               </PwaProvider>
             </RealtimeProvider>

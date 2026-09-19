@@ -496,6 +496,7 @@
 .onlineItem:hover { background: var(--bg-surface, #18181B); }
 .onlineName { font-size: 12px; font-weight: 700; display: block; }
 .onlineState { font-size: 10px; color: #22C55E; }
+.onlineStateOff { color: var(--text-secondary, #A1A1AA); }
 .onlineChatIcon { margin-left: auto; font-size: 16px; color: var(--text-secondary, #A1A1AA); }
 .onlineItem:hover .onlineChatIcon { color: var(--primary, #F20D16); }
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import styles from './mensajes.module.css';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
@@ -54,7 +55,15 @@ export default function Mensajes() {
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(false);
   const [mantGrupo, setMantGrupo] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [stories, setStories] = useState([]);
+  const [story, setStory] = useState(null);
+  const [prog, setProg] = useState(0);
+  const progRef = useRef(0);
+  const pauseRef = useRef(false);
   const wrapRef = useRef(null);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const load = useCallback(async () => {
     if (!authed || !userKey) { setChats([]); return; }
@@ -94,18 +103,95 @@ export default function Mensajes() {
     setLoading(false);
   }, [authed, userKey]);
 
-  useEffect(() => { if (open) load(); }, [open, load]);
+  // Siempre cargado (aunque el panel esté cerrado) para que el contador
+  // del ícono se actualice en tiempo real.
+  useEffect(() => { load(); }, [load]);
+
+  // Historias (para mostrarlas y verlas desde el panel).
+  const loadStories = useCallback(async () => {
+    if (!authed || !userKey) { setStories([]); return; }
+    const r = await apiComunidad.stories().catch(() => null);
+    if (Array.isArray(r?.data)) setStories(r.data);
+  }, [authed, userKey]);
+
+  useEffect(() => { loadStories(); }, [loadStories]);
+
+  // Realtime por Redis (SSE -> pikantepe:change): sin polling.
+  useEffect(() => {
+    if (!authed) return undefined;
+    const onChange = (e) => {
+      load();
+      if (String(e?.detail?.type || '') === 'comunidad_story') loadStories();
+    };
+    window.addEventListener('pikantepe:change', onChange);
+    return () => window.removeEventListener('pikantepe:change', onChange);
+  }, [authed, load, loadStories]);
+
+  // Agrupa las historias por usuario (varias del mismo = una tarjeta).
+  const storyGroups = useMemo(() => {
+    const map = new Map();
+    for (const s of stories) {
+      const k = s.user_key || s.usuario;
+      if (!k) continue;
+      if (!map.has(k)) map.set(k, { key: k, usuario: s.usuario, avatar: s.avatar, stories: [] });
+      map.get(k).stories.push(s);
+    }
+    const arr = [...map.values()];
+    arr.forEach((g) => g.stories.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)));
+    return arr;
+  }, [stories]);
+
+  function irStory(dir) {
+    setStory((cur) => {
+      if (!cur) return cur;
+      const gp = storyGroups[cur.gi];
+      let gi = cur.gi;
+      let i = cur.i + dir;
+      if (i < 0) {
+        gi -= 1;
+        if (gi < 0) return cur;
+        i = (storyGroups[gi]?.stories.length || 1) - 1;
+      } else if (!gp || i >= gp.stories.length) {
+        gi += 1;
+        if (gi >= storyGroups.length) return null;
+        i = 0;
+      }
+      return { gi, i };
+    });
+  }
+
+  // Progreso de la historia: 5s en imagen/texto; el video usa su tiempo.
+  useEffect(() => {
+    if (!story) { setProg(0); return undefined; }
+    progRef.current = 0;
+    pauseRef.current = false;
+    setProg(0);
+    const actual = storyGroups[story.gi]?.stories[story.i];
+    if (actual?.id) apiComunidad.verStory(actual.id, userKey).catch(() => {});
+    if (!actual || actual.tipo === 'video') return undefined;
+    const iv = setInterval(() => {
+      if (pauseRef.current) return;
+      progRef.current += 50;
+      const p = Math.min(100, (progRef.current / 5000) * 100);
+      setProg(p);
+      if (p >= 100) irStory(1);
+    }, 50);
+    return () => clearInterval(iv);
+  }, [story?.gi, story?.i]);
 
   useEffect(() => {
-    if (!open || !authed) return undefined;
-    const iv = setInterval(load, 20000);
-    const onChange = () => load();
-    window.addEventListener('pikantepe:change', onChange);
-    return () => {
-      clearInterval(iv);
-      window.removeEventListener('pikantepe:change', onChange);
+    if (!story) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setStory(null);
+      else if (e.key === 'ArrowRight') irStory(1);
+      else if (e.key === 'ArrowLeft') irStory(-1);
     };
-  }, [open, authed, load]);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [story]);
+
+  // Al abrir el panel, refresca al toque.
+  useEffect(() => { if (open) load(); }, [open, load]);
 
   useEffect(() => {
     function onDoc(e) {
@@ -130,8 +216,9 @@ export default function Mensajes() {
   function abrirChat(c) {
     if (c.tipo === 'grupo') { setMantGrupo(true); return; }
     // Los amigos abren su ventana flotante global.
+    // (El "visto" lo marca el propio chat cuando el input está enfocado.)
     abrir(c.chat, c.tipo);
-    apiComunidad.dmLeido(c.otro_key, userKey);
+    setTimeout(load, 1200);
   }
 
   const initial = (user?.nombre || user?.email || '?').trim().charAt(0).toUpperCase();
@@ -141,7 +228,14 @@ export default function Mensajes() {
       <button
         type="button"
         className={styles.bellBtn}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
+            setOpen(false);
+            router.push('/chat');
+            return;
+          }
+          setOpen((o) => !o);
+        }}
         aria-label={es ? 'Mensajes' : 'Messages'}
         aria-expanded={open}
       >
@@ -181,6 +275,37 @@ export default function Mensajes() {
               </button>
             </div>
           </div>
+
+          {(storyGroups.length > 0 || authed) && (
+            <div className={styles.stories}>
+              <div className={styles.storiesScroll}>
+                <button
+                  type="button"
+                  className={styles.storyItem}
+                  onClick={() => { setOpen(false); router.push('/comunidad'); }}
+                  title={es ? 'Crear historia' : 'Create story'}
+                >
+                  <span className={styles.storyRingCreate}>
+                    {user?.avatar
+                      ? <img src={mediaUrl(user.avatar)} alt="" />
+                      : <span className={styles.storyInitial}>{initial}</span>}
+                    <span className={styles.storyPlus}><ion-icon name="add" suppressHydrationWarning></ion-icon></span>
+                  </span>
+                  <span className={styles.storyName}>{es ? 'Crear historia' : 'Create story'}</span>
+                </button>
+                {storyGroups.map((gp, gi) => (
+                  <button key={gp.key} type="button" className={styles.storyItem} onClick={() => setStory({ gi, i: 0 })}>
+                    <span className={styles.storyRing}>
+                      {gp.avatar
+                        ? <img src={mediaUrl(gp.avatar)} alt="" />
+                        : <span className={styles.storyInitial}>{String(gp.usuario || '?').trim().charAt(0).toUpperCase()}</span>}
+                    </span>
+                    <span className={styles.storyName}>{gp.usuario}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className={styles.searchRow}>
             <div className={styles.searchBox}>
@@ -257,6 +382,60 @@ export default function Mensajes() {
           </div>
         </div>
       )}
+
+      {mounted && story && createPortal((() => {
+        const gp = storyGroups[story.gi];
+        const actual = gp?.stories?.[story.i];
+        if (!actual) return null;
+        return (
+          <div className={styles.storyViewer} role="dialog" aria-label={es ? 'Historia' : 'Story'}>
+            <div className={styles.storyViewerCard}>
+              <div className={styles.storyViewerProg}>
+                {gp.stories.map((s, i) => (
+                  <span key={s.id || i} className={styles.storyViewerSeg}>
+                    <span
+                      className={styles.storyViewerSegFill}
+                      style={{ width: i < story.i ? '100%' : (i === story.i ? `${prog}%` : '0%') }}
+                    />
+                  </span>
+                ))}
+              </div>
+              <div className={styles.storyViewerHead}>
+                <span className={styles.storyViewerAvatar}>
+                  {gp.avatar
+                    ? <img src={mediaUrl(gp.avatar)} alt="" />
+                    : String(gp.usuario || '?').trim().charAt(0).toUpperCase()}
+                </span>
+                <span className={styles.storyViewerName}>{gp.usuario}</span>
+                <button type="button" className={styles.storyViewerX} onClick={() => setStory(null)} aria-label="Cerrar">
+                  <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
+                </button>
+              </div>
+              <div className={styles.storyViewerBody}>
+                {actual.tipo === 'video' ? (
+                  <video
+                    className={styles.storyViewerMedia}
+                    src={mediaUrl(actual.media)}
+                    autoPlay
+                    playsInline
+                    onTimeUpdate={(e) => {
+                      const v = e.currentTarget;
+                      if (v.duration) setProg(Math.min(100, (v.currentTime / v.duration) * 100));
+                    }}
+                    onEnded={() => irStory(1)}
+                  />
+                ) : actual.media ? (
+                  <img className={styles.storyViewerMedia} src={mediaUrl(actual.media)} alt="" />
+                ) : (
+                  <div className={styles.storyViewerText}>{actual.texto}</div>
+                )}
+                <button type="button" className={`${styles.storyNav} ${styles.storyNavL}`} onClick={() => irStory(-1)} aria-label="Anterior" />
+                <button type="button" className={`${styles.storyNav} ${styles.storyNavR}`} onClick={() => irStory(1)} aria-label="Siguiente" />
+              </div>
+            </div>
+          </div>
+        );
+      })(), document.body)}
 
       <Compositor
         open={compOpen}

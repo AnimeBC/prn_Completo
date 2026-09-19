@@ -34,7 +34,7 @@ function cleanPos(value) {
 async function channelBySlug(slug) {
   const { rows } = await query(
     `SELECT id, nombre, slug, descripcion, avatar, avatar_pos, banner, banner_pos, pais,
-            verificado, seguidores, created_at
+            verificado, seguidores, created_at, user_key
        FROM channels
       WHERE slug = $1 AND activo = TRUE
       LIMIT 1`,
@@ -176,6 +176,66 @@ r.post('/mine/banner', authRequired, upload.single('banner'), async (req, res, n
   try {
     const ch = await mineChannel(req);
     if (!ch) return res.status(404).json({ error: 'No tienes un canal asignado' });
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Adjunta una imagen' });
+    if (!/^image\//.test(file.mimetype) && !/\.(png|jpe?g|webp|avif)$/i.test(file.originalname)) {
+      fs.rm(file.path, { force: true }, () => {});
+      return res.status(400).json({ error: 'Formato de imagen no permitido (png/jpg/webp/avif)' });
+    }
+
+    const folder = channelFolder(ch);
+    fs.mkdirSync(folder, { recursive: true });
+    removeFileInFolder(ch.banner, folder);
+
+    const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
+    const target = path.join(folder, `banner${ext}`);
+    try { fs.renameSync(file.path, target); } catch { fs.copyFileSync(file.path, target); fs.rm(file.path, { force: true }, () => {}); }
+    const bannerPublic = publicOf(target);
+
+    await query('UPDATE channels SET banner = $2, updated_at = NOW() WHERE id = $1', [ch.id, bannerPublic]);
+    await publishEvent('channel_updated', { id: ch.id });
+    res.json({ ok: true, banner: bannerPublic });
+  } catch (e) { next(e); }
+});
+
+// ---- Canal del usuario normal (por user_key) ----
+async function channelByUserKey(userKey) {
+  if (!userKey) return null;
+  const { rows } = await query('SELECT * FROM channels WHERE user_key = $1 LIMIT 1', [userKey]);
+  return rows[0] || null;
+}
+
+// POST /api/channels/user/avatar  (multipart: avatar, body userKey)
+r.post('/user/avatar', avatarUpload.single('avatar'), async (req, res, next) => {
+  try {
+    const userKey = normalizeUserKey(req.body?.userKey);
+    if (!userKey) return res.status(400).json({ error: 'userKey inválido' });
+    const ch = await channelByUserKey(userKey);
+    if (!ch) return res.status(404).json({ error: 'No tienes canal' });
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Adjunta una imagen' });
+
+    const folder = channelFolder(ch);
+    removeFileInFolder(ch.avatar, folder);
+
+    const { renditions, main } = await transcodeAvatar({ inputPath: file.path, destDir: folder });
+    fs.rm(file.path, { force: true }, () => {});
+    const chosen = (renditions || []).find((x) => x.size === 400) || (renditions || [])[0];
+    const avatarPublic = publicOf(path.join(folder, chosen ? chosen.file : main));
+
+    await query('UPDATE channels SET avatar = $2, updated_at = NOW() WHERE id = $1', [ch.id, avatarPublic]);
+    await publishEvent('channel_updated', { id: ch.id });
+    res.json({ ok: true, avatar: avatarPublic });
+  } catch (e) { next(e); }
+});
+
+// POST /api/channels/user/banner  (multipart: banner, body userKey)
+r.post('/user/banner', upload.single('banner'), async (req, res, next) => {
+  try {
+    const userKey = normalizeUserKey(req.body?.userKey);
+    if (!userKey) return res.status(400).json({ error: 'userKey inválido' });
+    const ch = await channelByUserKey(userKey);
+    if (!ch) return res.status(404).json({ error: 'No tienes canal' });
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'Adjunta una imagen' });
     if (!/^image\//.test(file.mimetype) && !/\.(png|jpe?g|webp|avif)$/i.test(file.originalname)) {

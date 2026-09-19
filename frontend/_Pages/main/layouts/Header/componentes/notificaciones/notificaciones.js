@@ -93,6 +93,11 @@ export default function Notificaciones() {
   }, []);
 
   async function abrir() {
+    // En celular las notificaciones son una página completa.
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
+      router.push('/notificaciones');
+      return;
+    }
     const next = !open;
     setOpen(next);
     if (next) load();

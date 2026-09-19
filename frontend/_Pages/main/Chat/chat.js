@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './chat.module.css';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
@@ -35,6 +35,14 @@ export default function ChatClient() {
   const [q, setQ] = useState('');
   const [filtro, setFiltro] = useState('todos');
   const [compOpen, setCompOpen] = useState(false);
+  const [tema, setTema] = useState({ gradient: '', color: '', emoji: '' });
+
+  // El diseño del chat activo se aplica a TODA la interfaz de /chat.
+  const onTema = useCallback((t) => {
+    setTema((prev) => (
+      prev.gradient === t.gradient && prev.color === t.color && prev.emoji === t.emoji ? prev : t
+    ));
+  }, []);
 
   const cargar = useCallback(async () => {
     if (!authed || !userKey) { setGrupos([]); setDms([]); setLoading(false); return; }
@@ -56,6 +64,25 @@ export default function ChatClient() {
     else if (conv) setSel(`g:${conv}`);
   }, []);
 
+  // Sin conversación activa, se quita el tema de la interfaz.
+  useEffect(() => {
+    if (!sel) setTema({ gradient: '', color: '', emoji: '' });
+  }, [sel]);
+
+  // Selecciona una conversación y refleja la URL (/chat?dm=<key> o /chat?conv=<id>).
+  function seleccionar(key) {
+    setSel(key);
+    if (typeof window === 'undefined') return;
+    const target = key
+      ? (key.startsWith('d:')
+        ? `/chat?dm=${encodeURIComponent(key.slice(2))}`
+        : `/chat?conv=${encodeURIComponent(key.slice(2))}`)
+      : '/chat';
+    if (`${window.location.pathname}${window.location.search}` !== target) {
+      router.replace(target, { scroll: false });
+    }
+  }
+
   useEffect(() => {
     const onChange = (e) => {
       const t = String(e?.detail?.type || '');
@@ -64,6 +91,13 @@ export default function ChatClient() {
     window.addEventListener('pikantepe:change', onChange);
     return () => window.removeEventListener('pikantepe:change', onChange);
   }, [cargar]);
+
+  // El header (botón atrás) avisa para cerrar el chat.
+  useEffect(() => {
+    const onBack = () => seleccionar('');
+    window.addEventListener('pkp:chatback', onBack);
+    return () => window.removeEventListener('pkp:chatback', onBack);
+  }, []);
 
   const convos = useMemo(() => {
     const g = grupos.map((c) => ({
@@ -90,7 +124,8 @@ export default function ChatClient() {
         ultimo_tipo: c.ultimo_tipo,
         ultimo_user_key: c.ultimo_user_key,
         ultimo_creado: c.ultimo_creado,
-        chat: { user_key: c.otro_key, usuario: nombre, avatar: c.otro_avatar },
+        canal_slug: c.otro_canal_slug || null,
+        chat: { user_key: c.otro_key, usuario: nombre, avatar: c.otro_avatar, canal_slug: c.otro_canal_slug || null },
       };
     });
     return [...g, ...d].sort((a, b) => new Date(b.ultimo_creado || 0) - new Date(a.ultimo_creado || 0));
@@ -98,11 +133,36 @@ export default function ChatClient() {
 
   const activa = convos.find((c) => c.key === sel) || null;
 
+  // Avisa si hay un chat abierto + sus datos (para el header y la barra inferior).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const info = activa ? {
+      open: true,
+      tipo: activa.tipo,
+      user_key: activa.tipo === 'dm' ? (activa.chat?.user_key || null) : null,
+      nombre: activa.nombre || '',
+      avatar: activa.avatar || null,
+      canal_slug: activa.canal_slug || null,
+    } : { open: false };
+    window.__pkpChatOpen = !!activa;
+    window.__pkpChatInfo = info;
+    window.dispatchEvent(new CustomEvent('pkp:chatopen', { detail: info }));
+  }, [activa]);
+
+  useEffect(() => () => {
+    if (typeof window === 'undefined') return;
+    window.__pkpChatOpen = false;
+    window.__pkpChatInfo = { open: false };
+    window.dispatchEvent(new CustomEvent('pkp:chatopen', { detail: { open: false } }));
+  }, []);
+
   const visibles = convos.filter((c) => {
     if (filtro === 'noLeidos' && !(c.no_leidos > 0)) return false;
     if (q.trim() && !String(c.nombre || '').toLowerCase().includes(q.trim().toLowerCase())) return false;
     return true;
   });
+
+  const themed = !!(tema.gradient || tema.color);
 
   if (!authed) {
     return (
@@ -121,7 +181,10 @@ export default function ChatClient() {
 
   return (
     <main className={styles.main}>
-      <div className={styles.panel}>
+      <div
+        className={`${styles.panel} ${themed ? styles.panelThemed : ''}`}
+        style={themed ? { background: tema.gradient || tema.color } : undefined}
+      >
         {/* ===== Lista de chats ===== */}
         <aside className={`${styles.sidebar} ${sel ? styles.sidebarHideMobile : ''}`}>
           <div className={styles.sideHead}>
@@ -157,7 +220,7 @@ export default function ChatClient() {
             ) : visibles.map((c) => {
               const yo = c.ultimo_user_key && String(c.ultimo_user_key) === String(userKey);
               return (
-                <button key={c.key} type="button" className={`${styles.conv} ${sel === c.key ? styles.convActive : ''}`} onClick={() => setSel(c.key)}>
+                <button key={c.key} type="button" className={`${styles.conv} ${sel === c.key ? styles.convActive : ''}`} onClick={() => seleccionar(c.key)}>
                   {c.avatar
                     ? <img className={styles.convAvatar} src={mediaUrl(c.avatar)} alt="" loading="lazy" />
                     : <span className={styles.convAvatarFallback}>{(c.nombre || '?').charAt(0).toUpperCase()}</span>}
@@ -188,7 +251,7 @@ export default function ChatClient() {
             <div className={styles.placeholder}>
               <span className={styles.placeholderIcon}><ion-icon name="construct-outline" suppressHydrationWarning></ion-icon></span>
               <p className={styles.placeholderText}>{es ? 'Grupos en mantenimiento' : 'Groups under maintenance'}</p>
-              <Mantenimiento open onClose={() => setSel('')} />
+              <Mantenimiento open onClose={() => seleccionar('')} />
             </div>
           ) : (
             <ChatFlotante
@@ -197,7 +260,8 @@ export default function ChatClient() {
               tipo={activa.tipo}
               chat={activa.chat}
               userKey={userKey}
-              onBack={() => setSel('')}
+              onBack={() => seleccionar('')}
+              onTema={onTema}
             />
           )}
         </section>

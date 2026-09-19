@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './comunidad.module.css';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
@@ -98,6 +98,7 @@ export default function ComunidadClient() {
   const [grupos, setGrupos] = useState([]);
   const [destacados, setDestacados] = useState([]);
   const [presencia, setPresencia] = useState([]);
+  const [amigos, setAmigos] = useState([]);
   const { abrir: abrirDock } = useChatDock();
   const [mantGrupo, setMantGrupo] = useState(false);
   const [chats, setChats] = useState([]);
@@ -127,6 +128,21 @@ export default function ComunidadClient() {
     setCargando(false);
   }, [userKey]);
 
+  // Amigos = contactos con los que ya tienes conversación (no cualquiera).
+  const cargarAmigos = useCallback(async () => {
+    if (!userKey) { setAmigos([]); return; }
+    const dm = await apiComunidad.dmChats(userKey);
+    if (Array.isArray(dm?.data)) {
+      setAmigos(dm.data.map((c) => ({
+        user_key: c.otro_key,
+        usuario: c.otro_usuario || c.otro_nombre || 'Usuario',
+        avatar: c.otro_avatar,
+        no_leidos: c.no_leidos || 0,
+        ultimo_creado: c.ultimo_creado,
+      })));
+    }
+  }, [userKey]);
+
   const cargarTodo = useCallback(async () => {
     const [st, gr, pr, dest] = await Promise.all([
       apiComunidad.stories(),
@@ -137,12 +153,13 @@ export default function ComunidadClient() {
     if (Array.isArray(st.data)) setStories(st.data);
     if (Array.isArray(gr.data)) setGrupos(gr.data);
     if (Array.isArray(pr.data)) setPresencia(pr.data);
+    cargarAmigos();
     let destList = Array.isArray(dest.data) ? dest.data : [];
     if (!destList.length && Array.isArray(gr.data)) {
       destList = [...gr.data].sort((a, b) => Number(b.miembros) - Number(a.miembros)).slice(0, 4);
     }
     setDestacados(destList);
-  }, [userKey]);
+  }, [userKey, cargarAmigos]);
 
   useEffect(() => { cargarFeed(); }, [cargarFeed]);
   useEffect(() => { cargarTodo(); }, [cargarTodo]);
@@ -268,6 +285,9 @@ export default function ComunidadClient() {
       if (['comunidad_story', 'comunidad_grupo', 'comunidad_join', 'comunidad_solicitud'].includes(tipo)) {
         cargarTodo();
       }
+      if (tipo === 'comunidad_dm') {
+        cargarAmigos();
+      }
       if (tipo === 'comunidad_story_reaccion') {
         const p = e?.detail?.payload;
         if (p?.emoji && p?.id === storyIdRef.current) lanzarReaccion(p.emoji);
@@ -275,7 +295,7 @@ export default function ComunidadClient() {
     }
     window.addEventListener('pikantepe:change', onCambio);
     return () => window.removeEventListener('pikantepe:change', onCambio);
-  }, [cargarFeed, cargarMensajesChat, cargarTodo]);
+  }, [cargarFeed, cargarMensajesChat, cargarTodo, cargarAmigos]);
 
   function requireAuth() {
     if (authed) return true;
@@ -559,9 +579,25 @@ export default function ComunidadClient() {
     return out;
   }
 
-  function abrirChat() {
-    // Los grupos están en mantenimiento por ahora.
+  function esMovil() {
+    return typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+  }
+
+  function abrirChat(g) {
+    // En celular se abre el chat a pantalla completa; en PC, modal de mantenimiento.
+    if (esMovil()) {
+      if (g && g.id) router.push(`/chat?conv=${encodeURIComponent(g.id)}`);
+      return;
+    }
     setMantGrupo(true);
+  }
+
+  function abrirAmigo(u) {
+    if (esMovil()) {
+      router.push(`/chat?dm=${encodeURIComponent(u.user_key)}`);
+      return;
+    }
+    abrirDock({ user_key: u.user_key, usuario: u.usuario, avatar: u.avatar }, 'dm');
   }
 
   function cerrarChat(id) {
@@ -621,10 +657,24 @@ export default function ComunidadClient() {
     setMsg(es ? 'Reportado. Gracias, lo revisaremos.' : 'Reported. Thanks, we will review it.');
   }
 
-  const onlineFiltrados = presencia.filter((u) => {
+  // Amigos = contactos con los que ya tienes conversación (no cualquiera).
+  const onlineSet = useMemo(() => new Set(presencia.map((p) => String(p.user_key))), [presencia]);
+  const amigosFiltrados = useMemo(() => {
     const q = onlineQ.trim().toLowerCase();
-    return !q || String(u.usuario || '').toLowerCase().includes(q);
-  });
+    const yo = String(userKey || '');
+    return amigos
+      .filter((u) => !q || String(u.usuario || '').toLowerCase().includes(q))
+      .sort((a, b) => {
+        // Mi propio chat (conmigo mismo) siempre primero.
+        const sa = String(a.user_key) === yo ? 1 : 0;
+        const sb = String(b.user_key) === yo ? 1 : 0;
+        if (sa !== sb) return sb - sa;
+        const oa = onlineSet.has(String(a.user_key)) ? 1 : 0;
+        const ob = onlineSet.has(String(b.user_key)) ? 1 : 0;
+        if (oa !== ob) return ob - oa;
+        return new Date(b.ultimo_creado || 0) - new Date(a.ultimo_creado || 0);
+      });
+  }, [amigos, onlineQ, onlineSet, userKey]);
 
   // Nunca deja la columna vacía: si no hay destacados, usa los más visitados.
   const gruposDestacados = destacados.length
@@ -904,7 +954,7 @@ export default function ComunidadClient() {
           <div className={styles.card}>
             <div className={styles.blockHead}>
               <span className={styles.blockTitle}>
-                {es ? `Amigos (${presencia.length})` : `Friends (${presencia.length})`}
+                {es ? `Amigos (${amigos.length})` : `Friends (${amigos.length})`}
                 <ion-icon name="ellipse" className={styles.dotGreen} suppressHydrationWarning></ion-icon>
               </span>
             </div>
@@ -914,32 +964,40 @@ export default function ComunidadClient() {
               value={onlineQ}
               onChange={(e) => { setOnlineQ(e.target.value); setOnlineLimit(6); }}
             />
-            {onlineFiltrados.length === 0 ? (
-              <p className={styles.emptySm}>{es ? 'Nadie en línea ahora.' : 'Nobody online now.'}</p>
+            {amigosFiltrados.length === 0 ? (
+              <p className={styles.emptySm}>
+                {amigos.length === 0
+                  ? (es ? 'Aún no tienes amigos. Escríbele a alguien para agregarlo.' : 'No friends yet. Message someone to add them.')
+                  : (es ? 'Sin resultados.' : 'No results.')}
+              </p>
             ) : (
               <div
                 className={styles.onlineList}
                 onScroll={(e) => {
                   const el = e.currentTarget;
-                  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 24) {
-                    setOnlineLimit((n) => Math.min(n + 6, onlineFiltrados.length));
+                  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 48) {
+                    setOnlineLimit((n) => Math.min(n + 8, amigosFiltrados.length));
                   }
                 }}
               >
-                {onlineFiltrados.slice(0, onlineLimit).map((u) => (
+                {amigosFiltrados.slice(0, onlineLimit).map((u) => (
                   <div
                     key={u.user_key}
                     className={styles.onlineItem}
                     role="button"
                     tabIndex={0}
-                    onClick={() => abrirDock({ user_key: u.user_key, usuario: u.usuario, avatar: u.avatar }, 'dm')}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirDock({ user_key: u.user_key, usuario: u.usuario, avatar: u.avatar }, 'dm'); } }}
+                    onClick={() => abrirAmigo(u)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirAmigo(u); } }}
                     title={es ? 'Enviar mensaje' : 'Send message'}
                   >
                     <span className={styles.avatarSm}>{u.avatar ? <img src={comunidadMedia(u.avatar)} alt="" /> : ini(u.usuario)}</span>
                     <div>
-                      <span className={styles.onlineName}>{u.usuario}</span>
-                      <span className={styles.onlineState}>{es ? 'en línea' : 'online'}</span>
+                      <span className={styles.onlineName}>
+                        {u.usuario}{String(u.user_key) === String(userKey) ? (es ? ' (Tú)' : ' (You)') : ''}
+                      </span>
+                      <span className={`${styles.onlineState} ${onlineSet.has(String(u.user_key)) ? '' : styles.onlineStateOff}`}>
+                        {onlineSet.has(String(u.user_key)) ? (es ? 'en línea' : 'online') : (es ? 'desconectado' : 'offline')}
+                      </span>
                     </div>
                     <ion-icon name="chatbubble-ellipses-outline" className={styles.onlineChatIcon} suppressHydrationWarning></ion-icon>
                   </div>

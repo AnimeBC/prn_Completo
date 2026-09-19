@@ -188,7 +188,16 @@
   flex-direction: column;
   padding: 0 8px 6px;
   scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
 }
+
+.list::-webkit-scrollbar { width: 6px; }
+.list::-webkit-scrollbar-track { background: transparent; }
+.list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+}
+.list:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.32); }
 
 .muted {
   margin: 0;
@@ -255,6 +264,11 @@
   background-color: rgba(255, 255, 255, 0.04);
 }
 
+/* Separador delgado entre conversaciones. */
+.item + .item {
+  border-top: 1px solid var(--border, #242526);
+}
+
 .avatar {
   width: 48px;
   height: 48px;
@@ -268,8 +282,9 @@
   height: 48px;
   border-radius: 50%;
   flex-shrink: 0;
-  background-color: var(--bg-surface, #3A3B3C);
-  color: #fff;
+  background-color: transparent;
+  border: 1px solid var(--border, #4E4F50);
+  color: var(--text-secondary, #B0B3B8);
   font-weight: 800;
   font-size: 18px;
   display: flex;
@@ -341,6 +356,240 @@
   cursor: pointer;
   font-family: inherit;
 }
+
+/* ===== Historias ===== */
+.stories {
+  padding: 2px 12px 8px;
+}
+
+.storiesScroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.storiesScroll::-webkit-scrollbar {
+  display: none;
+}
+
+.storyItem {
+  flex-shrink: 0;
+  width: 62px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.storyRing {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(45deg, #F20D16, #F5A623);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.storyRing img,
+.storyInitial {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--bg-card, #18191A);
+  background-color: var(--bg-surface, #3A3B3C);
+  color: #fff;
+  font-weight: 800;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.storyRingCreate {
+  position: relative;
+  width: 56px;
+  height: 56px;
+}
+
+.storyRingCreate img,
+.storyRingCreate .storyInitial {
+  width: 56px;
+  height: 56px;
+  border: none;
+}
+
+.storyPlus {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--primary, #F20D16);
+  border: 2px solid var(--bg-card, #18191A);
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.storyName {
+  font-size: 10px;
+  color: var(--text-secondary, #B0B3B8);
+  max-width: 62px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+/* ===== Visor de historia ===== */
+.storyViewer {
+  position: fixed;
+  inset: 0;
+  z-index: 4500;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.storyViewerCard {
+  position: relative;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  height: min(640px, calc(100dvh - 40px));
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.storyViewerProg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+}
+
+.storyViewerSeg {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.35);
+  overflow: hidden;
+}
+
+.storyViewerSegFill {
+  display: block;
+  height: 100%;
+  background: #fff;
+}
+
+.storyViewerHead {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.storyViewerAvatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #333;
+  color: #fff;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.storyViewerAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.storyViewerName {
+  flex: 1;
+  min-width: 0;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.storyViewerX {
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 22px;
+  display: flex;
+  cursor: pointer;
+}
+
+.storyViewerBody {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.storyViewerMedia {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.storyViewerText {
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 24px;
+  text-align: center;
+}
+
+.storyNav {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 35%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.storyNavL { left: 0; }
+.storyNavR { right: 0; }
 
 /* Light theme */
 [data-theme="light"] .panel {

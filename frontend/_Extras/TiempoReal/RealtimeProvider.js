@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
+import { initSonido, playNotification, setSonidoActivo } from '@/_Extras/Sonido/sonido.js';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -27,9 +29,24 @@ const RealtimeContext = createContext({ connected: false, lastEvent: null });
  */
 export function RealtimeProvider({ children }) {
   const router = useRouter();
+  const { user, userKey } = useAuth();
   const [connected, setConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState(null);
   const esRef = useRef(null);
+  const mineRef = useRef('');
+  mineRef.current = user?.user_key || userKey || '';
+
+  // Sonido: desbloqueo por gesto + ajuste global (activo por defecto).
+  useEffect(() => { initSonido(); }, []);
+  useEffect(() => {
+    let alive = true;
+    const k = user?.user_key || userKey || '';
+    fetch(`${API}/api/ajustes/sonido${k ? `?userKey=${encodeURIComponent(k)}` : ''}`)
+      .then((r) => r.json())
+      .then((j) => { if (alive) setSonidoActivo(j?.activo); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [user?.user_key, userKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
@@ -49,9 +66,21 @@ export function RealtimeProvider({ children }) {
         const data = JSON.parse(e.data);
         setLastEvent(data);
         window.dispatchEvent(new CustomEvent('pikantepe:change', { detail: data }));
+        const tipo = String(data?.type || '');
+        const p = data?.payload || {};
+        const mine = String(mineRef.current || '');
+        // Sonido: solo cuando llega algo PARA mí (mensaje/notificacion).
+        let sonar = false;
+        if (tipo === 'notificacion') sonar = !!p.userKey && String(p.userKey) === mine;
+        else if (tipo === 'notificacion_admin') sonar = true;
+        else if (tipo === 'comunidad_dm') {
+          sonar = !!p.para && String(p.para) === mine && String(p.de || '') !== mine;
+        } else if (tipo === 'comunidad_mensaje') {
+          sonar = !!p.de && String(p.de) !== mine;
+        }
+        if (sonar) playNotification();
         // refresca datos de los server components (solo cambios de contenido).
         // Se difiere para evitar "Router action dispatched before initialization".
-        const tipo = String(data?.type || '');
         if (!NO_REFRESH.has(tipo) && !tipo.startsWith('comunidad_')) {
           setTimeout(() => {
             try { router.refresh(); } catch { /* router aún no listo */ }

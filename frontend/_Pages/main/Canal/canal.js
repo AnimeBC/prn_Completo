@@ -6,6 +6,8 @@ import styles from './canal.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
+import { apiComunidad } from '@/_Extras/Comunidad/api.js';
+import { useChatDock } from '@/_Extras/ChatDock/ChatDockProvider.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
 import AuthModal from '@/_Pages/main/Auth/AuthModal';
 import { videoUrl } from '@/_Extras/Datos/urls.js';
@@ -125,6 +127,10 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
   const [loading, setLoading] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [rel, setRel] = useState(null);
+  const [relBusy, setRelBusy] = useState(false);
+  const [favOpen, setFavOpen] = useState(false);
+  const { abrir: abrirDock } = useChatDock();
 
   const [lists, setLists] = useState({
     packs: { data: [], total: 0, pages: 1, page: 1, loading: false, more: false, loaded: false },
@@ -133,6 +139,9 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
 
   const firstRender = useRef(true);
   const listTopRef = useRef(null);
+  const avatarInputRef = useRef(null);
+  const bannerInputRef = useRef(null);
+  const [subiendoImg, setSubiendoImg] = useState(false);
 
   function scrollTop() {
     if (listTopRef.current) listTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -229,6 +238,55 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
     finally { setBusy(false); }
   }
 
+  // Amistad con el dueño del canal
+  const duenoKey = channel?.user_key || initialChannel?.user_key || null;
+
+  const cargarRel = useCallback(async () => {
+    if (!authed || !userKey || !duenoKey || String(duenoKey) === String(userKey)) { setRel(null); return; }
+    const r = await apiComunidad.amistad(duenoKey, userKey);
+    setRel(r && !r.error ? r : null);
+  }, [authed, userKey, duenoKey]);
+
+  useEffect(() => { cargarRel(); }, [cargarRel]);
+
+  async function accionAmistad(acc) {
+    if (!authed) { setAuthOpen(true); return; }
+    if (!duenoKey || String(duenoKey) === String(userKey)) return;
+    setRelBusy(true);
+    await apiComunidad.amistadAccion(duenoKey, userKey, acc);
+    await cargarRel();
+    setRelBusy(false);
+    setFavOpen(false);
+  }
+
+  function abrirMensaje() {
+    if (!authed) { setAuthOpen(true); return; }
+    if (!duenoKey) return;
+    abrirDock({ user_key: duenoKey, usuario: channel?.nombre || '', avatar: channel?.avatar || null }, 'dm');
+  }
+
+  // Sube la foto de perfil o la portada de mi canal.
+  async function subirImagen(kind, file) {
+    if (!file || !userKey) return;
+    setSubiendoImg(true);
+    try {
+      const fd = new FormData();
+      fd.append('userKey', userKey);
+      fd.append(kind === 'avatar' ? 'avatar' : 'banner', file);
+      const r = await fetch(`${API_URL}/api/channels/user/${kind}`, { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) {
+        const field = kind === 'avatar' ? 'avatar' : 'banner';
+        if (j[field]) setChannel((c) => ({ ...c, [field]: `${j[field]}?v=${Date.now()}` }));
+      }
+    } catch { /* noop */ }
+    finally { setSubiendoImg(false); }
+  }
+
+  // Se muestran siempre (PC y celular) en cualquier canal con dueño.
+  const mostrarAmistad = !!duenoKey;
+  const esMiCanal = !!(duenoKey && String(duenoKey) === String(userKey));
+
   const avatar = resolveImg(channel?.avatar);
   const banner = resolveImg(channel?.banner);
   const initial = String(channel?.nombre || '?').trim().charAt(0).toUpperCase();
@@ -291,15 +349,103 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
             </p>
           )}
 
-          <button
-            type="button"
-            className={`${styles.subBtn} ${following ? styles.subscribed : ''}`}
-            onClick={toggleFollow}
-            disabled={busy}
-          >
-            <ion-icon name={following ? 'notifications-outline' : 'add-outline'} suppressHydrationWarning></ion-icon>
-            {following ? (es ? 'Suscrito' : 'Subscribed') : (es ? 'Suscribirse' : 'Subscribe')}
-          </button>
+          <div className={styles.actionsRow}>
+          {!esMiCanal && (
+            <button
+              type="button"
+              className={`${styles.subBtn} ${following ? styles.subscribed : ''}`}
+              onClick={toggleFollow}
+              disabled={busy}
+            >
+              <ion-icon name={following ? 'notifications-outline' : 'add-outline'} suppressHydrationWarning></ion-icon>
+              {following ? (es ? 'Suscrito' : 'Subscribed') : (es ? 'Suscribirse' : 'Subscribe')}
+            </button>
+          )}
+
+          {mostrarAmistad && (
+            <div className={styles.friendRow}>
+              {!esMiCanal && (!rel || !rel.estado) && (
+                <button type="button" className={styles.friendBtn} onClick={() => accionAmistad('solicitar')} disabled={relBusy}>
+                  <ion-icon name="person-add-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Agregar a amigos' : 'Add friend'}
+                </button>
+              )}
+
+              {!esMiCanal && rel?.estado === 'pendiente' && rel.miSolicitud && (
+                <button type="button" className={styles.friendBtn} onClick={() => accionAmistad('cancelar')} disabled={relBusy}>
+                  <ion-icon name="close-circle-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Cancelar solicitud' : 'Cancel request'}
+                </button>
+              )}
+
+              {!esMiCanal && rel?.estado === 'pendiente' && !rel.miSolicitud && (
+                <>
+                  <button type="button" className={`${styles.friendBtn} ${styles.friendPrimary}`} onClick={() => accionAmistad('aceptar')} disabled={relBusy}>
+                    <ion-icon name="checkmark-outline" suppressHydrationWarning></ion-icon>
+                    {es ? 'Aceptar' : 'Accept'}
+                  </button>
+                  <button type="button" className={styles.friendBtn} onClick={() => accionAmistad('rechazar')} disabled={relBusy}>
+                    {es ? 'Rechazar' : 'Reject'}
+                  </button>
+                </>
+              )}
+
+              {!esMiCanal && rel?.estado === 'aceptado' && (
+                <div className={styles.friendMenuWrap}>
+                  <button type="button" className={`${styles.friendBtn} ${styles.friendPrimary}`} onClick={() => setFavOpen((v) => !v)}>
+                    <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
+                    {es ? 'Amigos' : 'Friends'}
+                  </button>
+                  {favOpen && (
+                    <div className={styles.friendMenu}>
+                      <button type="button" onClick={() => accionAmistad(rel.favorito ? 'nofavorito' : 'favorito')}>
+                        <ion-icon name={rel.favorito ? 'star' : 'star-outline'} suppressHydrationWarning></ion-icon>
+                        {rel.favorito ? (es ? 'Quitar de favoritos' : 'Remove favorite') : (es ? 'Favoritos' : 'Favorite')}
+                      </button>
+                      <button type="button" className={styles.friendDanger} onClick={() => accionAmistad('eliminar')}>
+                        <ion-icon name="person-remove-outline" suppressHydrationWarning></ion-icon>
+                        {es ? 'Eliminar de mis amigos' : 'Remove friend'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {esMiCanal && (
+                <>
+                  <button type="button" className={styles.friendBtn} onClick={() => bannerInputRef.current?.click()} disabled={subiendoImg}>
+                    <ion-icon name="image-outline" suppressHydrationWarning></ion-icon>
+                    {es ? 'Editar portada' : 'Edit cover'}
+                  </button>
+                  <button type="button" className={styles.friendBtn} onClick={() => avatarInputRef.current?.click()} disabled={subiendoImg}>
+                    <ion-icon name="person-circle-outline" suppressHydrationWarning></ion-icon>
+                    {es ? 'Editar foto de perfil' : 'Edit profile photo'}
+                  </button>
+                </>
+              )}
+
+              <button type="button" className={styles.friendBtn} onClick={abrirMensaje}>
+                <ion-icon name="chatbubble-ellipses-outline" suppressHydrationWarning></ion-icon>
+                {es ? 'Mensaje' : 'Message'}
+              </button>
+
+              <input
+                ref={bannerInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) subirImagen('banner', f); }}
+              />
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) subirImagen('avatar', f); }}
+              />
+            </div>
+          )}
+          </div>
         </div>
       </header>
 

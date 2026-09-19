@@ -5,12 +5,17 @@ import { useRouter } from 'next/navigation';
 import styles from './chatFlotante.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { comunidadMedia, apiComunidad } from '@/_Extras/Comunidad/api.js';
+import { useCall } from '@/_Extras/Llamadas/CallProvider.js';
 import Premium from '@/_Pages/main/Chat/componentes/premium';
 import Restringido from '@/_Pages/main/Chat/componentes/restringido';
 import Reproductor from '@/_Pages/main/Videos/componentes/reproductor';
 import AudioMsg from '@/_Pages/main/Chat/componentes/audioMsg';
 
 const EMOJIS = ['👍', '🔥', '😂', '😮', '😢', '❤️'];
+
+// Los mensajes solo se pueden editar/eliminar dentro de estas horas.
+const EDITAR_HORAS = 24;
+const esEditableHora = (createdAt) => !createdAt || (Date.now() - new Date(createdAt).getTime()) < EDITAR_HORAS * 3600 * 1000;
 const EMOJI_CATEGORIES = [
   { name: 'Caritas', emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕'] },
   { name: 'Gestos', emojis: ['👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '🤝', '🙏', '✊', '👊', '🤛', '🤜', '👏', '🙌', '👐', '🤲', '💪', '👀', '👁️', '👅', '👄', '💋', '🧠', '🫦', '🫶', '🤌', '🤏'] },
@@ -73,10 +78,11 @@ function hora(dateStr, es) {
  * Ventana flotante de chat. Sirve para grupos (tipo="grupo") y para
  * mensajes directos con un amigo (tipo="dm").
  */
-export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, onMinimize = null, embedded = false, inline = false, onBack = null }) {
+export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, onMinimize = null, embedded = false, inline = false, onBack = null, nuevo = false, noLeidos = 0, activo = true, onActivar = null, onTema = null, onVisto = null }) {
   const router = useRouter();
   const { locale } = useLanguage();
   const es = locale !== 'en';
+  const { iniciar: iniciarLlamada } = useCall();
 
   const grupoId = tipo === 'grupo' ? chat?.id : null;
   const otroKey = tipo === 'dm' ? chat?.user_key : null;
@@ -114,13 +120,31 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   const [suApodo, setSuApodo] = useState('');
   const [miDraft, setMiDraft] = useState('');
   const [suDraft, setSuDraft] = useState('');
+  const [canalSlug, setCanalSlug] = useState('');
+  const [proxOpen, setProxOpen] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [docFocused, setDocFocused] = useState(true);
+  const [headMenuOpen, setHeadMenuOpen] = useState(false);
+  const [headMenuPos, setHeadMenuPos] = useState({ top: 0, right: 0 });
+  const [isMobile, setIsMobile] = useState(false);
+  const headBtnRef = useRef(null);
+  const headMenuRef = useRef(null);
   const [recording, setRecording] = useState(false);
   const [recPaused, setRecPaused] = useState(false);
   const [recSeg, setRecSeg] = useState(0);
   const bodyRef = useRef(null);
   const winRef = useRef(null);
+  const inputRef = useRef(null);
+  const onVistoRef = useRef(null);
+  onVistoRef.current = onVisto;
   const videoRefs = useRef({});
   const lastLen = useRef(0);
+  const inicializadoRef = useRef(false);
+  const prependRef = useRef(null);
+  const atBottomRef = useRef(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
   const fileRef = useRef(null);
   const recRef = useRef(null);
   const chunksRef = useRef([]);
@@ -128,25 +152,123 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
 
   const cargar = useCallback(async () => {
     if (!userKey) return;
+    let r = null;
     if (tipo === 'grupo') {
       if (!grupoId) return;
-      const r = await apiComunidad.mensajes(grupoId, userKey);
-      if (Array.isArray(r?.data)) setMensajes(r.data);
+      r = await apiComunidad.mensajes(grupoId, userKey, { limit: 50 });
     } else {
       if (!otroKey) return;
-      const r = await apiComunidad.dmMensajes(otroKey, userKey);
-      if (Array.isArray(r?.data)) setMensajes(r.data);
+      r = await apiComunidad.dmMensajes(otroKey, userKey, null, 50);
       if (r && r.miApodo !== undefined) setMiApodo(r.miApodo || '');
       if (r && r.suApodo !== undefined) setSuApodo(r.suApodo || '');
+      if (r && r.canal_slug !== undefined) setCanalSlug(r.canal_slug || '');
       if (r && r.tema) setTema({ gradient: r.tema.gradient || '', color: r.tema.color || '', emoji: r.tema.emoji || '' });
     }
+    if (!Array.isArray(r?.data)) return;
+    const data = r.data;
+    if (!inicializadoRef.current) {
+      inicializadoRef.current = true;
+      setMensajes(data);
+      setHasMore(!!r.hasMore);
+      return;
+    }
+    // Refresco (poll/evento): fusiona sin perder los mensajes antiguos ya cargados.
+    setMensajes((prev) => {
+      const map = new Map(prev.map((m) => [String(m.id), m]));
+      let cambio = false;
+      for (const m of data) {
+        if (!map.has(String(m.id))) cambio = true;
+        map.set(String(m.id), m);
+      }
+      if (!cambio) return prev;
+      return [...map.values()].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    });
   }, [tipo, grupoId, otroKey, userKey]);
+
+  // Carga progresiva de mensajes antiguos (scroll hacia arriba).
+  const cargarAntiguos = useCallback(async () => {
+    if (!userKey || !hasMore || cargandoMas) return;
+    if (mensajes.length === 0) return;
+    setCargandoMas(true);
+    const before = mensajes[0].id;
+    let r = null;
+    if (tipo === 'grupo') {
+      if (!grupoId) { setCargandoMas(false); return; }
+      r = await apiComunidad.mensajes(grupoId, userKey, { before, limit: 50 });
+    } else {
+      if (!otroKey) { setCargandoMas(false); return; }
+      r = await apiComunidad.dmMensajes(otroKey, userKey, before, 50);
+    }
+    if (Array.isArray(r?.data) && r.data.length) {
+      const el = bodyRef.current;
+      prependRef.current = el ? { height: el.scrollHeight, top: el.scrollTop } : null;
+      setMensajes((prev) => {
+        const ids = new Set(prev.map((m) => String(m.id)));
+        const older = r.data.filter((m) => !ids.has(String(m.id)));
+        if (!older.length) { prependRef.current = null; return prev; }
+        return [...older, ...prev];
+      });
+      setHasMore(!!r.hasMore);
+    } else {
+      setHasMore(false);
+    }
+    setCargandoMas(false);
+  }, [userKey, hasMore, cargandoMas, mensajes, tipo, grupoId, otroKey]);
+
+  function irAlFinal() {
+    const el = bodyRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }
 
   useEffect(() => {
     cargar();
+  }, [cargar]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const upd = () => setIsMobile(mq.matches);
+    upd();
+    mq.addEventListener('change', upd);
+    return () => mq.removeEventListener('change', upd);
+  }, []);
+
+  // Solo se marca "visto" si la ventana/pestaña está enfocada.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const upd = () => setDocFocused(document.visibilityState === 'visible' && document.hasFocus());
+    upd();
+    window.addEventListener('focus', upd);
+    window.addEventListener('blur', upd);
+    document.addEventListener('visibilitychange', upd);
+    return () => {
+      window.removeEventListener('focus', upd);
+      window.removeEventListener('blur', upd);
+      document.removeEventListener('visibilitychange', upd);
+    };
+  }, []);
+
+  // Avisa al padre del tema activo (para pintar toda la interfaz en /chat).
+  useEffect(() => {
+    if (onTema) onTema({ gradient: tema.gradient || '', color: tema.color || '', emoji: tema.emoji || '' });
+  }, [onTema, tema.gradient, tema.color, tema.emoji]);
+
+  // Al abrir/activar el chat, enfoca el input para escribir de una.
+  useEffect(() => {
+    if (!activo) return undefined;
+    const t = setTimeout(() => { if (inputRef.current) inputRef.current.focus({ preventScroll: true }); }, 60);
+    return () => clearTimeout(t);
+  }, [activo]);
+
+  // Solo marca "visto" el chat ACTIVO (en el que el usuario esta interactuando).
+  // Con varios modales abiertos, los demas no deben marcarse vistos.
+  useEffect(() => {
+    // Solo si el chat está activo, el input enfocado y la pestaña activa.
+    if (!activo || !inputFocused || !docFocused || !userKey) return;
     if (tipo === 'grupo' && grupoId) apiComunidad.marcarChatLeido(grupoId, userKey);
     if (tipo === 'dm' && otroKey) apiComunidad.dmLeido(otroKey, userKey);
-  }, [cargar, tipo, grupoId, otroKey, userKey]);
+    if (onVistoRef.current) onVistoRef.current();
+  }, [activo, inputFocused, docFocused, userKey, tipo, grupoId, otroKey, mensajes.length]);
 
   useEffect(() => {
     const iv = setInterval(cargar, 6000);
@@ -160,7 +282,17 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
 
   useEffect(() => {
     const el = bodyRef.current;
-    if (el && mensajes.length > lastLen.current) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    // Si se cargaron mensajes antiguos, mantiene la posición (no salta).
+    if (prependRef.current) {
+      const { height, top } = prependRef.current;
+      prependRef.current = null;
+      el.scrollTop = el.scrollHeight - height + top;
+      lastLen.current = mensajes.length;
+      return;
+    }
+    // Al abrir o si estás abajo, salta al último mensaje.
+    if (atBottomRef.current) el.scrollTop = el.scrollHeight;
     lastLen.current = mensajes.length;
   }, [mensajes]);
 
@@ -437,6 +569,29 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
     else router.push(`/chat?dm=${encodeURIComponent(otroKey)}`);
   }
 
+  function irAlCanal() {
+    if (tipo === 'dm' && canalSlug) router.push(`/canal/${canalSlug}`);
+  }
+
+  function llamar(tipoLlamada) {
+    if (tipo !== 'dm' || !otroKey) return;
+    iniciarLlamada(otroKey, tipoLlamada, { nombre: titulo, avatar });
+  }
+
+  function toggleHeadMenu() {
+    if (headMenuOpen) { setHeadMenuOpen(false); return; }
+    const r = headBtnRef.current ? headBtnRef.current.getBoundingClientRect() : null;
+    if (r) setHeadMenuPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    setHeadMenuOpen(true);
+  }
+
+  // Al tocar la zona de mensajes (no botones/inputs) enfoca el input para escribir.
+  function enfocarDesdeClick(e) {
+    const el = e && e.target;
+    if (el && el.closest && el.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
+    if (inputRef.current) inputRef.current.focus({ preventScroll: true });
+  }
+
   function abrirAjustes() {
     setTemaBorrador({ ...tema });
     setMiDraft(miApodo || '');
@@ -475,6 +630,16 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
     }
   }
 
+  // Cierra el menú de 3 puntos al hacer clic fuera.
+  useEffect(() => {
+    if (!headMenuOpen) return undefined;
+    const onDoc = (e) => {
+      if (headMenuRef.current && !headMenuRef.current.contains(e.target)) setHeadMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [headMenuOpen]);
+
   if (!chat) return null;
 
   // Tema aplicado: mientras se personaliza se ve el borrador (preview).
@@ -482,12 +647,21 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   const themed = !!(temaActivo.gradient || temaActivo.color);
   const winStyle = themed ? { background: temaActivo.gradient || temaActivo.color } : undefined;
   const nombreMostrado = String(suApodo || '').trim() || titulo;
+  // Resalta el modal con mensajes sin leer mientras NO se esté viendo de verdad.
+  const viendoAhora = !!(activo && inputFocused && docFocused);
+  const conNuevos = noLeidos > 0 && !viendoAhora && !inline;
+  // Chat conmigo mismo (notas): no tiene sentido ponerle apodos a "otra persona".
+  const esMio = tipo === 'dm' && !!otroKey && String(otroKey) === String(userKey);
 
   return (
     <div
-      className={`${styles.win} ${inline ? styles.winInline : ''} ${embedded && !inline ? styles.winEmbedded : ''} ${themed ? styles.winThemed : ''}`}
+      className={`${styles.win} ${inline ? styles.winInline : ''} ${embedded && !inline ? styles.winEmbedded : ''} ${themed ? styles.winThemed : ''} ${conNuevos ? styles.winUnread : ''}`}
       style={winStyle}
       ref={winRef}
+      onMouseDown={onActivar || undefined}
+      onTouchStart={onActivar || undefined}
+      onFocusCapture={onActivar || undefined}
+      onClick={enfocarDesdeClick}
     >
       <div className={styles.head}>
         {inline && onBack && (
@@ -495,42 +669,123 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
             <ion-icon name="arrow-back-outline" suppressHydrationWarning></ion-icon>
           </button>
         )}
-        <span className={styles.avatar}>
-          {avatar ? <img src={comunidadMedia(avatar)} alt="" /> : String(titulo || '?').charAt(0).toUpperCase()}
-        </span>
-        <div className={styles.headInfo}>
-          <strong className={styles.name}>{nombreMostrado}</strong>
-          <span className={styles.state}>
-            {tipo !== 'grupo' && tema.emoji ? `${tema.emoji} ` : ''}
-            {tipo === 'grupo' ? (chat?.miembros ? `${chat.miembros} ${es ? 'miembros' : 'members'}` : '') : (es ? 'en línea' : 'online')}
+        <div
+          className={`${styles.headMain} ${tipo === 'dm' && canalSlug ? styles.headMainClick : ''}`}
+          onClick={tipo === 'dm' && canalSlug ? irAlCanal : undefined}
+          onKeyDown={tipo === 'dm' && canalSlug ? ((e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); irAlCanal(); } }) : undefined}
+          role={tipo === 'dm' && canalSlug ? 'button' : undefined}
+          tabIndex={tipo === 'dm' && canalSlug ? 0 : undefined}
+          title={tipo === 'dm' && canalSlug ? (es ? 'Ver perfil' : 'View profile') : undefined}
+        >
+          <span className={styles.avatarWrap}>
+            <span className={styles.avatar}>
+              {avatar ? <img src={comunidadMedia(avatar)} alt="" /> : String(titulo || '?').charAt(0).toUpperCase()}
+            </span>
+            {nuevo && !inline && <span className={styles.avatarDot} />}
           </span>
+          <div className={styles.headInfo}>
+            <strong className={styles.name}>{nombreMostrado}</strong>
+            <span className={styles.state}>
+              {tipo !== 'grupo' && tema.emoji ? `${tema.emoji} ` : ''}
+              {tipo === 'grupo' ? (chat?.miembros ? `${chat.miembros} ${es ? 'miembros' : 'members'}` : '') : (es ? 'en línea' : 'online')}
+            </span>
+          </div>
         </div>
-        {onMinimize && !inline && (
-          <button type="button" className={styles.iconBtn} onClick={onMinimize} title={es ? 'Minimizar' : 'Minimize'}>
-            <ion-icon name="remove-outline" suppressHydrationWarning></ion-icon>
-          </button>
-        )}
-        {tipo === 'dm' && (
-          <button type="button" className={styles.iconBtn} onClick={abrirAjustes} title={es ? 'Personalizar' : 'Customize'}>
-            <ion-icon name="color-palette-outline" suppressHydrationWarning></ion-icon>
-          </button>
-        )}
-        {!inline && (
-          <button type="button" className={styles.iconBtn} onClick={expandir} title={es ? 'Expandir' : 'Expand'}>
-            <ion-icon name="expand-outline" suppressHydrationWarning></ion-icon>
-          </button>
-        )}
-        {!inline && (
-          <button type="button" className={styles.iconBtn} onClick={onClose} title="Cerrar">
-            <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
-          </button>
+        {inline ? (
+          /* Chat expandido (/chat): todo inline a la derecha del nombre. */
+          <>
+            {tipo === 'dm' && (
+              <button type="button" className={styles.iconBtn} onClick={abrirAjustes} title={es ? 'Personalizar' : 'Customize'}>
+                <ion-icon name="color-palette-outline" suppressHydrationWarning></ion-icon>
+              </button>
+            )}
+            {tipo === 'dm' && (
+              <button type="button" className={styles.iconBtn} onClick={() => llamar('audio')} title={es ? 'Llamada de voz' : 'Voice call'}>
+                <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
+              </button>
+            )}
+            {tipo === 'dm' && (
+              <button type="button" className={styles.iconBtn} onClick={() => llamar('video')} title={es ? 'Videollamada' : 'Video call'}>
+                <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
+              </button>
+            )}
+            {tipo === 'dm' && (
+              <button type="button" className={styles.iconBtn} onClick={irAlCanal} disabled={!canalSlug} title={es ? 'Información' : 'Info'}>
+                <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
+              </button>
+            )}
+          </>
+        ) : (
+          /* Flotante: diseño de 3 puntos (igual en PC y celular). */
+          <>
+            <div className={styles.headMenuWrap} ref={headMenuRef}>
+              <button
+                type="button"
+                ref={headBtnRef}
+                className={`${styles.iconBtn} ${headMenuOpen ? styles.iconBtnOn : ''}`}
+                onClick={toggleHeadMenu}
+                title={es ? 'Más opciones' : 'More options'}
+                aria-label={es ? 'Más opciones' : 'More options'}
+                aria-expanded={headMenuOpen}
+              >
+                <ion-icon name="ellipsis-horizontal" suppressHydrationWarning></ion-icon>
+              </button>
+              {headMenuOpen && (
+                <div className={styles.headMenu} role="menu" style={{ top: headMenuPos.top, right: headMenuPos.right }}>
+                  {tipo === 'dm' && (
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); abrirAjustes(); }}>
+                      <ion-icon name="color-palette-outline" suppressHydrationWarning></ion-icon>
+                      {es ? 'Personalizar chat' : 'Customize chat'}
+                    </button>
+                  )}
+                  {tipo === 'dm' && (
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); llamar('audio'); }}>
+                      <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
+                      {es ? 'Llamada de voz' : 'Voice call'}
+                    </button>
+                  )}
+                  {tipo === 'dm' && (
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); llamar('video'); }}>
+                      <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
+                      {es ? 'Videollamada' : 'Video call'}
+                    </button>
+                  )}
+                  {tipo === 'dm' && (
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); irAlCanal(); }} disabled={!canalSlug}>
+                      <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
+                      {es ? 'Información' : 'Info'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            {onMinimize && (
+              <button type="button" className={styles.iconBtn} onClick={onMinimize} title={es ? 'Minimizar' : 'Minimize'}>
+                <ion-icon name="remove-outline" suppressHydrationWarning></ion-icon>
+              </button>
+            )}
+            <button type="button" className={styles.iconBtn} onClick={expandir} title={es ? 'Expandir' : 'Expand'}>
+              <ion-icon name="expand-outline" suppressHydrationWarning></ion-icon>
+            </button>
+            <button type="button" className={styles.iconBtn} onClick={onClose} title="Cerrar">
+              <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
+            </button>
+          </>
         )}
       </div>
 
       <div
         className={styles.body}
         ref={bodyRef}
-        onScroll={() => { if (reactMenu) setReactMenu(null); if (menuMsg) setMenuMsg(null); }}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const abajo = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+          atBottomRef.current = abajo;
+          setAtBottom(abajo);
+          if (reactMenu) setReactMenu(null);
+          if (menuMsg) setMenuMsg(null);
+          if (el.scrollTop < 80) cargarAntiguos();
+        }}
       >
         {tema.emoji && <span className={styles.watermark} aria-hidden="true">{tema.emoji}</span>}
         {mensajes.length === 0 && (
@@ -569,9 +824,11 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
             <div key={m.id} data-mid={String(m.id)} className={`${styles.row} ${mio ? styles.mine : ''}`}>
               {mio && !m.eliminado && (
                 <div className={styles.msgActions}>
-                  <button type="button" className={styles.msgAction} title={es ? 'Opciones' : 'Options'} onClick={(e) => abrirMenu(m, e.currentTarget)}>
-                    <ion-icon name="ellipsis-horizontal" suppressHydrationWarning></ion-icon>
-                  </button>
+                  {esEditableHora(m.created_at) && (
+                    <button type="button" className={styles.msgAction} title={es ? 'Opciones' : 'Options'} onClick={(e) => abrirMenu(m, e.currentTarget)}>
+                      <ion-icon name="ellipsis-horizontal" suppressHydrationWarning></ion-icon>
+                    </button>
+                  )}
                   <button type="button" className={styles.msgAction} title={es ? 'Reaccionar' : 'React'} onClick={(e) => abrirReacciones(m, e.currentTarget)}>
                     <ion-icon name="happy-outline" suppressHydrationWarning></ion-icon>
                   </button>
@@ -837,6 +1094,12 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
         </div>
       )}
 
+      {!atBottom && !recording && (
+        <button type="button" className={styles.jumpBtn} onClick={irAlFinal} title={es ? 'Ir al último mensaje' : 'Go to latest'}>
+          <ion-icon name="chevron-down-outline" suppressHydrationWarning></ion-icon>
+        </button>
+      )}
+
       {recording ? (
         <div className={styles.recBar}>
           <button type="button" className={styles.recTrash} onClick={cancelRecording} title={es ? 'Cancelar' : 'Cancel'}>
@@ -860,7 +1123,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           </button>
         </div>
       ) : (
-        <div className={styles.foot}>
+        <div className={`${styles.foot} ${conNuevos ? styles.footUnread : ''}`}>
           <button
             type="button"
             className={styles.tool}
@@ -873,9 +1136,12 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
             <ion-icon name="image-outline" suppressHydrationWarning></ion-icon>
           </button>
           <input
+            ref={inputRef}
             className={styles.input}
             placeholder="Aa"
             value={borrador}
+            onFocus={() => setInputFocused(true)}
+            onBlur={() => setInputFocused(false)}
             onChange={(e) => setBorrador(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') enviar(); }}
           />
@@ -909,45 +1175,27 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
             </button>
           </div>
           <div className={styles.ajustesBody}>
-            <div
-              className={styles.preview}
-              style={(temaBorrador.gradient || temaBorrador.color)
-                ? { background: temaBorrador.gradient || temaBorrador.color }
-                : undefined}
-            >
-              {temaBorrador.emoji && <span className={styles.previewEmoji} aria-hidden="true">{temaBorrador.emoji}</span>}
-              <div className={styles.previewHead}>
-                <span className={styles.previewAvatar}>{String(titulo || '?').charAt(0).toUpperCase()}</span>
-                <div className={styles.previewWho}>
-                  <span className={styles.previewName}>{String(suDraft || '').trim() || titulo}</span>
-                  <span className={styles.previewStatus}>
-                    {temaBorrador.emoji ? `${temaBorrador.emoji} ` : ''}{es ? 'en línea' : 'online'}
-                  </span>
-                </div>
-              </div>
-              <div className={styles.previewMsgs}>
-                <span className={styles.previewIn}>{es ? 'Hola, ¿qué tal?' : 'Hey, how are you?'}</span>
-                <span className={styles.previewOut}>{es ? 'Todo bien 😎' : 'All good 😎'}</span>
-              </div>
-            </div>
+            {!esMio && (
+              <>
+                <span className={styles.ajustesLabel}>{es ? 'Mi apodo' : 'My nickname'}</span>
+                <input
+                  className={styles.ajustesInput}
+                  value={miDraft}
+                  maxLength={40}
+                  placeholder={es ? 'Cómo te llamará' : 'What they will call you'}
+                  onChange={(e) => setMiDraft(e.target.value)}
+                />
 
-            <span className={styles.ajustesLabel}>{es ? 'Mi apodo' : 'My nickname'}</span>
-            <input
-              className={styles.ajustesInput}
-              value={miDraft}
-              maxLength={40}
-              placeholder={es ? 'Cómo te llamará' : 'What they will call you'}
-              onChange={(e) => setMiDraft(e.target.value)}
-            />
-
-            <span className={styles.ajustesLabel}>{es ? 'Su apodo' : 'Their nickname'}</span>
-            <input
-              className={styles.ajustesInput}
-              value={suDraft}
-              maxLength={40}
-              placeholder={titulo}
-              onChange={(e) => setSuDraft(e.target.value)}
-            />
+                <span className={styles.ajustesLabel}>{es ? 'Su apodo' : 'Their nickname'}</span>
+                <input
+                  className={styles.ajustesInput}
+                  value={suDraft}
+                  maxLength={40}
+                  placeholder={titulo}
+                  onChange={(e) => setSuDraft(e.target.value)}
+                />
+              </>
+            )}
 
             <span className={styles.ajustesLabel}>{es ? 'Estilo de fondo' : 'Background style'}</span>
             <div className={styles.temasGrid}>
@@ -988,6 +1236,29 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                   {e}
                 </button>
               ))}
+            </div>
+
+            <span className={styles.ajustesLabel}>{es ? 'Vista previa' : 'Preview'}</span>
+            <div
+              className={styles.preview}
+              style={(temaBorrador.gradient || temaBorrador.color)
+                ? { background: temaBorrador.gradient || temaBorrador.color }
+                : undefined}
+            >
+              {temaBorrador.emoji && <span className={styles.previewEmoji} aria-hidden="true">{temaBorrador.emoji}</span>}
+              <div className={styles.previewHead}>
+                <span className={styles.previewAvatar}>{String(titulo || '?').charAt(0).toUpperCase()}</span>
+                <div className={styles.previewWho}>
+                  <span className={styles.previewName}>{String(suDraft || '').trim() || titulo}</span>
+                  <span className={styles.previewStatus}>
+                    {temaBorrador.emoji ? `${temaBorrador.emoji} ` : ''}{es ? 'en línea' : 'online'}
+                  </span>
+                </div>
+              </div>
+              <div className={styles.previewMsgs}>
+                <span className={styles.previewIn}>{es ? 'Hola, ¿qué tal?' : 'Hey, how are you?'}</span>
+                <span className={styles.previewOut}>{es ? 'Todo bien 😎' : 'All good 😎'}</span>
+              </div>
             </div>
           </div>
           <div className={styles.ajustesFoot}>
@@ -1033,6 +1304,21 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
         onVerPlanes={() => setPremiumOpen(true)}
         limiteMb={limiteMb}
       />
+
+      {proxOpen && (
+        <div className={styles.proxOverlay} onClick={(e) => { if (e.target === e.currentTarget) setProxOpen(false); }}>
+          <div className={styles.proxCard}>
+            <ion-icon name="construct-outline" className={styles.proxIcon} suppressHydrationWarning></ion-icon>
+            <strong className={styles.proxTitle}>{es ? 'Próximamente' : 'Coming soon'}</strong>
+            <span className={styles.proxText}>
+              {es ? 'Las llamadas y videollamadas estarán disponibles pronto.' : 'Calls and video calls will be available soon.'}
+            </span>
+            <button type="button" className={styles.proxBtn} onClick={() => setProxOpen(false)}>
+              {es ? 'Entendido' : 'Got it'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

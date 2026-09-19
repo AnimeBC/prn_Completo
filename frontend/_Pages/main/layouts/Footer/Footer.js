@@ -1,12 +1,21 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import styles from './footer.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 
 export default function Footer() {
+  const pathname = usePathname();
   const { locale } = useLanguage();
   const es = locale !== 'en';
   const year = new Date().getFullYear();
+
+  // En Comunidad, Chats y Notificaciones el footer estorba: se oculta.
+  if (pathname && (
+    pathname.startsWith('/comunidad')
+    || pathname.startsWith('/chat')
+    || pathname.startsWith('/notificaciones')
+  )) return null;
 
   return (
     <footer className={styles.footer}>

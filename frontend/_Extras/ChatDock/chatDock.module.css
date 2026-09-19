@@ -23,6 +23,15 @@
   padding-bottom: 12px;
 }
 
+/* Al arrastrar se oculta la píldora para ver bien el efecto gusano. */
+.dockBubblesDrag {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 .bubbleBtn {
   position: relative;
   width: 48px;
@@ -41,11 +50,38 @@
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
 }
 
+.bubbleDragging {
+  z-index: 30;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.6);
+}
+
 .bubbleBtn img {
   width: 100%;
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.bubbleUnread {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: #F20D16;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--bg, #050505);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  z-index: 3;
 }
 
 .bubbleMore {
@@ -66,15 +102,61 @@
   border: 2px solid var(--bg, #050505);
 }
 
+.trash {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5000;
+  pointer-events: none;
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.trashOn {
+  transform: translate(-50%, -50%) scale(1.12);
+  border-color: #F20D16;
+  border-style: solid;
+  background: rgba(242, 13, 22, 0.4);
+  color: #fff;
+}
+
 @media (max-width: 768px) {
+  /* Los globitos van arriba de la barra inferior de navegación y anclados
+     a la derecha (para poder arrastrarlos entre derecha e izquierda). */
   .dock {
     left: 8px;
     right: 8px;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    justify-content: flex-end;
   }
 
   .dockWindows {
     max-width: 100%;
     overflow-x: auto;
     padding-bottom: 2px;
+  }
+
+  .dockBubbles {
+    padding: 6px;
+    border-radius: 30px;
+    background: rgba(0, 0, 0, 0.38);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  }
+
+  .bubbleBtn {
+    touch-action: none;
   }
 }

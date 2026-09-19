@@ -124,7 +124,14 @@ export const apiComunidad = {
   resolverSolicitudGrupo: (id, solId, userKey, estado) => req(`/api/comunidad/grupos/${id}/solicitudes/${solId}`, jsonPost({ userKey, estado })),
 
   // Chat
-  mensajes: (id, userKey = '') => req(`/api/comunidad/grupos/${id}/mensajes${userKey ? `?userKey=${encodeURIComponent(userKey)}` : ''}`),
+  mensajes: (id, userKey = '', opts = {}) => {
+    const p = new URLSearchParams();
+    if (userKey) p.set('userKey', userKey);
+    if (opts.before) p.set('before', String(opts.before));
+    if (opts.limit) p.set('limit', String(opts.limit));
+    const qs = p.toString();
+    return req(`/api/comunidad/grupos/${id}/mensajes${qs ? `?${qs}` : ''}`);
+  },
   enviarMensaje: (id, fd) => req(`/api/comunidad/grupos/${id}/mensajes`, { method: 'POST', headers: authHeaders(), body: fd }),
   enviarMensajeXHR: (id, fd, onProgress) => xhrSend(`/api/comunidad/grupos/${id}/mensajes`, fd, onProgress),
   editarMensaje: (id, msjId, userKey, texto) => req(`/api/comunidad/grupos/${id}/mensajes/${msjId}`, jsonPut({ userKey, texto })),
@@ -135,7 +142,12 @@ export const apiComunidad = {
   marcarChatLeido: (id, userKey) => req(`/api/comunidad/chats/${id}/leido`, jsonPost({ userKey })),
   /** Mensajes directos (1 a 1). */
   dmChats: (userKey) => req(`/api/comunidad/dm/chats?userKey=${encodeURIComponent(userKey)}`),
-  dmMensajes: (otroKey, userKey) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes?userKey=${encodeURIComponent(userKey)}`),
+  dmMensajes: (otroKey, userKey, before = null, limit = null) => {
+    const p = new URLSearchParams({ userKey });
+    if (before) p.set('before', String(before));
+    if (limit) p.set('limit', String(limit));
+    return req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes?${p.toString()}`);
+  },
   dmEnviar: (otroKey, userKey, texto, replyTo = null) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes`, jsonPost({ userKey, texto, reply_to: replyTo || undefined })),
   dmEnviarFd: (otroKey, fd) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes`, { method: 'POST', body: fd }),
   dmEnviarXHR: (otroKey, fd, onProgress) => xhrSend(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/mensajes`, fd, onProgress),
@@ -154,6 +166,10 @@ export const apiComunidad = {
   },
   /** Mensaje en masa a varios usuarios. */
   mensajeMasivo: (userKey, ids, texto) => req('/api/comunidad/mensajes-directos', jsonPost({ userKey, ids, texto })),
+
+  // Amistades
+  amistad: (userKey, me) => req(`/api/comunidad/amistad/${encodeURIComponent(userKey)}?me=${encodeURIComponent(me || '')}`),
+  amistadAccion: (userKey, me, accion) => req(`/api/comunidad/amistad/${encodeURIComponent(userKey)}`, jsonPost({ userKey: me, accion })),
 
   // Presencia
   presencia: () => req('/api/comunidad/presencia'),

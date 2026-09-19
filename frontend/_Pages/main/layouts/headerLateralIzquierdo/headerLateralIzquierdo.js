@@ -4,6 +4,7 @@ import styles from './headerLateralIzquierdo.module.css';
 import { useSidebar } from '@/app/sidebarContext.js';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
+import { useTheme } from '@/_Extras/CambiodeColor/ThemeProvider.js';
 
 const sectionPrincipal = [
   { icon: 'home-outline', label: 'nav.inicio', href: '/' },
@@ -28,7 +29,9 @@ const ENABLED_ROUTES = ['/', '/videos', '/tendencias', '/fetiches', '/packs', '/
 
 export default function HeaderLateralIzquierdo() {
   const { isOpen, close, openMaint } = useSidebar();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const es = locale !== 'en';
+  const { isDark, toggleTheme } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -94,6 +97,29 @@ export default function HeaderLateralIzquierdo() {
         <nav className={styles.nav}>
           <span className={styles.sectionLabel}>{t('nav.tusGuardados')}</span>
           {tusGuardados.map(renderItem)}
+        </nav>
+
+        <nav className={`${styles.nav} ${styles.themeSection}`}>
+          <span className={styles.sectionLabel}>{es ? 'Apariencia' : 'Appearance'}</span>
+          <div
+            role="button"
+            tabIndex={0}
+            className={styles.navItem}
+            onClick={toggleTheme}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleTheme();
+              }
+            }}
+          >
+            <ion-icon
+              name={isDark ? 'sunny-outline' : 'moon-outline'}
+              className={styles.navIcon}
+              suppressHydrationWarning
+            ></ion-icon>
+            <span>{isDark ? (es ? 'Modo claro' : 'Light mode') : (es ? 'Modo oscuro' : 'Dark mode')}</span>
+          </div>
         </nav>
       </aside>
       {isOpen && <div className={styles.overlay} onClick={close}></div>}

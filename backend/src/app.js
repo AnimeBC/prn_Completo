@@ -22,6 +22,8 @@ import translationsRoutes from './routes/translations.js';
 import commentsRoutes from './routes/comments.js';
 import channelsRoutes from './routes/channels.js';
 import notificacionesRoutes from './routes/notificaciones.js';
+import ajustesRoutes from './routes/ajustes.js';
+import callsRoutes from './routes/calls.js';
 
 const app = express();
 
@@ -79,6 +81,9 @@ app.use('/api', commentsRoutes);
 app.use('/api/channels', channelsRoutes);
 // notificaciones (/api/notificaciones)
 app.use('/api/notificaciones', notificacionesRoutes);
+// ajustes globales (/api/ajustes/sonido)
+app.use('/api/ajustes', ajustesRoutes);
+app.use('/api/calls', callsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

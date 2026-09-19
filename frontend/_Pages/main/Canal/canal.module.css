@@ -564,7 +564,127 @@
   }
 
   .subBtn {
+    width: auto;
+    justify-content: center;
+  }
+
+  /* Botones en una fila, centrados. */
+  .actionsRow {
     width: 100%;
     justify-content: center;
   }
+
+  .friendRow {
+    justify-content: center;
+  }
+}
+
+/* ===== Amistad ===== */
+.actionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.actionsRow .subBtn {
+  margin-top: 0;
+  align-self: center;
+}
+
+.actionsRow .friendRow {
+  margin-top: 0;
+}
+
+.friendRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+}
+
+.friendBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #27272A);
+  background: var(--bg-surface, #18181B);
+  color: var(--text-primary, #E4E6EB);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.friendBtn ion-icon {
+  font-size: 17px;
+}
+
+.friendBtn:hover {
+  border-color: var(--primary, #F20D16);
+}
+
+.friendBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.friendPrimary {
+  background: var(--primary, #F20D16);
+  border-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+}
+
+.friendPrimary:hover {
+  background: #C40A11;
+  border-color: #C40A11;
+}
+
+.friendMenuWrap {
+  position: relative;
+}
+
+.friendMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 220px;
+  background: var(--bg-card, #121215);
+  border: 1px solid var(--border, #27272A);
+  border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.friendMenu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #E4E6EB);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.friendMenu button:hover {
+  background: var(--bg-surface, #18181B);
+}
+
+.friendMenu ion-icon {
+  font-size: 18px;
+}
+
+.friendDanger {
+  color: #F20D16;
 }

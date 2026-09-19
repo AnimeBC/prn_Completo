@@ -1265,6 +1265,164 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- 30) REPORTES: IP de origen (video, hentai y comunidad)
+-- ============================================================
+ALTER TABLE reports            ADD COLUMN IF NOT EXISTS ip VARCHAR(60);
+ALTER TABLE hentai_reports     ADD COLUMN IF NOT EXISTS ip VARCHAR(60);
+ALTER TABLE comunidad_reportes ADD COLUMN IF NOT EXISTS ip VARCHAR(60);
+CREATE INDEX IF NOT EXISTS idx_reports_ip           ON reports(ip);
+CREATE INDEX IF NOT EXISTS idx_hentai_reports_ip    ON hentai_reports(ip);
+CREATE INDEX IF NOT EXISTS idx_comunidad_reports_ip ON comunidad_reportes(ip);
+
+-- ============================================================
+-- 31) NOTIFICACIONES (admin/publicas + por usuario)
+-- ============================================================
+-- user_key NULL = aviso publico del admin (lo ven todos, incluso invitados)
+CREATE TABLE IF NOT EXISTS notificaciones (
+  id           SERIAL PRIMARY KEY,
+  user_key     VARCHAR(80),
+  tipo         VARCHAR(40) NOT NULL DEFAULT 'sistema',
+  titulo       VARCHAR(160) NOT NULL,
+  texto        TEXT,
+  url          VARCHAR(300),
+  icono        VARCHAR(40),
+  actor_key    VARCHAR(80),
+  actor_nombre VARCHAR(120),
+  actor_avatar VARCHAR(255),
+  meta         JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_notif_user    ON notificaciones(user_key, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notif_created ON notificaciones(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notif_tipo    ON notificaciones(tipo);
+
+-- Estado de leido por usuario (avisos personales y publicos)
+CREATE TABLE IF NOT EXISTS notificaciones_leidas (
+  id              SERIAL PRIMARY KEY,
+  user_key        VARCHAR(80) NOT NULL,
+  notificacion_id INTEGER NOT NULL REFERENCES notificaciones(id) ON DELETE CASCADE,
+  leida_en        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_key, notificacion_id)
+);
+CREATE INDEX IF NOT EXISTS idx_notif_leidas_user ON notificaciones_leidas(user_key);
+
+-- ============================================================
+-- 32) CHATS: leido, mensajes directos (amigos), temas y apodos
+-- ============================================================
+-- Estado de lectura (Messenger) por grupo
+CREATE TABLE IF NOT EXISTS comunidad_chat_leido (
+  id           SERIAL PRIMARY KEY,
+  comunidad_id INTEGER NOT NULL REFERENCES comunidades(id) ON DELETE CASCADE,
+  user_key     VARCHAR(80) NOT NULL,
+  ultimo_leido TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (comunidad_id, user_key)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_leido_user ON comunidad_chat_leido(user_key);
+
+-- Mensajes directos 1 a 1 (amigos)
+CREATE TABLE IF NOT EXISTS dm_conversaciones (
+  id           SERIAL PRIMARY KEY,
+  a_key        VARCHAR(80) NOT NULL,
+  b_key        VARCHAR(80) NOT NULL,
+  tema_gradient TEXT,
+  tema_color    VARCHAR(20),
+  tema_emoji    VARCHAR(16),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (a_key, b_key)
+);
+CREATE INDEX IF NOT EXISTS idx_dm_conv_a ON dm_conversaciones(a_key);
+CREATE INDEX IF NOT EXISTS idx_dm_conv_b ON dm_conversaciones(b_key);
+ALTER TABLE dm_conversaciones ADD COLUMN IF NOT EXISTS tema_gradient TEXT;
+ALTER TABLE dm_conversaciones ADD COLUMN IF NOT EXISTS tema_color    VARCHAR(20);
+ALTER TABLE dm_conversaciones ADD COLUMN IF NOT EXISTS tema_emoji    VARCHAR(16);
+
+CREATE TABLE IF NOT EXISTS dm_mensajes (
+  id              SERIAL PRIMARY KEY,
+  conversacion_id INTEGER NOT NULL REFERENCES dm_conversaciones(id) ON DELETE CASCADE,
+  user_key        VARCHAR(80) NOT NULL,
+  usuario         VARCHAR(120),
+  avatar          VARCHAR(255),
+  texto           TEXT,
+  tipo            VARCHAR(20) NOT NULL DEFAULT 'texto',
+  media           VARCHAR(255),
+  reply_to        INTEGER,
+  editado         BOOLEAN NOT NULL DEFAULT FALSE,
+  eliminado       BOOLEAN NOT NULL DEFAULT FALSE,
+  oculto_para     TEXT[] DEFAULT '{}',
+  activo          BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_dm_msj_conv ON dm_mensajes(conversacion_id, created_at DESC);
+ALTER TABLE dm_mensajes ADD COLUMN IF NOT EXISTS editado   BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE dm_mensajes ADD COLUMN IF NOT EXISTS eliminado BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE dm_mensajes ADD COLUMN IF NOT EXISTS oculto_para TEXT[] DEFAULT '{}';
+
+CREATE TABLE IF NOT EXISTS dm_leido (
+  id              SERIAL PRIMARY KEY,
+  conversacion_id INTEGER NOT NULL REFERENCES dm_conversaciones(id) ON DELETE CASCADE,
+  user_key        VARCHAR(80) NOT NULL,
+  ultimo_leido    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (conversacion_id, user_key)
+);
+
+CREATE TABLE IF NOT EXISTS dm_mensaje_reacciones (
+  id         SERIAL PRIMARY KEY,
+  mensaje_id INTEGER NOT NULL REFERENCES dm_mensajes(id) ON DELETE CASCADE,
+  user_key   VARCHAR(80) NOT NULL,
+  emoji      VARCHAR(8) NOT NULL,
+  UNIQUE (mensaje_id, user_key)
+);
+
+-- Editar / eliminar (con rastro) en mensajes de grupo
+ALTER TABLE comunidad_mensajes ADD COLUMN IF NOT EXISTS editado    BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE comunidad_mensajes ADD COLUMN IF NOT EXISTS eliminado  BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE comunidad_mensajes ADD COLUMN IF NOT EXISTS oculto_para TEXT[] DEFAULT '{}';
+
+-- Apodos entre amigos (uno por cada persona, compartido)
+CREATE TABLE IF NOT EXISTS dm_apodos (
+  id              SERIAL PRIMARY KEY,
+  conversacion_id INTEGER UNIQUE NOT NULL REFERENCES dm_conversaciones(id) ON DELETE CASCADE,
+  a_alias         VARCHAR(60),
+  b_alias         VARCHAR(60),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE dm_apodos ADD COLUMN IF NOT EXISTS a_alias VARCHAR(60);
+ALTER TABLE dm_apodos ADD COLUMN IF NOT EXISTS b_alias VARCHAR(60);
+
+-- Temas (disenos/gradientes) para el chat entre amigos
+CREATE TABLE IF NOT EXISTS chat_temas (
+  id       SERIAL PRIMARY KEY,
+  nombre   VARCHAR(60) UNIQUE NOT NULL,
+  gradient TEXT NOT NULL,
+  activo   BOOLEAN NOT NULL DEFAULT TRUE
+);
+INSERT INTO chat_temas (nombre, gradient) VALUES
+  ('Neón',       'linear-gradient(135deg,#12002f,#ff00cc,#333399)'),
+  ('Atardecer',  'linear-gradient(135deg,#ff512f,#dd2476)'),
+  ('Océano',     'linear-gradient(135deg,#2193b0,#6dd5ed)'),
+  ('Bosque',     'linear-gradient(135deg,#134e5e,#71b280)'),
+  ('Fuego',      'linear-gradient(135deg,#f12711,#f5af19)'),
+  ('Uva',        'linear-gradient(135deg,#654ea3,#eaafc8)'),
+  ('Medianoche', 'linear-gradient(135deg,#232526,#414345)'),
+  ('Rosa',       'linear-gradient(135deg,#ee9ca7,#ffdde1)'),
+  ('Ciberpunk',  'linear-gradient(135deg,#0f0c29,#302b63,#24243e)'),
+  ('Menta',      'linear-gradient(135deg,#43cea2,#185a9d)'),
+  ('Cereza',     'linear-gradient(135deg,#eb3349,#f45c43)'),
+  ('Lavanda',    'linear-gradient(135deg,#8e2de2,#4a00e0)'),
+  ('Dorado',     'linear-gradient(135deg,#f7971e,#ffd200)'),
+  ('Aqua',       'linear-gradient(135deg,#00c6ff,#0072ff)'),
+  ('Coral',      'linear-gradient(135deg,#ff9966,#ff5e62)'),
+  ('Selva',      'linear-gradient(135deg,#093028,#237a57)'),
+  ('Vino',       'linear-gradient(135deg,#4b134f,#c94b4b)'),
+  ('Noche',      'linear-gradient(135deg,#141e30,#243b55)')
+ON CONFLICT (nombre) DO NOTHING;
+
+-- Slug amigable para los videos (ej: /videos/obligada-3)
+UPDATE videos
+   SET slug = trim(both '-' from regexp_replace(lower(titulo_es), '[^a-z0-9]+', '-', 'g')) || '-' || id
+ WHERE slug IS NULL OR slug = '';
+
+-- ============================================================
 -- FIN — Base completa. Admin: admin / admin123
 -- (o crea otro con: npm run seed:admin)
 -- ============================================================

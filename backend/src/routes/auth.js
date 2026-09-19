@@ -11,6 +11,7 @@ import { publishEvent, cacheDel } from '../db/redis.js';
 import { sendMail, verificationCodeEmailHtml } from '../services/mailer.js';
 import { avatarUpload, avatarFolderName, removeAvatarFolder, publicOf, DIRS } from '../services/upload.js';
 import { transcodeAvatar } from '../services/transcode.js';
+import { ensureUserChannel } from '../utils/userChannel.js';
 
 const r = Router();
 
@@ -306,7 +307,11 @@ r.get('/profile', async (req, res, next) => {
       await query('UPDATE users SET nombre = $2, updated_at = NOW() WHERE user_key = $1', [userKey, randomAlias()]);
       existing = await findUserByKey(userKey);
     }
-    res.json({ ok: true, user: publicUser(existing), stats: await getUserStats(userKey) });
+    // Cada cuenta tiene su canal/perfil público (aunque esté vacío).
+    let canal = null;
+    try { canal = await ensureUserChannel(existing); } catch { /* opcional */ }
+
+    res.json({ ok: true, user: publicUser(existing), canal, stats: await getUserStats(userKey) });
   } catch (e) { next(e); }
 });
 
