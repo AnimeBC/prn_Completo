@@ -43,6 +43,12 @@ function nameOf(u) {
   return u.usuario || u.nombre || 'Usuario';
 }
 
+// Enlace al chat directo con una persona (abre su conversación).
+function otroCanalUrl(u) {
+  const key = u && u.user_key ? String(u.user_key) : '';
+  return key ? `/chat?dm=${encodeURIComponent(key)}` : '/chat';
+}
+
 /** true si el usuario es el creador o un moderador del grupo. */
 async function esDuenoOMod(comunidadId, userKey) {
   if (!comunidadId || !userKey) return false;
@@ -1058,18 +1064,27 @@ r.post('/dm/:otroKey/mensajes', communityUpload.single('media'), async (req, res
     await query('UPDATE dm_conversaciones SET updated_at = NOW() WHERE id = $1', [conv.id]);
     res.status(201).json({ ok: true, mensaje: ins.rows[0] });
     await notify('comunidad_dm', { conv: conv.id, de: user.user_key, para: otro.user_key });
-    // Notificación solo la primera vez (persona nueva). No te notifiques a ti mismo.
+    // Aviso de "persona nueva": UNA sola vez por persona, aunque se borre la
+    // conversación o se reinicie. Se comprueba que no exista ya esa notificación.
     if (esPrimero && String(otro.user_key) !== String(user.user_key)) {
-      await crearNotificacion({
-        userKey: otro.user_key,
-        tipo: 'mensaje',
-        titulo: `${nameOf(user)} te envió un mensaje`,
-        texto: texto || `[${tipo}]`,
-        url: '/comunidad',
-        icono: 'mail',
-        actor: user,
-        meta: { dm: true, de: user.user_key },
-      });
+      const yaAvisado = await query(
+        `SELECT 1 FROM notificaciones
+          WHERE user_key = $1 AND tipo = 'mensaje' AND actor_key = $2
+          LIMIT 1`,
+        [otro.user_key, user.user_key]
+      );
+      if (!yaAvisado.rows[0]) {
+        await crearNotificacion({
+          userKey: otro.user_key,
+          tipo: 'mensaje',
+          titulo: `${nameOf(user)} quiere hablar contigo`,
+          texto: texto || `[${tipo}]`,
+          url: otroCanalUrl(user),
+          icono: 'mail',
+          actor: user,
+          meta: { dm: true, de: user.user_key },
+        });
+      }
     }
   } catch (e) { next(e); }
 });
@@ -1239,6 +1254,97 @@ r.get('/usuarios', async (req, res, next) => {
       params
     );
     res.json({ data: rows });
+  } catch (e) { next(e); }
+});
+
+// GET /api/comunidad/buscar?q=&userKey=&filtro=todos|personas|comunidad|publicaciones&page=&limit=
+// Busca personas, comunidades y publicaciones. Paginado para scroll infinito.
+r.get('/buscar', async (req, res, next) => {
+  try {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const me = String(req.query.userKey || '').trim();
+    const filtro = ['personas', 'comunidad', 'grupos', 'publicaciones'].includes(req.query.filtro)
+      ? req.query.filtro : 'todos';
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(30, Math.max(5, Number(req.query.limit) || 12));
+    const offset = (page - 1) * limit;
+    const like = `%${q}%`;
+    const out = { personas: [], grupos: [], posts: [] };
+    const buscaPersonas = filtro === 'todos' || filtro === 'personas';
+    const buscaGrupos = filtro === 'todos' || filtro === 'comunidad' || filtro === 'grupos';
+    const buscaPosts = filtro === 'todos' || filtro === 'publicaciones';
+
+    if (!q) return res.json({ data: out, page, hasMore: false });
+
+    // Personas (con datos de su canal + estado de amistad)
+    if (buscaPersonas) {
+      const params = [like];
+      let extra = '';
+      if (me) { params.push(me); extra = ` AND u.user_key <> $${params.length}`; }
+      const meParam = me ? `$${params.length}` : 'NULL';
+      const { rows } = await query(
+        `SELECT u.user_key, u.usuario, u.nombre, u.avatar,
+                ch.slug AS canal_slug, ch.descripcion AS canal_desc, ch.pais AS canal_pais,
+                ch.seguidores AS canal_seguidores,
+                (SELECT am.estado FROM amistades am
+                  WHERE (am.a_key = u.user_key AND am.b_key = ${meParam})
+                     OR (am.b_key = u.user_key AND am.a_key = ${meParam})
+                  LIMIT 1) AS amistad_estado,
+                (SELECT am.solicitante FROM amistades am
+                  WHERE (am.a_key = u.user_key AND am.b_key = ${meParam})
+                     OR (am.b_key = u.user_key AND am.a_key = ${meParam})
+                  LIMIT 1) AS amistad_solicitante
+           FROM users u
+           LEFT JOIN channels ch ON ch.user_key = u.user_key
+          WHERE u.email_verified = TRUE
+            AND (lower(COALESCE(u.usuario,'')) LIKE $1 OR lower(COALESCE(u.nombre,'')) LIKE $1)${extra}
+          ORDER BY (u.usuario IS NULL), u.usuario ASC
+          LIMIT ${limit} OFFSET ${offset}`,
+        params
+      );
+      out.personas = rows;
+    }
+
+    // Comunidades
+    if (buscaGrupos) {
+      const { rows } = await query(
+        `SELECT id, nombre, slug, avatar, privacidad, modo_union, miembros
+           FROM comunidades
+          WHERE activo = TRUE
+            AND (lower(nombre) LIKE $1 OR lower(COALESCE(descripcion,'')) LIKE $1)
+          ORDER BY miembros DESC
+          LIMIT ${limit} OFFSET ${offset}`,
+        [like]
+      );
+      out.grupos = rows;
+    }
+
+    // Publicaciones
+    if (buscaPosts) {
+      const params = [like];
+      let likedExpr = 'FALSE';
+      let savedExpr = 'FALSE';
+      if (me) {
+        params.push(me);
+        likedExpr = `EXISTS (SELECT 1 FROM comunidad_post_likes l WHERE l.post_id = p.id AND l.user_key = $${params.length})`;
+        savedExpr = `EXISTS (SELECT 1 FROM comunidad_post_guardados g2 WHERE g2.post_id = p.id AND g2.user_key = $${params.length})`;
+      }
+      const { rows } = await query(
+        `SELECT p.*, c.nombre AS grupo_nombre,
+                ${likedExpr} AS liked, ${savedExpr} AS saved
+           FROM comunidad_posts p
+           LEFT JOIN comunidades c ON c.id = p.comunidad_id
+          WHERE p.activo = TRUE
+            AND (lower(COALESCE(p.texto,'')) LIKE $1 OR lower(COALESCE(p.usuario,'')) LIKE $1)
+          ORDER BY p.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}`,
+        params
+      );
+      out.posts = rows;
+    }
+
+    const total = out.personas.length + out.grupos.length + out.posts.length;
+    res.json({ data: out, page, hasMore: total >= limit });
   } catch (e) { next(e); }
 });
 

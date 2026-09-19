@@ -8,6 +8,346 @@
 
 .hidden { display: none; }
 
+/* ================= BUSCADOR ================= */
+.buscador { margin: 0 0 16px; position: relative; z-index: 40; }
+
+.buscadorBox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-surface, #18181B);
+  border: 1px solid var(--border, #27272A);
+  border-radius: 24px;
+  padding: 13px 18px;
+  width: 100%;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+.buscadorBox:focus-within { border-color: var(--primary, #F20D16); }
+
+.buscadorIcon { font-size: 18px; color: var(--text-secondary, #A1A1AA); }
+
+.buscadorInput {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary, #FFFFFF);
+  font-size: 15px;
+  font-family: inherit;
+}
+
+.buscadorBtn {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 18px;
+  background: var(--primary, #F20D16);
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.buscadorBtn:hover { filter: brightness(1.1); }
+
+
+.buscadorClear {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+}
+
+.buscadorFiltros { display: flex; gap: 6px; margin-top: 10px; }
+
+.buscadorChip {
+  border: 1px solid var(--border, #27272A);
+  background: transparent;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 16px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.buscadorChip:hover { border-color: var(--primary, #F20D16); }
+.buscadorChipOn {
+  background: var(--primary, #F20D16);
+  border-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+}
+
+.buscadorChipGhost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--text-secondary, #A1A1AA);
+}
+.buscadorChipGhost:hover { color: var(--primary, #F20D16); }
+
+/* ===== Resultados de busqueda (reemplazan el contenido) ===== */
+.buscarResultados {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.buscarSeccion {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-card, #121215);
+}
+
+.buscarSeccionHead {
+  margin: 0;
+  padding: 12px 14px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+.buscarPerfil {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+
+.buscarFin {
+  margin: 0;
+  padding: 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+/* ===== Resultados estilo Facebook ===== */
+.fbCard {
+  background: var(--bg-card, #242526);
+  border: 1px solid var(--border, #3A3B3C);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.fbCardTitle {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary, #E4E6EB);
+}
+
+.fbUserRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.fbUserMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.fbUserMain:hover .fbUserName { text-decoration: underline; }
+
+.fbAvatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--bg-surface, #3A3B3C);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fbAvatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.fbUserInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.fbUserName { font-size: 15px; font-weight: 700; color: var(--text-primary, #E4E6EB); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fbUserMeta { font-size: 13px; color: var(--text-secondary, #B0B3B8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fbUserDesc { font-size: 12px; color: var(--text-secondary, #B0B3B8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.fbBtnPrimary {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  background: #2D88FF;
+  color: #FFFFFF;
+}
+.fbBtnPrimary:hover { filter: brightness(1.08); }
+.fbBtnPrimary:disabled { opacity: 0.6; cursor: not-allowed; }
+.fbBtnPrimary ion-icon { font-size: 16px; }
+
+.fbBtnGhost {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  background: var(--bg-surface, #3A3B3C);
+  color: var(--text-primary, #E4E6EB);
+}
+.fbBtnGhost:hover { filter: brightness(1.1); }
+.fbBtnGhost:disabled { opacity: 0.6; cursor: not-allowed; }
+.fbBtnGhost ion-icon { font-size: 16px; }
+
+.fbVerTodos {
+  width: 100%;
+  margin-top: 6px;
+  border: none;
+  border-radius: 6px;
+  padding: 9px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--bg-surface, #3A3B3C);
+  color: var(--text-primary, #E4E6EB);
+}
+.fbVerTodos:hover { filter: brightness(1.1); }
+
+/* Header de post con alcance público */
+.postGroupName { font-size: 14px; font-weight: 700; color: var(--text-primary, #E4E6EB); }
+.postScope { display: inline-flex; align-items: center; gap: 4px; }
+.postScope ion-icon { font-size: 12px; }
+
+@media (max-width: 640px) {
+  .fbAvatar { width: 52px; height: 52px; }
+  .fbBtnPrimary span, .fbBtnGhost span { display: none; }
+  .fbBtnPrimary, .fbBtnGhost { padding: 9px; }
+}
+
+
+.buscadorEmpty {
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+.buscarItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border, #27272A);
+}
+.buscarItem:last-child { border-bottom: none; }
+
+.buscarAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--bg-surface, #18181B);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.buscarAvatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.buscarInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.buscarNombre { font-size: 13.5px; font-weight: 700; color: var(--text-primary, #FFFFFF); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.buscarMeta { font-size: 11px; color: var(--text-secondary, #A1A1AA); }
+
+.buscarAccion {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border, #27272A);
+  background: var(--bg-surface, #18181B);
+  color: var(--text-primary, #FFFFFF);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.buscarAccion:hover { border-color: var(--primary, #F20D16); }
+.buscarAccion ion-icon { font-size: 16px; }
+
+.buscarVer {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border, #27272A);
+  background: transparent;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.buscarVer:hover { color: var(--primary, #F20D16); border-color: var(--primary, #F20D16); }
+
+@media (max-width: 640px) {
+  .buscarAccion span { display: none; }
+  .buscarAccion { padding: 8px; }
+}
+
 /* ================= STORIES ================= */
 .storiesWrap { position: relative; }
 

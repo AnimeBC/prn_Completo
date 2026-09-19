@@ -249,6 +249,19 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
 
   useEffect(() => { cargarRel(); }, [cargarRel]);
 
+  // Al volver con el boton atras (bfcache) el navegador restaura el DOM sin
+  // re-ejecutar efectos: hay que refrescar la relacion aqui.
+  useEffect(() => {
+    const onShow = (e) => { if (e.persisted) cargarRel(); };
+    const onFocus = () => cargarRel();
+    window.addEventListener('pageshow', onShow);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('pageshow', onShow);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [cargarRel]);
+
   async function accionAmistad(acc) {
     if (!authed) { setAuthOpen(true); return; }
     if (!duenoKey || String(duenoKey) === String(userKey)) return;

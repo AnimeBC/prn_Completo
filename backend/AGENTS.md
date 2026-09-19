@@ -4,12 +4,15 @@
 - Node.js 20+ · Express 4 · PostgreSQL (`pg`) · Redis (`redis`) · JWT · bcryptjs · ESM (`"type": "module"`)
 - No Next.js, no React.
 
-## Redis (realtime + caché)
+## Redis (realtime + caché) — IMPORTANTE, nunca opcional en el diseño
+- **Redis es parte central de la app, no un extra.** Es la base de la **sincronización en tiempo real** (llamadas, chats, notificaciones, presencia, contadores). **Nunca** lo trates como opcional ni lo omitas al diseñar una feature: si una acción cambia estado que otro usuario debe ver, **siempre** publica el evento por Redis.
 - `REDIS_URL=redis://localhost:6379` (contenedor `redis:8`, puerto `6379:6379`).
 - `src/db/redis.js`: cliente `redis`, `connectRedis()`, `createSubscriber()`, `publishEvent(type, payload)` y helpers de caché (`cacheGet/Set/Del`).
 - Canal pub/sub: `pikantepe:events`.
 - SSE para el frontend: `GET /api/events` (evento `change`); publicar manualmente con `POST /api/events/publish` (Bearer).
-- Toda ruta de escritura debe llamar `publishEvent(...)` y `cacheDel(...)` tras modificar datos.
+- **Toda ruta de escritura debe llamar `publishEvent(...)` y `cacheDel(...)`** tras modificar datos. Revisar SIEMPRE `publishEvent` al crear/editar/borrar cualquier recurso.
+- Los helpers toleran que Redis caiga (no deben romper la petición), pero el diseño asume Redis activo y presente.
+- Antes de dar por terminada una feature, preguntarse: "¿qué otros usuarios/clientes deben enterarse de esto?" y cubrirlo con un evento Redis.
 
 ## Reglas de trabajo
 - No ejecutar `npm run dev` / `node src/server.js` hasta que el usuario lo indique.

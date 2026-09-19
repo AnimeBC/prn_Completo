@@ -158,6 +158,12 @@ export const apiComunidad = {
   dmLeido: (otroKey, userKey) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/leido`, jsonPost({ userKey })),
   dmReaccionar: (msjId, userKey, emoji) => req(`/api/comunidad/dm/mensajes/${msjId}/reaccion`, jsonPost({ userKey, emoji })),
 
+  /** Buscar personas, comunidades y publicaciones (paginado). */
+  buscar: (q = '', userKey = '', filtro = 'todos', page = 1, limit = 12) => {
+    const p = new URLSearchParams({ q, filtro, page: String(page), limit: String(limit) });
+    if (userKey) p.set('userKey', userKey);
+    return req(`/api/comunidad/buscar?${p.toString()}`);
+  },
   /** Buscar usuarios para escribirles. */
   buscarUsuarios: (q = '', userKey) => {
     const p = new URLSearchParams({ userKey });

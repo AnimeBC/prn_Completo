@@ -58,6 +58,82 @@ function StoryDrop({ onFile, es }) {
   );
 }
 
+/** Tarjeta de publicación reutilizable (feed y resultados de búsqueda). */
+function PostCard({ p, es, comentariosDe, comentarios, comentarioTexto, setComentarioTexto, onLike, onComentarios, onCompartir, onGuardar, onReportar, onComentar }) {
+  return (
+    <article className={styles.post}>
+      <header className={styles.postHead}>
+        <span className={styles.avatarSm}>{p.avatar ? <img src={comunidadMedia(p.avatar)} alt="" /> : (p.usuario || '?').slice(0, 1).toUpperCase()}</span>
+        <div className={styles.postWho}>
+          <span className={styles.postUser}>{p.grupo_nombre || p.usuario}</span>
+          <span className={styles.postTime}>
+            {p.grupo_nombre ? `${p.usuario} · ` : ''}{fecha(p.created_at, es ? 'es' : 'en')}
+            <span className={styles.postScope} title={es ? 'Público' : 'Public'}>
+              {' · '}<ion-icon name="earth-outline" suppressHydrationWarning></ion-icon>
+            </span>
+          </span>
+        </div>
+        <button type="button" className={styles.iconBtn} onClick={() => onReportar(p)} title={es ? 'Reportar' : 'Report'}>
+          <ion-icon name="flag-outline" suppressHydrationWarning></ion-icon>
+        </button>
+      </header>
+
+      {p.texto && <p className={styles.postText}>{p.texto}</p>}
+
+      {Array.isArray(p.media) && p.media.length > 0 && (
+        <div className={styles.mediaGrid}>
+          {p.media.map((m, i) => (
+            <div key={`${p.id}-${i}`} className={styles.mediaItem}>
+              {m.tipo === 'video' ? (
+                <video src={comunidadMedia(m.url)} controls preload="metadata" playsInline onPlay={(e) => soloUnoPlay(e.currentTarget)} />
+              ) : m.tipo === 'audio' ? (
+                <audio src={comunidadMedia(m.url)} controls onPlay={(e) => soloUnoPlay(e.currentTarget)} />
+              ) : (
+                <img src={comunidadMedia(m.url)} alt="" loading="lazy" />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className={styles.postActions}>
+        <button type="button" className={`${styles.action} ${p.liked ? styles.actionOn : ''}`} onClick={() => onLike(p)}>
+          <ion-icon name={p.liked ? 'heart' : 'heart-outline'} suppressHydrationWarning></ion-icon> {p.likes}
+        </button>
+        <button type="button" className={styles.action} onClick={() => onComentarios(p)}>
+          <ion-icon name="chatbubble-outline" suppressHydrationWarning></ion-icon> {p.comentarios}
+        </button>
+        <button type="button" className={styles.action} onClick={() => onCompartir(p)}>
+          <ion-icon name="share-social-outline" suppressHydrationWarning></ion-icon> {p.compartidos}
+        </button>
+        <button type="button" className={`${styles.action} ${styles.actionRight} ${p.saved ? styles.actionOn : ''}`} onClick={() => onGuardar(p)}>
+          <ion-icon name={p.saved ? 'bookmark' : 'bookmark-outline'} suppressHydrationWarning></ion-icon>
+        </button>
+      </div>
+
+      {comentariosDe === p.id && (
+        <div className={styles.comments}>
+          {comentarios.map((c) => (
+            <div key={c.id} className={styles.comment}>
+              <span className={styles.avatarXs}>{c.avatar ? <img src={comunidadMedia(c.avatar)} alt="" /> : (c.usuario || '?').slice(0, 1).toUpperCase()}</span>
+              <div>
+                <span className={styles.commentUser}>{c.usuario}</span>
+                <p className={styles.commentText}>{c.texto}</p>
+              </div>
+            </div>
+          ))}
+          <div className={styles.commentRow}>
+            <input className={styles.input} placeholder={es ? 'Escribe un comentario...' : 'Write a comment...'}
+              value={comentarioTexto} onChange={(e) => setComentarioTexto(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onComentar(p); }} />
+            <button type="button" className={styles.primaryBtn} onClick={() => onComentar(p)}>{es ? 'Enviar' : 'Send'}</button>
+          </div>
+        </div>
+      )}
+    </article>
+  );
+}
+
 export default function ComunidadClient() {
   const { t, locale } = useLanguage();
   const es = locale !== 'en';
@@ -111,6 +187,16 @@ export default function ComunidadClient() {
   const [grupoImg, setGrupoImg] = useState(null);
   const [onlineQ, setOnlineQ] = useState('');
   const [onlineLimit, setOnlineLimit] = useState(6);
+  const [buscarQ, setBuscarQ] = useState('');
+  const [buscarFiltro, setBuscarFiltro] = useState('todos');
+  const [buscarRes, setBuscarRes] = useState({ personas: [], grupos: [], posts: [] });
+  const [buscarLoading, setBuscarLoading] = useState(false);
+  const [buscarOpen, setBuscarOpen] = useState(false);
+  const [buscarPage, setBuscarPage] = useState(1);
+  const [hasMoreBuscar, setHasMoreBuscar] = useState(false);
+  const [cargandoMasBuscar, setCargandoMasBuscar] = useState(false);
+  const [amistadBusy, setAmistadBusy] = useState('');
+  const buscarKeyRef = useRef('');
   const [pedirGrupo, setPedirGrupo] = useState(null);
   const [solGrupoModal, setSolGrupoModal] = useState(null);
   const [reactMenu, setReactMenu] = useState(null);
@@ -163,6 +249,189 @@ export default function ComunidadClient() {
 
   useEffect(() => { cargarFeed(); }, [cargarFeed]);
   useEffect(() => { cargarTodo(); }, [cargarTodo]);
+
+  const BUSCAR_CACHE_KEY = (q, f) => `pkp_buscar:${String(q).toLowerCase()}:${f}`;
+  const buscandoActivo = buscarOpen && buscarQ.trim().length >= 2;
+
+  // Borra TODAS las cachés de búsqueda (al cambiar amistades, el estado guardado
+  // se queda viejo y mostraba "Solicitud enviada" aunque se cancelara).
+  const invalidarCacheBuscar = useCallback(() => {
+    try {
+      const keys = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        if (k && k.startsWith('pkp_buscar:')) keys.push(k);
+      }
+      keys.forEach((k) => window.localStorage.removeItem(k));
+    } catch { /* noop */ }
+  }, []);
+
+  // Ejecuta una búsqueda (página 1) y guarda en caché localStorage.
+  const ejecutarBuscar = useCallback(async (q, f) => {
+    const qq = String(q || '').trim();
+    if (qq.length < 2) {
+      setBuscarRes({ personas: [], grupos: [], posts: [] });
+      setHasMoreBuscar(false);
+      setBuscarLoading(false);
+      return;
+    }
+    setBuscarLoading(true);
+    const r = await apiComunidad.buscar(qq, userKey, f, 1, 12);
+    const data = (r && r.data) || { personas: [], grupos: [], posts: [] };
+    setBuscarRes({ personas: data.personas || [], grupos: data.grupos || [], posts: data.posts || [] });
+    setHasMoreBuscar(!!r?.hasMore);
+    setBuscarPage(1);
+    setBuscarLoading(false);
+    try {
+      // El estado de amistad NO se cachea (cambia seguido y mostraba datos viejos).
+      const personas = (data.personas || []).map(({ amistad_estado, amistad_solicitante, ...rest }) => rest);
+      window.localStorage.setItem(BUSCAR_CACHE_KEY(qq, f), JSON.stringify({
+        personas, grupos: data.grupos || [], posts: data.posts || [],
+        hasMore: !!r?.hasMore, at: Date.now(),
+      }));
+    } catch { /* noop */ }
+  }, [userKey]);
+
+  // Debounce al escribir / cambiar filtro.
+  useEffect(() => {
+    const qq = buscarQ.trim();
+    if (qq.length < 2) {
+      setBuscarRes({ personas: [], grupos: [], posts: [] });
+      setBuscarLoading(false);
+      return undefined;
+    }
+    // Caché inmediata si existe (evita parpadeo y lag). Trae el estado de amistad
+    // real aparte, para no mostrar datos viejos.
+    try {
+      const raw = window.localStorage.getItem(BUSCAR_CACHE_KEY(qq, buscarFiltro));
+      if (raw) {
+        const c = JSON.parse(raw);
+        if (c && c.at && Date.now() - c.at < 10 * 60 * 1000) {
+          setBuscarRes({ personas: c.personas || [], grupos: c.grupos || [], posts: c.posts || [] });
+          setHasMoreBuscar(!!c.hasMore);
+          // Refresca el estado de amistad en segundo plano.
+          (c.personas || []).forEach(async (u) => {
+            if (!userKey || String(u.user_key) === String(userKey)) return;
+            const rel = await apiComunidad.amistad(u.user_key, userKey);
+            if (rel && !rel.error) {
+              setBuscarRes((prev) => ({
+                ...prev,
+                personas: prev.personas.map((p) => (
+                  String(p.user_key) === String(u.user_key)
+                    ? { ...p, amistad_estado: rel.estado, amistad_solicitante: rel.solicitante }
+                    : p
+                )),
+              }));
+            }
+          });
+          return undefined;
+        }
+      }
+    } catch { /* noop */ }
+    const t = setTimeout(() => ejecutarBuscar(qq, buscarFiltro), 300);
+    return () => clearTimeout(t);
+  }, [buscarQ, buscarFiltro, ejecutarBuscar, userKey]);
+
+  // Lee ?q= y ?f= de la URL al entrar.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    const q0 = sp.get('q');
+    const f0 = sp.get('f');
+    if (q0) { setBuscarQ(q0); setBuscarOpen(true); }
+    if (f0 && ['todos', 'personas', 'comunidad', 'publicaciones'].includes(f0)) setBuscarFiltro(f0);
+  }, []);
+
+  // Al volver con el boton atras (bfcache) el DOM se restaura sin re-ejecutar
+  // efectos: invalida la cache y re-consulta el estado real de amistad.
+  useEffect(() => {
+    const onShow = (e) => {
+      if (!e.persisted) return;
+      invalidarCacheBuscar();
+      const qq = buscarQ.trim();
+      if (qq.length >= 2) ejecutarBuscar(qq, buscarFiltro);
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, [buscarQ, buscarFiltro, ejecutarBuscar, invalidarCacheBuscar]);
+
+  // Refleja la busqueda en la URL (/comunidad?q=...&f=...) sin recargar.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const t = setTimeout(() => {
+      const qq = buscarQ.trim();
+      const f = buscarFiltro;
+      const target = qq ? `/comunidad?q=${encodeURIComponent(qq)}&f=${f}` : '/comunidad';
+      if (`${window.location.pathname}${window.location.search}` !== target) {
+        window.history.replaceState(null, '', target);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [buscarQ, buscarFiltro]);
+
+  // Carga progresiva: siguiente página al llegar al final.
+  const cargarMasBuscar = useCallback(async () => {
+    if (!buscandoActivo || cargandoMasBuscar || !hasMoreBuscar) return;
+    const qq = buscarQ.trim();
+    if (qq.length < 2) return;
+    setCargandoMasBuscar(true);
+    const next = buscarPage + 1;
+    const r = await apiComunidad.buscar(qq, userKey, buscarFiltro, next, 12);
+    const data = (r && r.data) || { personas: [], grupos: [], posts: [] };
+    setBuscarRes((prev) => {
+      const idSet = (arr) => new Set(arr.map((x) => String(x.user_key || x.id)));
+      const me = idSet;
+      const merge = (a, b) => {
+        const seen = new Set(a.map((x) => String(x.user_key || x.id)));
+        return [...a, ...b.filter((x) => !seen.has(String(x.user_key || x.id)))];
+      };
+      return {
+        personas: merge(prev.personas, data.personas || []),
+        grupos: merge(prev.grupos, data.grupos || []),
+        posts: merge(prev.posts, data.posts || []),
+      };
+    });
+    setHasMoreBuscar(!!r?.hasMore);
+    setBuscarPage(next);
+    setCargandoMasBuscar(false);
+  }, [buscandoActivo, cargandoMasBuscar, hasMoreBuscar, buscarQ, buscarFiltro, buscarPage, userKey]);
+
+  function onScrollBuscar(e) {
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) cargarMasBuscar();
+  }
+
+  function buscarAhora(e) {
+    if (e) e.preventDefault();
+    const qq = buscarQ.trim();
+    setBuscarOpen(true);
+    if (typeof window !== 'undefined') {
+      const target = qq ? `/comunidad?q=${encodeURIComponent(qq)}&f=${buscarFiltro}` : '/comunidad';
+      window.history.replaceState(null, '', target);
+    }
+    if (qq.length >= 2) ejecutarBuscar(qq, buscarFiltro);
+  }
+
+  function cerrarBuscador() {
+    setBuscarOpen(false);
+    setBuscarQ('');
+    setBuscarRes({ personas: [], grupos: [], posts: [] });
+    setHasMoreBuscar(false);
+    if (typeof window !== 'undefined') window.history.replaceState(null, '', '/comunidad');
+  }
+
+  // Acción de amistad desde los resultados de búsqueda (solicitar/cancelar/aceptar).
+  async function accionAmistadBuscar(u, accion) {
+    if (!userKey) { setAuthOpen(true); return; }
+    if (!u || !u.user_key || String(u.user_key) === String(userKey)) return;
+    setAmistadBusy(u.user_key);
+    await apiComunidad.amistadAccion(u.user_key, userKey, accion);
+    invalidarCacheBuscar();
+    // Re-consulta el estado real desde el servidor (no confiar en caché).
+    const qq = buscarQ.trim();
+    if (qq.length >= 2) await ejecutarBuscar(qq, buscarFiltro);
+    setAmistadBusy('');
+  }
 
   // Límite de subida del usuario (según lo que ponga el admin).
   useEffect(() => {
@@ -699,6 +968,56 @@ export default function ComunidadClient() {
       <div className={styles.grid}>
         {/* ===== CENTRO: FEED ===== */}
         <section className={styles.center}>
+          {/* ===== BUSCADOR (personas / comunidades / publicaciones) ===== */}
+          <div className={styles.buscador}>
+            <div className={styles.buscadorBox}>
+              <ion-icon name="search-outline" className={styles.buscadorIcon} suppressHydrationWarning></ion-icon>
+              <input
+                className={styles.buscadorInput}
+                type="text"
+                placeholder={es ? 'Busca aquí lo que quieras en la comunidad...' : 'Search anything in the community...'}
+                value={buscarQ}
+                onChange={(e) => setBuscarQ(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') buscarAhora(e); }}
+              />
+              {buscarQ && (
+                <button type="button" className={styles.buscadorClear} onClick={() => setBuscarQ('')} aria-label={es ? 'Limpiar' : 'Clear'}>
+                  <ion-icon name="close-circle" suppressHydrationWarning></ion-icon>
+                </button>
+              )}
+              <button type="button" className={styles.buscadorBtn} onClick={buscarAhora}>
+                {es ? 'Buscar' : 'Search'}
+              </button>
+            </div>
+
+            {buscandoActivo && (
+              <div className={styles.buscadorFiltros}>
+                {[
+                  { id: 'todos', es: 'Todo' },
+                  { id: 'personas', es: 'Personas' },
+                  { id: 'comunidad', es: 'Comunidades' },
+                  { id: 'publicaciones', es: 'Publicaciones' },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    className={`${styles.buscadorChip} ${buscarFiltro === f.id ? styles.buscadorChipOn : ''}`}
+                    onClick={() => setBuscarFiltro(f.id)}
+                  >
+                    {f.es}
+                  </button>
+                ))}
+                <button type="button" className={`${styles.buscadorChip} ${styles.buscadorChipGhost}`} onClick={cerrarBuscador}>
+                  <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Salir' : 'Exit'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {!buscandoActivo && (
+          <>
+
           {/* ===== STORIES ===== */}
           <div className={styles.storiesWrap}>
             <div className={styles.storiesBar} ref={storiesRef}>
@@ -774,73 +1093,144 @@ export default function ComunidadClient() {
             <p className={styles.empty}>{es ? 'Aún no hay publicaciones. ¡Sé el primero!' : 'No posts yet. Be the first!'}</p>
           ) : (
             feed.map((p) => (
-              <article key={p.id} className={styles.post}>
-                <header className={styles.postHead}>
-                  <span className={styles.avatarSm}>{p.avatar ? <img src={comunidadMedia(p.avatar)} alt="" /> : ini(p.usuario)}</span>
-                  <div className={styles.postWho}>
-                    <span className={styles.postUser}>{p.usuario}</span>
-                    {p.grupo_nombre && <span className={styles.postGroup}>· {p.grupo_nombre}</span>}
-                    <span className={styles.postTime}>{fecha(p.created_at, es ? 'es' : 'en')}</span>
-                  </div>
-                  <button type="button" className={styles.iconBtn} onClick={() => reportar(p)} title={es ? 'Reportar' : 'Report'}>
-                    <ion-icon name="flag-outline" suppressHydrationWarning></ion-icon>
-                  </button>
-                </header>
+              <PostCard
+                key={p.id}
+                p={p}
+                es={es}
+                comentariosDe={comentariosDe}
+                comentarios={comentarios}
+                comentarioTexto={comentarioTexto}
+                setComentarioTexto={setComentarioTexto}
+                onLike={alternarLike}
+                onComentarios={abrirComentarios}
+                onCompartir={compartir}
+                onGuardar={alternarGuardar}
+                onReportar={reportar}
+                onComentar={comentar}
+              />
+            ))
+          )}
+          </>
+          )}
 
-                {p.texto && <p className={styles.postText}>{p.texto}</p>}
+          {/* ===== RESULTADOS DE BUSQUEDA (reemplazan el contenido) ===== */}
+          {buscandoActivo && (
+            <div className={styles.buscarResultados} onScroll={onScrollBuscar}>
+              {buscarLoading && buscarRes.personas.length === 0 && buscarRes.grupos.length === 0 && buscarRes.posts.length === 0 && (
+                <p className={styles.empty}>{es ? 'Buscando...' : 'Searching...'}</p>
+              )}
 
-                {Array.isArray(p.media) && p.media.length > 0 && (
-                  <div className={styles.mediaGrid}>
-                    {p.media.map((m, i) => (
-                      <div key={`${p.id}-${i}`} className={styles.mediaItem}>
-                        {m.tipo === 'video' ? (
-                          <video src={comunidadMedia(m.url)} controls preload="metadata" playsInline onPlay={(e) => soloUnoPlay(e.currentTarget)} />
-                        ) : m.tipo === 'audio' ? (
-                          <audio src={comunidadMedia(m.url)} controls onPlay={(e) => soloUnoPlay(e.currentTarget)} />
+              {!buscarLoading && buscarRes.personas.length === 0 && buscarRes.grupos.length === 0 && buscarRes.posts.length === 0 && (
+                <p className={styles.empty}>{es ? 'Sin resultados.' : 'No results.'}</p>
+              )}
+
+              {(buscarFiltro === 'todos' || buscarFiltro === 'personas') && buscarRes.personas.length > 0 && (
+                <div className={styles.fbCard}>
+                  <h3 className={styles.fbCardTitle}>{es ? 'Personas' : 'People'}</h3>
+                  {buscarRes.personas.map((u) => {
+                    const nombre = u.usuario || u.nombre || 'Usuario';
+                    const meta = [
+                      u.canal_seguidores ? `${Number(u.canal_seguidores).toLocaleString(es ? 'es-PE' : 'en-US')} ${es ? 'seguidores' : 'followers'}` : '',
+                      u.canal_pais ? `${es ? 'Vive en' : 'Lives in'} ${u.canal_pais}` : '',
+                    ].filter(Boolean).join(' · ');
+                    const estado = u.amistad_estado;
+                    const esPendienteMia = estado === 'pendiente' && String(u.amistad_solicitante) === String(userKey);
+                    const esPendienteSuya = estado === 'pendiente' && String(u.amistad_solicitante) !== String(userKey);
+                    return (
+                      <div key={`u_${u.user_key}`} className={styles.fbUserRow}>
+                        <button type="button" className={styles.fbUserMain} onClick={() => router.push(u.canal_slug ? `/canal/${u.canal_slug}` : '/comunidad')}>
+                          <span className={styles.fbAvatar}>
+                            {u.avatar ? <img src={comunidadMedia(u.avatar)} alt="" /> : ini(nombre)}
+                          </span>
+                          <span className={styles.fbUserInfo}>
+                            <span className={styles.fbUserName}>{nombre}</span>
+                            {meta && <span className={styles.fbUserMeta}>{meta}</span>}
+                            {u.canal_desc && <span className={styles.fbUserDesc}>{u.canal_desc}</span>}
+                          </span>
+                        </button>
+                        {estado === 'aceptado' ? (
+                          <button type="button" className={styles.fbBtnGhost} onClick={() => abrirAmigo({ user_key: u.user_key, usuario: nombre, avatar: u.avatar })}>
+                            <ion-icon name="chatbubble-ellipses-outline" suppressHydrationWarning></ion-icon>
+                            <span>{es ? 'Mensaje' : 'Message'}</span>
+                          </button>
+                        ) : esPendienteMia ? (
+                          <button type="button" className={styles.fbBtnGhost} onClick={() => accionAmistadBuscar(u, 'cancelar')} disabled={amistadBusy === u.user_key}>
+                            <ion-icon name="close-circle-outline" suppressHydrationWarning></ion-icon>
+                            <span>{es ? 'Cancelar solicitud' : 'Cancel request'}</span>
+                          </button>
+                        ) : esPendienteSuya ? (
+                          <button type="button" className={styles.fbBtnPrimary} onClick={() => accionAmistadBuscar(u, 'aceptar')} disabled={amistadBusy === u.user_key}>
+                            <ion-icon name="checkmark-outline" suppressHydrationWarning></ion-icon>
+                            <span>{es ? 'Aceptar' : 'Accept'}</span>
+                          </button>
                         ) : (
-                          <img src={comunidadMedia(m.url)} alt="" loading="lazy" />
+                          <button type="button" className={styles.fbBtnPrimary} onClick={() => accionAmistadBuscar(u, 'solicitar')} disabled={amistadBusy === u.user_key}>
+                            <ion-icon name="person-add" suppressHydrationWarning></ion-icon>
+                            <span>{es ? 'Agregar a amigos' : 'Add friend'}</span>
+                          </button>
                         )}
                       </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className={styles.postActions}>
-                  <button type="button" className={`${styles.action} ${p.liked ? styles.actionOn : ''}`} onClick={() => alternarLike(p)}>
-                    <ion-icon name={p.liked ? 'heart' : 'heart-outline'} suppressHydrationWarning></ion-icon> {p.likes}
-                  </button>
-                  <button type="button" className={styles.action} onClick={() => abrirComentarios(p)}>
-                    <ion-icon name="chatbubble-outline" suppressHydrationWarning></ion-icon> {p.comentarios}
-                  </button>
-                  <button type="button" className={styles.action} onClick={() => compartir(p)}>
-                    <ion-icon name="share-social-outline" suppressHydrationWarning></ion-icon> {p.compartidos}
-                  </button>
-                  <button type="button" className={`${styles.action} ${styles.actionRight} ${p.saved ? styles.actionOn : ''}`} onClick={() => alternarGuardar(p)}>
-                    <ion-icon name={p.saved ? 'bookmark' : 'bookmark-outline'} suppressHydrationWarning></ion-icon>
-                  </button>
+                    );
+                  })}
+                  {hasMoreBuscar && (
+                    <button type="button" className={styles.fbVerTodos} onClick={cargarMasBuscar}>
+                      {es ? 'Ver todos' : 'See all'}
+                    </button>
+                  )}
                 </div>
+              )}
 
-                {comentariosDe === p.id && (
-                  <div className={styles.comments}>
-                    {comentarios.map((c) => (
-                      <div key={c.id} className={styles.comment}>
-                        <span className={styles.avatarXs}>{c.avatar ? <img src={comunidadMedia(c.avatar)} alt="" /> : ini(c.usuario)}</span>
-                        <div>
-                          <span className={styles.commentUser}>{c.usuario}</span>
-                          <p className={styles.commentText}>{c.texto}</p>
-                        </div>
+              {(buscarFiltro === 'todos' || buscarFiltro === 'comunidad') && buscarRes.grupos.length > 0 && (
+                <div className={styles.buscarSeccion}>
+                  <p className={styles.buscarSeccionHead}>{es ? 'Comunidades' : 'Communities'}</p>
+                  {buscarRes.grupos.map((g) => (
+                    <div key={`g_${g.id}`} className={styles.buscarItem}>
+                      <span className={styles.buscarAvatar}>
+                        {g.avatar ? <img src={comunidadMedia(g.avatar)} alt="" /> : ini(g.nombre)}
+                      </span>
+                      <div className={styles.buscarInfo}>
+                        <span className={styles.buscarNombre}>{g.nombre}</span>
+                        <span className={styles.buscarMeta}>
+                          {es ? 'Comunidad' : 'Community'} · {Number(g.miembros || 0).toLocaleString()}
+                        </span>
                       </div>
-                    ))}
-                    <div className={styles.commentRow}>
-                      <input className={styles.input} placeholder={es ? 'Escribe un comentario...' : 'Write a comment...'}
-                        value={comentarioTexto} onChange={(e) => setComentarioTexto(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') comentar(p); }} />
-                      <button type="button" className={styles.primaryBtn} onClick={() => comentar(p)}>{t('comentarios.comentar') || 'Enviar'}</button>
+                      <button type="button" className={styles.buscarAccion} onClick={() => abrirChat(g)}>
+                        <ion-icon name="enter-outline" suppressHydrationWarning></ion-icon>
+                        <span>{es ? 'Abrir' : 'Open'}</span>
+                      </button>
                     </div>
-                  </div>
-                )}
-              </article>
-            ))
+                  ))}
+                </div>
+              )}
+
+              {(buscarFiltro === 'todos' || buscarFiltro === 'publicaciones') && buscarRes.posts.length > 0 && (
+                <div className={styles.buscarSeccion}>
+                  <p className={styles.buscarSeccionHead}>{es ? 'Publicaciones' : 'Posts'}</p>
+                  {buscarRes.posts.map((p) => (
+                    <PostCard
+                      key={p.id}
+                      p={p}
+                      es={es}
+                      comentariosDe={comentariosDe}
+                      comentarios={comentarios}
+                      comentarioTexto={comentarioTexto}
+                      setComentarioTexto={setComentarioTexto}
+                      onLike={alternarLike}
+                      onComentarios={abrirComentarios}
+                      onCompartir={compartir}
+                      onGuardar={alternarGuardar}
+                      onReportar={reportar}
+                      onComentar={comentar}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {cargandoMasBuscar && <p className={styles.empty}>{es ? 'Cargando más...' : 'Loading more...'}</p>}
+              {!hasMoreBuscar && !buscarLoading && (buscarRes.personas.length + buscarRes.grupos.length + buscarRes.posts.length) > 0 && (
+                <p className={styles.buscarFin}>{es ? 'No hay más resultados.' : 'No more results.'}</p>
+              )}
+            </div>
           )}
         </section>
 

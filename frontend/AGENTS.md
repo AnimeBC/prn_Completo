@@ -10,6 +10,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Reglas de trabajo
 
+- **Redis / tiempo real (IMPORTANTE, nunca opcional en el diseño):** la app sincroniza por **Redis → SSE** (`GET /api/events` → evento global `pikantepe:change`). **Nunca** lo trates como opcional: toda feature que cambie estado visible para otro usuario debe escuchar `pikantepe:change` y refrescar por ese canal (sin polling). Al diseñar/crear algo, pregúntate siempre "¿esto debe llegar en vivo a otros?" y conéctalo a Redis/SSE. No agregues `setInterval` de sondeo si el evento ya existe.
 - **No ejecutar `npx next dev`, `next dev`, `npm run dev`, `next build`, ni NINGÚN comando de dev/build** hasta que el usuario lo indique explícitamente. El usuario ejecuta estos comandos manualmente.
 - **No instalar dependencias con `npm install`**. Si se necesitan paquetes, mostrar los comandos `npm install <paquete>` para que el usuario los ejecute manualmente. El proyecto debe seguir controlado y sin cambios de estado no autorizados.
 - **Siempre importar con alias `@/`** (ej: `@/_Pages/main/layouts/Header/Header`) y **nunca** con rutas relativas como `../../` o `../`.
