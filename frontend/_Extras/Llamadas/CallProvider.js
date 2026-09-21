@@ -26,23 +26,144 @@ function nuevoCallId() {
 }
 
 /**
- * Ajusta el SDP para que Opus use bitrate alto y estereo, mejorando la voz.
- * Se aplica al SDP local antes de enviarlo (offer/answer).
+ * "Puerta" de ruido (noise gate) sobre el microfono local.
+ * Cuando no detecta voz, baja el volumen casi a cero: asi los demas no
+ * escuchan el ruido de fondo (chillidos) mientras no hablas.
+ * Devuelve un MediaStream con el audio procesado (mismo video track).
+ */
+function gateActivo() {
+  try { return window.localStorage.getItem('pkpNoiseGate') === '1'; } catch { return false; }
+}
+
+function aplicarGateRuido(stream) {
+  try {
+    // Opt-in: por defecto el silencio lo maneja DTX de Opus (no rompe AEC).
+    if (!gateActivo()) return stream;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return stream;
+    const audioTrack = stream.getAudioTracks()[0];
+    if (!audioTrack) return stream;
+
+    const ctx = new AC();
+    const src = ctx.createMediaStreamSource(new MediaStream([audioTrack]));
+    const gain = ctx.createGain();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.6;
+    src.connect(analyser);
+    src.connect(gain);
+
+    const dest = ctx.createMediaStreamDestination();
+    gain.connect(dest);
+
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    let cerrado = false;
+    const tick = () => {
+      analyser.getByteFrequencyData(data);
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 1) sum += data[i];
+      const avg = sum / data.length;
+      // Umbral: por debajo se considera silencio/ruido de fondo.
+      const hablar = avg > 8;
+      const objetivo = hablar ? 1 : 0.02;
+      // Transicion suave para que no se note el corte (evita chasquidos).
+      const actual = gain.gain.value;
+      const nuevo = actual + (objetivo - actual) * (hablar ? 0.5 : 0.12);
+      try { gain.gain.setTargetAtTime(nuevo, ctx.currentTime, 0.03); } catch { gain.gain.value = nuevo; }
+      cerrado = !hablar;
+      raf = requestAnimationFrame(tick);
+    };
+    let raf = requestAnimationFrame(tick);
+
+    const nuevaTrack = dest.stream.getAudioTracks()[0];
+    // Guarda cleanup en la track para detener todo al colgar.
+    nuevaTrack._pkpCleanup = () => {
+      try { cancelAnimationFrame(raf); } catch { /* noop */ }
+      try { gain.gain.value = 0; } catch { /* noop */ }
+      try { ctx.close(); } catch { /* noop */ }
+    };
+    void cerrado;
+
+    const out = new MediaStream();
+    out.addTrack(nuevaTrack);
+    for (const t of stream.getVideoTracks()) out.addTrack(t);
+    return out;
+  } catch {
+    return stream;
+  }
+}
+
+/**
+ * Ajusta el SDP de Opus para mejorar la nitidez de la voz.
+ * - Detecta el payload type real de Opus (no asumir 111).
+ * - FEC dentro de banda (recupera paquetes perdidos: evita el "robot").
+ * - Sin DTX (evita cortes y chasquidos al empezar/parar de hablar).
+ * - minptime=10 (mas fluidez), bitrate 48 kbps mono (voz clara y estable).
  */
 function mejorarSdp(sdp) {
-  if (typeof sdp !== 'string' || !sdp.includes('opus')) return sdp;
-  return sdp
-    // Sube el bitrate maximo de Opus (~64 kbps por direccion).
-    .replace(/a=fmtp:111 ([^\r\n]*)/g, (m, p) => {
-      const params = new Set(String(p).split(';').map((s) => s.trim()).filter(Boolean));
-      params.add('maxaveragebitrate=64000');
-      params.add('useinbandfec=1');
-      params.add('stereo=1');
-      params.add('sprop-stereo=1');
-      return `a=fmtp:111 ${[...params].join(';')}`;
-    })
-    // Prefiere el perfil de alta calidad si viene negociado.
-    .replace(/(a=rtpmap:111 opus\/48000\/)\d+/g, '$12');
+  if (typeof sdp !== 'string') return sdp;
+  // Busca "a=rtpmap:<pt> opus/48000" y captura el payload type.
+  const m = sdp.match(/a=rtpmap:(\d+)\s+opus\/48000/i);
+  if (!m) return sdp;
+  const pt = m[1];
+
+  // fmtp: agrega/actualiza parametros de Opus.
+  const fmtpRe = new RegExp(`a=fmtp:${pt} ([^\\r\\n]*)`, 'g');
+  if (fmtpRe.test(sdp)) {
+    sdp = sdp.replace(fmtpRe, (full, params) => {
+      const set = new Set(String(params).split(';').map((x) => x.trim()).filter(Boolean));
+      // Quita valores viejos que podrian molestar.
+      for (const k of ['stereo', 'sprop-stereo', 'useinbandfec', 'usedtx', 'maxaveragebitrate', 'minptime', 'maxplaybackrate']) {
+        for (const item of [...set]) if (item.startsWith(`${k}=`)) set.delete(item);
+      }
+      set.add('minptime=10');
+      set.add('useinbandfec=1');
+      // DTX: cuando no hablas, Opus deja de enviar audio -> silencio suave
+      // (nada de ruido de fondo ni chillidos para los demas).
+      set.add('usedtx=1');
+      set.add('maxaveragebitrate=48000');
+      set.add('maxplaybackrate=48000');
+      return `a=fmtp:${pt} ${[...set].join(';')}`;
+    });
+  } else {
+    // Si no habia linea fmtp, la inserta justo despues del rtpmap de Opus.
+    sdp = sdp.replace(
+      new RegExp(`(a=rtpmap:${pt}\\s+opus/48000[^\\r\\n]*)`, 'i'),
+      `$1\r\na=fmtp:${pt} minptime=10;useinbandfec=1;usedtx=1;maxaveragebitrate=48000;maxplaybackrate=48000`
+    );
+  }
+  return sdp;
+}
+
+/**
+ * Configura el sender/receiver de audio para maxima nitidez:
+ * - sender: bitrate alto y prioridad alta (evita que la red baje la calidad).
+ * - receiver: jitter buffer mayor (absorbe variaciones y evita el sonido robot).
+ * Se ejecuta tras cada negotiationneeded / conexion.
+ */
+async function afinarAudio(pc) {
+  try {
+    const senders = pc.getSenders ? pc.getSenders() : [];
+    for (const s of senders) {
+      if (!s.track || s.track.kind !== 'audio') continue;
+      try {
+        const params = s.getParameters();
+        params.encodings = params.encodings && params.encodings.length ? params.encodings : [{}];
+        params.encodings[0].maxBitrate = 48000;
+        params.encodings[0].networkPriority = 'high';
+        params.encodings[0].priority = 'high';
+        if ('dtx' in params.encodings[0]) params.encodings[0].dtx = 'enabled';
+        await s.setParameters(params);
+      } catch { /* algunos navegadores no soportan setParameters */ }
+    }
+    const receivers = pc.getReceivers ? pc.getReceivers() : [];
+    for (const r of receivers) {
+      if (!r.track || r.track.kind !== 'audio') continue;
+      // Absorbe el jitter para que no suene robot/chillidos.
+      try { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 200; } catch { /* noop */ }
+      try { if ('playoutDelayHint' in r) r.playoutDelayHint = 0.2; } catch { /* noop */ }
+    }
+  } catch { /* noop */ }
 }
 
 function esCamara(e) {
@@ -257,14 +378,21 @@ export function CallProvider({ children }) {
       const c = callRef.current;
       if (e.candidate && c) post('ice', c.peerKey, { userKey, callId: c.callId, candidate: e.candidate });
     };
-    pc.ontrack = (e) => { if (e.streams && e.streams[0]) setRemoteStream(e.streams[0]); };
+    pc.ontrack = (e) => {
+      if (e.streams && e.streams[0]) setRemoteStream(e.streams[0]);
+      afinarAudio(pc);
+    };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
       if (st === 'connected') {
         setConectadoEn((prev) => prev || Date.now());
         setEstado('activa');
+        afinarAudio(pc);
       } else if (st === 'failed') {
         setError('Se perdió la conexión');
+      } else if (st === 'disconnected') {
+        // Intenta recuperar sin cortar la llamada.
+        try { pc.restartIce?.(); } catch { /* noop */ }
       }
     };
     pcRef.current = pc;
@@ -293,7 +421,21 @@ export function CallProvider({ children }) {
       video: quiereVideo ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false,
     };
     try {
-      return await navigator.mediaDevices.getUserMedia(constraints);
+      const raw = await navigator.mediaDevices.getUserMedia(constraints);
+      // Refuerza el procesamiento de voz en la track real (algunos navegadores
+      // lo ignoran en getUserMedia pero si lo aplican con applyConstraints).
+      const at = raw.getAudioTracks()[0];
+      if (at?.applyConstraints) {
+        try {
+          await at.applyConstraints({
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
+        } catch { /* noop */ }
+      }
+      dlog('audio settings', at?.getSettings?.());
+      return aplicarGateRuido(raw);
     } catch (e) {
       dlog('getUserMedia ERROR', e?.name, e?.message);
       // Si pedia video y fallo, intenta al menos audio (deja seguir la llamada).
@@ -303,7 +445,7 @@ export function CallProvider({ children }) {
           setError(esCamara(e)
             ? 'No se pudo usar la cámara; se continuó solo con audio'
             : 'No se pudo acceder a la cámara');
-          return soloAudio;
+          return aplicarGateRuido(soloAudio);
         } catch { /* cae al mensaje general */ }
       }
       setError(mensajeMedia(e));
@@ -315,7 +457,10 @@ export function CallProvider({ children }) {
     try { pcRef.current?.close(); } catch { /* noop */ }
     pcRef.current = null;
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => { try { t.stop(); } catch { /* noop */ } });
+      localStreamRef.current.getTracks().forEach((t) => {
+        try { if (t._pkpCleanup) t._pkpCleanup(); } catch { /* noop */ }
+        try { t.stop(); } catch { /* noop */ }
+      });
     }
     localStreamRef.current = null;
     pendingIceRef.current = [];
@@ -455,10 +600,13 @@ export function CallProvider({ children }) {
     };
     pc.ontrack = (e) => {
       if (e.streams && e.streams[0]) setRemotoInfo(peerKey, { stream: e.streams[0] });
+      afinarAudio(pc);
     };
     pc.onconnectionstatechange = () => {
       dlog('pc', peerKey, 'connectionState', pc.connectionState);
-      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      if (pc.connectionState === 'connected') afinarAudio(pc);
+      else if (pc.connectionState === 'disconnected') { try { pc.restartIce?.(); } catch { /* noop */ } }
+      else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
         removerPeerGrupo(peerKey);
       }
     };
@@ -551,7 +699,10 @@ export function CallProvider({ children }) {
   // Limpieza local de la sala (sin avisar al backend).
   function limpiarSalaLocal() {
     for (const key of Object.keys(remotosRef.current)) removerPeerGrupo(key);
-    if (localStreamRef.current) localStreamRef.current.getTracks().forEach((t) => { try { t.stop(); } catch { /* noop */ } });
+    if (localStreamRef.current) localStreamRef.current.getTracks().forEach((t) => {
+      try { if (t._pkpCleanup) t._pkpCleanup(); } catch { /* noop */ }
+      try { t.stop(); } catch { /* noop */ }
+    });
     localStreamRef.current = null;
     salaRef.current = null;
     setSala(null);
