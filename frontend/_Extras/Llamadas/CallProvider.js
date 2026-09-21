@@ -118,9 +118,9 @@ function mejorarSdp(sdp) {
       }
       set.add('minptime=10');
       set.add('useinbandfec=1');
-      // DTX: cuando no hablas, Opus deja de enviar audio -> silencio suave
-      // (nada de ruido de fondo ni chillidos para los demas).
-      set.add('usedtx=1');
+      // usedtx=0: DTX corta el inicio de las palabras (se "entrecortan").
+      // El silencio suave se logra con la puerta de ruido (opt-in), no con DTX.
+      set.add('usedtx=0');
       set.add('maxaveragebitrate=48000');
       set.add('maxplaybackrate=48000');
       return `a=fmtp:${pt} ${[...set].join(';')}`;
@@ -129,7 +129,7 @@ function mejorarSdp(sdp) {
     // Si no habia linea fmtp, la inserta justo despues del rtpmap de Opus.
     sdp = sdp.replace(
       new RegExp(`(a=rtpmap:${pt}\\s+opus/48000[^\\r\\n]*)`, 'i'),
-      `$1\r\na=fmtp:${pt} minptime=10;useinbandfec=1;usedtx=1;maxaveragebitrate=48000;maxplaybackrate=48000`
+      `$1\r\na=fmtp:${pt} minptime=10;useinbandfec=1;usedtx=0;maxaveragebitrate=48000;maxplaybackrate=48000`
     );
   }
   return sdp;
@@ -149,19 +149,19 @@ async function afinarAudio(pc) {
       try {
         const params = s.getParameters();
         params.encodings = params.encodings && params.encodings.length ? params.encodings : [{}];
-        params.encodings[0].maxBitrate = 48000;
-        params.encodings[0].networkPriority = 'high';
-        params.encodings[0].priority = 'high';
-        if ('dtx' in params.encodings[0]) params.encodings[0].dtx = 'enabled';
+        params.encodings[0].maxBitrate = 64000;
+        // Propiedades estandar de RTCEncodingParameters (evita errores de setParameters).
+        if ('networkPriority' in params.encodings[0]) params.encodings[0].networkPriority = 'high';
+        if ('dtx' in params.encodings[0]) params.encodings[0].dtx = 'disabled';
         await s.setParameters(params);
       } catch { /* algunos navegadores no soportan setParameters */ }
     }
     const receivers = pc.getReceivers ? pc.getReceivers() : [];
     for (const r of receivers) {
       if (!r.track || r.track.kind !== 'audio') continue;
-      // Absorbe el jitter para que no suene robot/chillidos.
-      try { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 200; } catch { /* noop */ }
-      try { if ('playoutDelayHint' in r) r.playoutDelayHint = 0.2; } catch { /* noop */ }
+      // Jitter buffer amplio: absorbe la red y evita que se entrecorten las palabras.
+      try { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 300; } catch { /* noop */ }
+      try { if ('playoutDelayHint' in r) r.playoutDelayHint = 0.3; } catch { /* noop */ }
     }
   } catch { /* noop */ }
 }
