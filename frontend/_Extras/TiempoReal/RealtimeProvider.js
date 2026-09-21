@@ -5,7 +5,26 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { initSonido, playNotification, setSonidoActivo } from '@/_Extras/Sonido/sonido.js';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// Mismo criterio que _Extras/Api/api.js: si se abre desde la red local
+// (celular), el backend esta en el mismo host con el puerto 3001.
+function resolveApi() {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  if (typeof window === 'undefined') return fromEnv;
+  try {
+    const { hostname, protocol } = window.location;
+    const esLocal = hostname === 'localhost' || hostname === '127.0.0.1' || /^(?:\d{1,3}\.){3}\d{1,3}$/.test(hostname);
+    if (!esLocal) return fromEnv;
+    const envHost = (fromEnv.match(/^https?:\/\/([^/:]+)/i) || [])[1] || '';
+    const envEsLocal = envHost === 'localhost' || envHost === '127.0.0.1' || /^(?:\d{1,3}\.){3}\d{1,3}$/.test(envHost);
+    if (!envEsLocal) return fromEnv;
+    const port = process.env.NEXT_PUBLIC_API_PORT || '3001';
+    return `${protocol}//${hostname}:${port}`;
+  } catch {
+    return fromEnv;
+  }
+}
+
+const API = resolveApi();
 
 // Eventos que NO deben refrescar los server components: son interacciones del
 // propio usuario (like, guardar, seguir, comentar...) y ya se actualizan en el
@@ -17,6 +36,9 @@ const NO_REFRESH = new Set([
   'user_profile', 'user_register', 'user_verified', 'user_migrate',
   'user_google_login', 'admin_login',
   'notificacion', 'notificacion_admin',
+  // Llamadas: se manejan en vivo por pikantepe:change (CallProvider/ChatFlotante).
+  'call_offer', 'call_answer', 'call_ice', 'call_reject', 'call_hangup',
+  'call_grupo_start', 'call_grupo_join', 'call_grupo_leave', 'call_grupo_signal', 'call_grupo_end',
 ]);
 
 const RealtimeContext = createContext({ connected: false, lastEvent: null });
@@ -78,6 +100,7 @@ export function RealtimeProvider({ children }) {
         } else if (tipo === 'comunidad_mensaje') {
           sonar = !!p.de && String(p.de) !== mine;
         }
+        // Las llamadas entrantes usan su propio timbre (playRing) desde CallProvider.
         if (sonar) playNotification();
         // refresca datos de los server components (solo cambios de contenido).
         // Se difiere para evitar "Router action dispatched before initialization".

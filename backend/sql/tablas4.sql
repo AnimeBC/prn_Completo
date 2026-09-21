@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS llamadas (
   call_id       VARCHAR(60) NOT NULL UNIQUE,
   de_key        VARCHAR(80) NOT NULL,
   para_key      VARCHAR(80) NOT NULL,
-  tipo          VARCHAR(10) NOT NULL DEFAULT 'audio',   -- audio | video
-  estado        VARCHAR(12) NOT NULL DEFAULT 'sonando',  -- sonando | activa | finalizada | rechazada | perdida | cancelada
+  tipo          VARCHAR(10) NOT NULL DEFAULT 'audio',
+  estado        VARCHAR(12) NOT NULL DEFAULT 'sonando',
   iniciada_at   TIMESTAMP NOT NULL DEFAULT NOW(),
   aceptada_at   TIMESTAMP,
   finalizada_at TIMESTAMP,

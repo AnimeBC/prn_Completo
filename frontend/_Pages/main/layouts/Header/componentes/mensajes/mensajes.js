@@ -10,7 +10,7 @@ import { mediaUrl } from '@/_Extras/Api/api.js';
 import { apiComunidad } from '@/_Extras/Comunidad/api.js';
 import Compositor from '@/_Pages/main/Chat/componentes/compositor';
 import { useChatDock } from '@/_Extras/ChatDock/ChatDockProvider.js';
-import Mantenimiento from '@/_Pages/main/Chat/componentes/mantenimiento';
+
 
 const FILTROS = [
   { id: 'todos', es: 'Todos', en: 'All' },
@@ -54,7 +54,7 @@ export default function Mensajes() {
   const [filtro, setFiltro] = useState('todos');
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(false);
-  const [mantGrupo, setMantGrupo] = useState(false);
+
   const [mounted, setMounted] = useState(false);
   const [stories, setStories] = useState([]);
   const [story, setStory] = useState(null);
@@ -214,9 +214,9 @@ export default function Mensajes() {
   });
 
   function abrirChat(c) {
-    if (c.tipo === 'grupo') { setMantGrupo(true); return; }
-    // Los amigos abren su ventana flotante global.
+    // Tanto amigos (DM) como grupos abren su ventana flotante global.
     // (El "visto" lo marca el propio chat cuando el input está enfocado.)
+    setOpen(false);
     abrir(c.chat, c.tipo);
     setTimeout(load, 1200);
   }
@@ -444,7 +444,6 @@ export default function Mensajes() {
         onSent={() => load()}
       />
 
-      <Mantenimiento open={mantGrupo} onClose={() => setMantGrupo(false)} />
     </div>
   );
 }

@@ -1,5 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Dev: permite abrir la app desde la red local (celular/tablet) usando la IP
+  // de la PC, ej. http://192.168.0.100:3000. Sin esto Next 16 bloquea los
+  // recursos y la app queda sin datos. Solo aplica en desarrollo.
+  // Agrega aqui la IP de tu PC si cambia.
+  allowedDevOrigins: [
+    '192.168.0.100',
+    '192.168.1.100',
+    'localhost',
+    '127.0.0.1',
+  ],
   async headers() {
     return [
       {

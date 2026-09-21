@@ -119,7 +119,19 @@ export const apiComunidad = {
   },
   grupo: (id, userKey = '') => req(`/api/comunidad/grupos/${id}${userKey ? `?userKey=${encodeURIComponent(userKey)}` : ''}`),
   crearGrupo: (fd) => req('/api/comunidad/grupos', { method: 'POST', headers: authHeaders(), body: fd }),
-  unirse: (id, userKey, mensaje = '') => req(`/api/comunidad/grupos/${id}/join`, jsonPost({ userKey, mensaje })),
+  unirse: (id, userKey, mensaje = '', accion = '') => req(`/api/comunidad/grupos/${id}/join`, jsonPost({ userKey, mensaje, accion })),
+  grupoAvatar: (id, userKey, file) => {
+    const fd = new FormData();
+    fd.append('userKey', userKey);
+    fd.append('avatar', file);
+    return req(`/api/comunidad/grupos/${id}/avatar`, { method: 'POST', body: fd });
+  },
+  grupoBanner: (id, userKey, file) => {
+    const fd = new FormData();
+    fd.append('userKey', userKey);
+    fd.append('banner', file);
+    return req(`/api/comunidad/grupos/${id}/banner`, { method: 'POST', body: fd });
+  },
   solicitudesGrupo: (id, userKey) => req(`/api/comunidad/grupos/${id}/solicitudes?userKey=${encodeURIComponent(userKey)}`),
   resolverSolicitudGrupo: (id, solId, userKey, estado) => req(`/api/comunidad/grupos/${id}/solicitudes/${solId}`, jsonPost({ userKey, estado })),
 
@@ -139,6 +151,8 @@ export const apiComunidad = {
   reaccionarMensaje: (msjId, userKey, emoji) => req(`/api/comunidad/mensajes/${msjId}/reaccion`, jsonPost({ userKey, emoji })),
   /** Bandeja estilo Messenger: conversaciones (grupos) del usuario. */
   chats: (userKey) => req(`/api/comunidad/chats?userKey=${encodeURIComponent(userKey)}`),
+  /** Sala de llamada grupal activa del grupo (o null). */
+  llamadaGrupoActiva: (id) => req(`/api/calls/grupo/${id}/activa`),
   marcarChatLeido: (id, userKey) => req(`/api/comunidad/chats/${id}/leido`, jsonPost({ userKey })),
   /** Mensajes directos (1 a 1). */
   dmChats: (userKey) => req(`/api/comunidad/dm/chats?userKey=${encodeURIComponent(userKey)}`),
@@ -159,9 +173,14 @@ export const apiComunidad = {
   dmReaccionar: (msjId, userKey, emoji) => req(`/api/comunidad/dm/mensajes/${msjId}/reaccion`, jsonPost({ userKey, emoji })),
 
   /** Buscar personas, comunidades y publicaciones (paginado). */
-  buscar: (q = '', userKey = '', filtro = 'todos', page = 1, limit = 12) => {
+  buscar: (q = '', userKey = '', filtro = 'todos', page = 1, limit = 12, limits = null) => {
     const p = new URLSearchParams({ q, filtro, page: String(page), limit: String(limit) });
     if (userKey) p.set('userKey', userKey);
+    if (limits) {
+      if (limits.personas) p.set('limitPersonas', String(limits.personas));
+      if (limits.grupos) p.set('limitGrupos', String(limits.grupos));
+      if (limits.posts) p.set('limitPosts', String(limits.posts));
+    }
     return req(`/api/comunidad/buscar?${p.toString()}`);
   },
   /** Buscar usuarios para escribirles. */

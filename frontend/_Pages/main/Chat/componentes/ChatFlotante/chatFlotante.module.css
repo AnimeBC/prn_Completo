@@ -397,6 +397,42 @@
 
 .empty { margin: auto; font-size: 12.5px; color: var(--text-secondary, #B0B3B8); }
 
+.llamadaBanner {
+  position: sticky;
+  top: 8px;
+  z-index: 3;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto 10px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 999px;
+  background: #1a7f37;
+  color: #FFFFFF;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+.llamadaBanner:hover { background: #218838; }
+.llamadaBanner ion-icon { font-size: 18px; }
+
+.enLlamadaTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(26, 127, 55, 0.18);
+  color: #1a7f37;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.enLlamadaTag ion-icon { font-size: 15px; }
+
 .row { display: flex; }
 .mine { justify-content: flex-end; }
 
@@ -573,12 +609,16 @@
   text-align: center;
 }
 .sistemaText {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11px;
   color: var(--text-secondary, #A1A1AA);
   background: rgba(0, 0, 0, 0.18);
   padding: 3px 10px;
   border-radius: 999px;
 }
+.sistemaIcon { font-size: 14px; }
 .sistemaTime { font-size: 9px; color: var(--text-secondary, #71717A); }
 .winThemed .sistemaText { color: #fff; background: rgba(0, 0, 0, 0.25); }
 .winThemed .sistemaTime { color: rgba(255, 255, 255, 0.8); }

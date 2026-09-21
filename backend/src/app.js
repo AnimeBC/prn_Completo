@@ -33,12 +33,22 @@ const EXTRA_ORIGINS = ['https://pikantepe.com', 'https://www.pikantepe.com'];
 const ALLOWED_ORIGINS = new Set([...(env.frontendUrls || []), ...EXTRA_ORIGINS]);
 const SITE_ORIGIN_RE = /^https:\/\/(www\.)?pikantepe\.com$/i;
 
+// En desarrollo se permite acceder desde la red local (celular, tablet, etc.)
+// usando la IP de la PC (ej. http://192.168.0.100:3000, http://10.0.0.5:3000).
+const LAN_ORIGIN_RE = /^https?:\/\/(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?$/i;
+const LOCALHOST_RE = /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i;
+
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
 app.use(cors({
   origin(origin, cb) {
     if (!origin) return cb(null, true); // curl / server-to-server
     const clean = String(origin).replace(/\/+$/, '');
     if (ALLOWED_ORIGINS.has('*') || ALLOWED_ORIGINS.has(clean) || SITE_ORIGIN_RE.test(clean)) {
+      return cb(null, true);
+    }
+    // Dev: localhost, IP de LAN y túneles (ngrok, etc.).
+    if (env.nodeEnv !== 'production'
+      && (LOCALHOST_RE.test(clean) || LAN_ORIGIN_RE.test(clean) || /\.(ngrok|trycloudflare)\./i.test(clean))) {
       return cb(null, true);
     }
     return cb(null, false);

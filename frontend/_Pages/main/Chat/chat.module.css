@@ -162,6 +162,13 @@
 .conv:hover { background: rgba(255, 255, 255, 0.04); }
 .convActive { background: rgba(0, 132, 255, 0.14); }
 
+/* Separador semi-transparente entre conversaciones. */
+.conv + .conv {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 2px;
+  padding-top: 10px;
+}
+
 .convAvatar {
   width: 48px;
   height: 48px;

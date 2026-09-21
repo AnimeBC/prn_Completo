@@ -264,9 +264,11 @@
   background-color: rgba(255, 255, 255, 0.04);
 }
 
-/* Separador delgado entre conversaciones. */
+/* Separador semi-transparente entre conversaciones. */
 .item + .item {
-  border-top: 1px solid var(--border, #242526);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 2px;
+  padding-top: 10px;
 }
 
 .avatar {

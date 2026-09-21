@@ -72,15 +72,11 @@ export function PwaProvider({ children }) {
     setCanInstall(false);
   }
 
+  // El boton flotante de "Instalar app" se elimino: tapaba la navegacion
+  // inferior en celular. La app sigue siendo instalable desde el navegador.
   return (
     <PwaContext.Provider value={{ canInstall, promptInstall }}>
       {children}
-      {canInstall && !dismissed && (
-        <button className={styles.installBtn} type="button" onClick={promptInstall} title="Instalar aplicación">
-          <ion-icon name="download-outline" suppressHydrationWarning></ion-icon>
-          Instalar app
-        </button>
-      )}
     </PwaContext.Provider>
   );
 }

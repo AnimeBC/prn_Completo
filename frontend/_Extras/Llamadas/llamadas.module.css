@@ -85,6 +85,17 @@
   background: #000;
 }
 
+.videoFallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: linear-gradient(160deg, #2a2a2e, #17171a);
+}
+
 .localVideo {
   position: absolute;
   top: 66px;
@@ -148,4 +159,95 @@
   padding: 8px 14px;
   border-radius: 8px;
   z-index: 4;
+}
+
+/* Toast de error de llamadas (visible aunque no haya overlay de llamada). */
+.toastError {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 420px);
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(242, 13, 22, 0.96);
+  color: #fff;
+  font-size: 13px;
+  z-index: 9999;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.toastError ion-icon { font-size: 18px; flex-shrink: 0; }
+.toastError button {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  padding: 0;
+}
+.toastError button ion-icon { font-size: 18px; }
+
+/* --- Llamada grupal (malla) --- */
+.audiosOcultos { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.gridVideo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #111;
+}
+.tileVideo {
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #000;
+}
+.tileFallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(160deg, #2a2a2e, #17171a);
+}
+.tileAvatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #3a3a40;
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+}
+.tileAvatar img { width: 100%; height: 100%; object-fit: cover; }
+.tileNombre { color: rgba(255, 255, 255, 0.85); font-size: 12px; }
+.gridAudio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }

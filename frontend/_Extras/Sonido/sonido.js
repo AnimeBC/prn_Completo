@@ -4,9 +4,11 @@
 // desbloqueo por primer gesto (los navegadores lo exigen) y silencio local.
 
 const SRC = '/notificacion.mp3';
+const SRC_LLAMADA = '/llamadas.mp3';
 const LS_MUTE = 'pkp_sonido_mute';
 
 let audioEl = null;
+let ringEl = null;
 let unlocked = false;
 let activoGlobal = true;
 let ultimo = 0;
@@ -19,6 +21,17 @@ function ensure() {
     audioEl.volume = 0.5;
   }
   return audioEl;
+}
+
+function ensureRing() {
+  if (typeof window === 'undefined') return null;
+  if (!ringEl) {
+    ringEl = new window.Audio(SRC_LLAMADA);
+    ringEl.preload = 'auto';
+    ringEl.volume = 0.6;
+    ringEl.loop = true;
+  }
+  return ringEl;
 }
 
 /** Ajuste global (viene del backend). */
@@ -52,6 +65,8 @@ export function initSonido() {
         unlocked = true;
       }
     }
+    // Desbloquea tambien el timbre de llamadas (mismo gesto del usuario).
+    try { ensureRing(); } catch { /* noop */ }
     window.removeEventListener('pointerdown', desbloquear);
     window.removeEventListener('keydown', desbloquear);
     window.removeEventListener('touchstart', desbloquear);
@@ -76,4 +91,29 @@ export function playNotification() {
   } catch { /* noop */ }
 }
 
-export default { initSonido, playNotification, setSonidoActivo, isMuted, setMuted, toggleMuted };
+/**
+ * Timbre de llamada entrante (loop hasta stopRing). Respeta el silencio.
+ * Se usa solo mientras hay una llamada "sonando".
+ */
+export function playRing() {
+  if (typeof window === 'undefined') return;
+  if (isMuted()) return;
+  const a = ensureRing();
+  if (!a) return;
+  try {
+    if (!a.paused) return; // ya suena
+    a.currentTime = 0;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => { /* bloqueado por el navegador */ });
+  } catch { /* noop */ }
+}
+
+/** Detiene el timbre de llamada. */
+export function stopRing() {
+  if (typeof window === 'undefined') return;
+  const a = ringEl;
+  if (!a) return;
+  try { a.pause(); a.currentTime = 0; } catch { /* noop */ }
+}
+
+export default { initSonido, playNotification, playRing, stopRing, setSonidoActivo, isMuted, setMuted, toggleMuted };

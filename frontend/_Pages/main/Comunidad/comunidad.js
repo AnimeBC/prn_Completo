@@ -7,7 +7,7 @@ import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import AuthModal from '@/_Pages/main/Auth/AuthModal';
 import { useChatDock } from '@/_Extras/ChatDock/ChatDockProvider.js';
-import Mantenimiento from '@/_Pages/main/Chat/componentes/mantenimiento';
+
 import { apiComunidad, comunidadMedia, comprimirImagen } from '@/_Extras/Comunidad/api.js';
 import { soloUnoPlay } from '@/_Extras/Media/onlyOne.js';
 import { hace, fecha } from '@/_Extras/Fecha/fecha.js';
@@ -142,6 +142,7 @@ export default function ComunidadClient() {
 
   const [authOpen, setAuthOpen] = useState(false);
   const [feed, setFeed] = useState([]);
+  const [feedVacio, setFeedVacio] = useState(false);
   const [cargando, setCargando] = useState(true);
 
   const [stories, setStories] = useState([]);
@@ -176,7 +177,7 @@ export default function ComunidadClient() {
   const [presencia, setPresencia] = useState([]);
   const [amigos, setAmigos] = useState([]);
   const { abrir: abrirDock } = useChatDock();
-  const [mantGrupo, setMantGrupo] = useState(false);
+
   const [chats, setChats] = useState([]);
   const [maxWindows, setMaxWindows] = useState(3);
 
@@ -196,6 +197,8 @@ export default function ComunidadClient() {
   const [hasMoreBuscar, setHasMoreBuscar] = useState(false);
   const [cargandoMasBuscar, setCargandoMasBuscar] = useState(false);
   const [amistadBusy, setAmistadBusy] = useState('');
+  const [sugerencias, setSugerencias] = useState({ personas: [], grupos: [] });
+  const [sugiriendo, setSugiriendo] = useState(false);
   const buscarKeyRef = useRef('');
   const [pedirGrupo, setPedirGrupo] = useState(null);
   const [solGrupoModal, setSolGrupoModal] = useState(null);
@@ -209,8 +212,10 @@ export default function ComunidadClient() {
 
   const cargarFeed = useCallback(async () => {
     setCargando(true);
-    const r = await apiComunidad.feed('populares', userKey, null);
+    // Feed personalizado: publicaciones de tus grupos/comunidades.
+    const r = await apiComunidad.feed('para-ti', userKey, null);
     setFeed(Array.isArray(r.data) ? r.data : []);
+    setFeedVacio(!!r.vacio && (!r.data || r.data.length === 0));
     setCargando(false);
   }, [userKey]);
 
@@ -331,6 +336,25 @@ export default function ComunidadClient() {
     const t = setTimeout(() => ejecutarBuscar(qq, buscarFiltro), 300);
     return () => clearTimeout(t);
   }, [buscarQ, buscarFiltro, ejecutarBuscar, userKey]);
+
+  // Sugerencias en vivo debajo del buscador (mientras NO se ve el panel de
+  // resultados completo). Solo personas y comunidades.
+  useEffect(() => {
+    const qq = buscarQ.trim();
+    if (qq.length < 2 || buscandoActivo) {
+      setSugerencias({ personas: [], grupos: [] });
+      setSugiriendo(false);
+      return undefined;
+    }
+    setSugiriendo(true);
+    const t = setTimeout(async () => {
+      const r = await apiComunidad.buscar(qq, userKey, 'todos', 1, 5, { personas: 2, grupos: 3 });
+      const data = (r && r.data) || { personas: [], grupos: [] };
+      setSugerencias({ personas: data.personas || [], grupos: data.grupos || [] });
+      setSugiriendo(false);
+    }, 280);
+    return () => clearTimeout(t);
+  }, [buscarQ, buscandoActivo, userKey]);
 
   // Lee ?q= y ?f= de la URL al entrar.
   useEffect(() => {
@@ -853,12 +877,8 @@ export default function ComunidadClient() {
   }
 
   function abrirChat(g) {
-    // En celular se abre el chat a pantalla completa; en PC, modal de mantenimiento.
-    if (esMovil()) {
-      if (g && g.id) router.push(`/chat?conv=${encodeURIComponent(g.id)}`);
-      return;
-    }
-    setMantGrupo(true);
+    // Abre la pagina de detalle del grupo (portada, info, publicaciones).
+    if (g && (g.slug || g.id)) router.push(`/comunidad/grupo/${g.slug || g.id}`);
   }
 
   function abrirAmigo(u) {
@@ -981,8 +1001,9 @@ export default function ComunidadClient() {
                 onKeyDown={(e) => { if (e.key === 'Enter') buscarAhora(e); }}
               />
               {buscarQ && (
-                <button type="button" className={styles.buscadorClear} onClick={() => setBuscarQ('')} aria-label={es ? 'Limpiar' : 'Clear'}>
+                <button type="button" className={styles.buscadorClear} onClick={cerrarBuscador} aria-label={es ? 'Limpiar' : 'Clear'}>
                   <ion-icon name="close-circle" suppressHydrationWarning></ion-icon>
+                  <span className={styles.buscadorClearLabel}>{es ? 'Limpiar' : 'Clear'}</span>
                 </button>
               )}
               <button type="button" className={styles.buscadorBtn} onClick={buscarAhora}>
@@ -990,27 +1011,71 @@ export default function ComunidadClient() {
               </button>
             </div>
 
+            {/* Sugerencias en vivo (personas y comunidades) */}
+            {!buscandoActivo && buscarQ.trim().length >= 2 && (
+              <>
+              <div className={styles.buscarBackdrop} aria-hidden="true" onClick={() => setBuscarQ('')} />
+              <div className={styles.sugerencias}>
+                <p className={styles.sugerenciaHead}>{es ? 'Personas' : 'People'}</p>
+                {sugerencias.personas.length === 0 ? (
+                  <p className={styles.sugerenciaEmpty}>{es ? 'Sin resultados' : 'No results'}</p>
+                ) : sugerencias.personas.map((u) => (
+                  <button key={`s_u_${u.user_key}`} type="button" className={styles.sugerenciaItem} onClick={() => router.push(u.canal_slug ? `/canal/${u.canal_slug}` : '/comunidad')}>
+                    <span className={styles.sugerenciaAvatar}>
+                      {u.avatar ? <img src={comunidadMedia(u.avatar)} alt="" /> : ini(u.usuario || u.nombre)}
+                    </span>
+                    <span className={styles.sugerenciaInfo}>
+                      <span className={styles.sugerenciaNombre}>{u.usuario || u.nombre}</span>
+                      <span className={styles.sugerenciaMeta}>{es ? 'Persona' : 'Person'}{u.canal_pais ? ` · ${u.canal_pais}` : ''}</span>
+                    </span>
+                    <ion-icon name="person-outline" className={styles.sugerenciaTipo} suppressHydrationWarning></ion-icon>
+                  </button>
+                ))}
+
+                <p className={styles.sugerenciaHead}>{es ? 'Comunidades' : 'Communities'}</p>
+                {sugerencias.grupos.length === 0 ? (
+                  <p className={styles.sugerenciaEmpty}>{es ? 'Sin resultados' : 'No results'}</p>
+                ) : sugerencias.grupos.map((g) => (
+                  <button key={`s_g_${g.id}`} type="button" className={styles.sugerenciaItem} onClick={() => abrirChat(g)}>
+                    <span className={styles.sugerenciaAvatar}>
+                      {g.avatar ? <img src={comunidadMedia(g.avatar)} alt="" /> : ini(g.nombre)}
+                    </span>
+                    <span className={styles.sugerenciaInfo}>
+                      <span className={styles.sugerenciaNombre}>{g.nombre}</span>
+                      <span className={styles.sugerenciaMeta}>{es ? 'Comunidad' : 'Community'} · {Number(g.miembros || 0).toLocaleString()}</span>
+                    </span>
+                    <ion-icon name="people-outline" className={styles.sugerenciaTipo} suppressHydrationWarning></ion-icon>
+                  </button>
+                ))}
+
+                <button type="button" className={styles.sugerenciaVerMas} onClick={buscarAhora}>
+                  <ion-icon name="search-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Ver más resultados' : 'See more results'}
+                </button>
+              </div>
+              </>
+            )}
+
             {buscandoActivo && (
-              <div className={styles.buscadorFiltros}>
+              <div className={styles.buscarTabs} role="tablist">
                 {[
-                  { id: 'todos', es: 'Todo' },
-                  { id: 'personas', es: 'Personas' },
-                  { id: 'comunidad', es: 'Comunidades' },
-                  { id: 'publicaciones', es: 'Publicaciones' },
+                  { id: 'todos', es: 'Todo', icon: 'apps-outline' },
+                  { id: 'personas', es: 'Personas', icon: 'person-outline' },
+                  { id: 'comunidad', es: 'Comunidades', icon: 'people-outline' },
+                  { id: 'publicaciones', es: 'Publicaciones', icon: 'document-text-outline' },
                 ].map((f) => (
                   <button
                     key={f.id}
                     type="button"
-                    className={`${styles.buscadorChip} ${buscarFiltro === f.id ? styles.buscadorChipOn : ''}`}
+                    role="tab"
+                    aria-selected={buscarFiltro === f.id}
+                    className={`${styles.buscarTab} ${buscarFiltro === f.id ? styles.buscarTabOn : ''}`}
                     onClick={() => setBuscarFiltro(f.id)}
                   >
-                    {f.es}
+                    <ion-icon name={f.icon} suppressHydrationWarning></ion-icon>
+                    <span>{f.es}</span>
                   </button>
                 ))}
-                <button type="button" className={`${styles.buscadorChip} ${styles.buscadorChipGhost}`} onClick={cerrarBuscador}>
-                  <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
-                  {es ? 'Salir' : 'Exit'}
-                </button>
               </div>
             )}
           </div>
@@ -1066,31 +1131,26 @@ export default function ComunidadClient() {
 
           {msg && <div className={styles.toast}>{msg}</div>}
 
-          <div className={styles.ranking}>
-            <span className={styles.rankingHead}>
-              <ion-icon name="trophy-outline" suppressHydrationWarning></ion-icon>
-              {es ? 'Comunidades destacadas' : 'Top communities'}
-            </span>
-            {[...grupos].sort((a, b) => Number(b.miembros) - Number(a.miembros)).slice(0, 5).map((g, i) => (
-              <button key={g.id} type="button" className={styles.rankItem} onClick={() => abrirChat(g)}>
-                <span className={styles.rankNum}>#{i + 1}</span>
-                <span>{g.nombre}</span>
-                <span className={styles.rankMeta}>
-                  {Number(g.miembros).toLocaleString(es ? 'es-PE' : 'en-US')} · {g.activos || 0} {es ? 'activos' : 'active'}
-                </span>
-              </button>
-            ))}
-          </div>
-
           <p className={styles.sectionLabel}>
-            <ion-icon name="flame-outline" suppressHydrationWarning></ion-icon>
-            {es ? 'Publicaciones populares del chat global' : 'Popular posts from the global chat'}
+            <ion-icon name="sparkles-outline" suppressHydrationWarning></ion-icon>
+            {es ? 'Publicaciones para ti' : 'Posts for you'}
           </p>
 
           {cargando ? (
             <p className={styles.empty}>{es ? 'Cargando...' : 'Loading...'}</p>
-          ) : feed.length === 0 ? (
-            <p className={styles.empty}>{es ? 'Aún no hay publicaciones. ¡Sé el primero!' : 'No posts yet. Be the first!'}</p>
+          ) : feed.length === 0 || feedVacio ? (
+            <div className={styles.feedEmpty}>
+              <ion-icon name="people-circle-outline" className={styles.feedEmptyIcon} suppressHydrationWarning></ion-icon>
+              <p className={styles.feedEmptyText}>
+                {es
+                  ? 'Esta sección está vacía. Únete a grupos o comunidades, o busca cosas que te gusten para ver publicaciones aquí.'
+                  : 'This section is empty. Join groups or communities, or search for things you like to see posts here.'}
+              </p>
+              <button type="button" className={styles.feedEmptyBtn} onClick={() => router.push('/comunidad/grupos')}>
+                <ion-icon name="search-outline" suppressHydrationWarning></ion-icon>
+                {es ? 'Buscar comunidades' : 'Search communities'}
+              </button>
+            </div>
           ) : (
             feed.map((p) => (
               <PostCard
@@ -1235,7 +1295,7 @@ export default function ComunidadClient() {
         </section>
 
         {/* ===== DERECHA: GRUPOS + AMIGOS ===== */}
-        <aside className={styles.right}>
+        <aside className={`${styles.right} ${buscandoActivo ? styles.rightHiddenMobile : ''}`}>
           <div className={styles.card}>
             <div className={styles.blockHead}>
               <span className={styles.blockTitle}>{es ? 'Grupos y Comunidades' : 'Groups & Communities'}</span>
@@ -1314,21 +1374,14 @@ export default function ComunidadClient() {
                         <ion-icon name="mail-unread-outline" suppressHydrationWarning></ion-icon>
                       </button>
                     )}
+                    {/* Solo redirige al grupo; unirse/pedir entrar se hace alla. */}
                     <button
                       type="button"
                       className={styles.iconBtn}
-                      onClick={() => unirse(g)}
-                      title={g.miembro ? (es ? 'Salir' : 'Leave')
-                        : (g.privacidad === 'privada' || g.modo_union === 'invitacion') ? (es ? 'Pedir entrar' : 'Ask to join')
-                          : (es ? 'Unirme' : 'Join')}
+                      onClick={() => abrirChat(g)}
+                      title={es ? 'Ver grupo' : 'View group'}
                     >
-                      <ion-icon
-                        name={g.miembro ? 'exit-outline'
-                          : g.solicitud === 'pendiente' ? 'hourglass-outline'
-                            : (g.privacidad === 'privada' || g.modo_union === 'invitacion') ? 'lock-closed-outline'
-                              : 'person-add-outline'}
-                        suppressHydrationWarning
-                      ></ion-icon>
+                      <ion-icon name="eye-outline" suppressHydrationWarning></ion-icon>
                     </button>
                   </div>
                 </div>
@@ -1584,7 +1637,7 @@ export default function ComunidadClient() {
                   <div className={styles.chatHead}>
                     <span className={styles.avatarSm}>{c.grupo.avatar ? <img src={comunidadMedia(c.grupo.avatar)} alt="" /> : ini(c.grupo.nombre)}</span>
                     <strong>{c.grupo.nombre}</strong>
-                    <button type="button" className={styles.iconBtn} onClick={() => router.push(`/chat?conv=${c.id}`)} title={es ? 'Expandir' : 'Expand'}>
+                    <button type="button" className={styles.iconBtn} onClick={() => router.push(`/chat?conv=${encodeURIComponent(c.grupo?.slug || c.id)}`)} title={es ? 'Expandir' : 'Expand'}>
                       <ion-icon name="expand-outline" suppressHydrationWarning></ion-icon>
                     </button>
                     <button type="button" className={styles.iconBtn} onClick={() => minimizarChat(c.id)} title="Minimizar">
@@ -1717,7 +1770,7 @@ export default function ComunidadClient() {
       )}
 
       {/* El chat flotante de un amigo ahora vive en el dock global (useChatDock). */}
-      <Mantenimiento open={mantGrupo} onClose={() => setMantGrupo(false)} />
+
 
       {/* ===== Pedir entrar a un grupo privado (con mensaje a admins) ===== */}
       {pedirGrupo && (

@@ -82,7 +82,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   const router = useRouter();
   const { locale } = useLanguage();
   const es = locale !== 'en';
-  const { iniciar: iniciarLlamada } = useCall();
+  const { iniciar: iniciarLlamada, iniciarGrupo, unirseGrupo, sala: llamadaSala, enCualquierLlamada, avisar } = useCall();
 
   const grupoId = tipo === 'grupo' ? chat?.id : null;
   const otroKey = tipo === 'dm' ? chat?.user_key : null;
@@ -132,6 +132,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   const [recording, setRecording] = useState(false);
   const [recPaused, setRecPaused] = useState(false);
   const [recSeg, setRecSeg] = useState(0);
+  const [salaActiva, setSalaActiva] = useState(null);
   const bodyRef = useRef(null);
   const winRef = useRef(null);
   const inputRef = useRef(null);
@@ -184,6 +185,39 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
       return [...map.values()].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     });
   }, [tipo, grupoId, otroKey, userKey]);
+
+  // Sala de llamada grupal activa: mostrar aviso para unirse (no si ya estoy en ella).
+  // En vivo por Redis -> SSE (call_grupo_start/join/leave), sin sondeo.
+  useEffect(() => {
+    if (tipo !== 'grupo' || !grupoId || !activo) { setSalaActiva(null); return undefined; }
+    let alive = true;
+    const check = async () => {
+      const r = await apiComunidad.llamadaGrupoActiva(grupoId);
+      if (alive) setSalaActiva(r && r.sala ? r.sala : null);
+    };
+    check();
+    const onChange = (e) => {
+      const d = e?.detail || {};
+      const t = String(d.type || '');
+      if (!t.startsWith('call_grupo_')) return;
+      const p = d.payload || {};
+      if (String(p.conv) !== String(grupoId)) return;
+      if (t === 'call_grupo_start') {
+        setSalaActiva({
+          call_id: p.callId, comunidad_id: p.conv,
+          tipo: p.tipo === 'video' ? 'video' : 'audio',
+        });
+      } else if (t === 'call_grupo_end') {
+        // La sala se cerro: quita el banner al instante.
+        setSalaActiva((prev) => (prev && String(prev.call_id) === String(p.callId) ? null : prev));
+      } else {
+        // join/signal no cambian la sala; leave puede cerrarla -> reconfirmar.
+        check();
+      }
+    };
+    window.addEventListener('pikantepe:change', onChange);
+    return () => { alive = false; window.removeEventListener('pikantepe:change', onChange); };
+  }, [tipo, grupoId, activo]);
 
   // Carga progresiva de mensajes antiguos (scroll hacia arriba).
   const cargarAntiguos = useCallback(async () => {
@@ -565,7 +599,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
 
   function expandir() {
     if (onClose) onClose();
-    if (tipo === 'grupo') router.push(`/chat?conv=${grupoId}`);
+    if (tipo === 'grupo') router.push(`/chat?conv=${encodeURIComponent(chat?.slug || grupoId)}`);
     else router.push(`/chat?dm=${encodeURIComponent(otroKey)}`);
   }
 
@@ -574,8 +608,17 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   }
 
   function llamar(tipoLlamada) {
-    if (tipo !== 'dm' || !otroKey) return;
-    iniciarLlamada(otroKey, tipoLlamada, { nombre: titulo, avatar });
+    if (tipo === 'dm' && otroKey) {
+      iniciarLlamada(otroKey, tipoLlamada, { nombre: titulo, avatar });
+      return;
+    }
+    if (tipo === 'grupo' && grupoId) {
+      iniciarGrupo(grupoId, tipoLlamada, { nombre: titulo, avatar });
+      return;
+    }
+    avisar(es
+      ? 'No se pudo iniciar la llamada (falta el contacto)'
+      : 'Could not start the call (missing contact)');
   }
 
   function toggleHeadMenu() {
@@ -714,6 +757,32 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                 <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
+            {tipo === 'grupo' && !enCualquierLlamada && (
+              <button type="button" className={styles.iconBtn} onClick={() => llamar('audio')} title={es ? 'Llamada de grupo' : 'Group call'}>
+                <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
+              </button>
+            )}
+            {tipo === 'grupo' && !enCualquierLlamada && (
+              <button type="button" className={styles.iconBtn} onClick={() => llamar('video')} title={es ? 'Videollamada de grupo' : 'Group video call'}>
+                <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
+              </button>
+            )}
+            {tipo === 'grupo' && enCualquierLlamada && (
+              <span className={styles.enLlamadaTag} title={es ? 'En llamada' : 'In call'}>
+                <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
+                {es ? 'En llamada' : 'In call'}
+              </span>
+            )}
+            {tipo === 'grupo' && (
+              <button type="button" className={styles.iconBtn} onClick={() => { if (grupoId) router.push(`/comunidad/grupo/${grupoId}?tab=miembros`); }} title={es ? 'Miembros' : 'Members'}>
+                <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
+              </button>
+            )}
+            {tipo === 'grupo' && (
+              <button type="button" className={styles.iconBtn} onClick={() => { if (grupoId) router.push(`/comunidad/grupo/${grupoId}?tab=informacion`); }} title={es ? 'Información del grupo' : 'Group info'}>
+                <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
+              </button>
+            )}
           </>
         ) : (
           /* Flotante: diseño de 3 puntos (igual en PC y celular). */
@@ -756,6 +825,36 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                       {es ? 'Información' : 'Info'}
                     </button>
                   )}
+                  {tipo === 'grupo' && !enCualquierLlamada && (
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); llamar('audio'); }}>
+                      <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
+                      {es ? 'Llamada de grupo' : 'Group call'}
+                    </button>
+                  )}
+                  {tipo === 'grupo' && !enCualquierLlamada && (
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); llamar('video'); }}>
+                      <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
+                      {es ? 'Videollamada de grupo' : 'Group video call'}
+                    </button>
+                  )}
+                  {tipo === 'grupo' && (
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); if (grupoId) router.push(`/comunidad/grupo/${grupoId}?tab=conversacion`); }}>
+                      <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
+                      {es ? 'Ver grupo' : 'View group'}
+                    </button>
+                  )}
+                  {tipo === 'grupo' && (
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); if (grupoId) router.push(`/comunidad/grupo/${grupoId}?tab=miembros`); }}>
+                      <ion-icon name="people-circle-outline" suppressHydrationWarning></ion-icon>
+                      {es ? 'Miembros' : 'Members'}
+                    </button>
+                  )}
+                  {tipo === 'grupo' && (
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); if (grupoId) router.push(`/comunidad/grupo/${grupoId}?tab=informacion`); }}>
+                      <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
+                      {es ? 'Información' : 'Info'}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -788,6 +887,16 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
         }}
       >
         {tema.emoji && <span className={styles.watermark} aria-hidden="true">{tema.emoji}</span>}
+        {tipo === 'grupo' && salaActiva && !enCualquierLlamada && (
+          <button
+            type="button"
+            className={styles.llamadaBanner}
+            onClick={() => unirseGrupo(grupoId, salaActiva.call_id, salaActiva.tipo, { nombre: titulo })}
+          >
+            <ion-icon name={salaActiva.tipo === 'video' ? 'videocam-outline' : 'call-outline'} suppressHydrationWarning></ion-icon>
+            {es ? 'Llamada en curso · Unirse' : 'Call in progress · Join'}
+          </button>
+        )}
         {mensajes.length === 0 && (
           <p className={styles.empty}>{es ? 'Empieza la conversación.' : 'Start the conversation.'}</p>
         )}
@@ -799,6 +908,30 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
               apodos: { mio: es ? 'Cambiaste los apodos' : 'You changed the nicknames', suyo: es ? `Tu amigo ${m.usuario} cambió los apodos` : `Your friend ${m.usuario} changed the nicknames` },
             };
             let label;
+            if (typeof m.texto === 'string' && m.texto.startsWith('llamada|')) {
+              const [, lt, lseg, lest, lautor] = m.texto.split('|');
+              const video = lt === 'video';
+              const seg = Math.max(0, parseInt(lseg, 10) || 0);
+              const dur = seg >= 3600
+                ? `${Math.floor(seg / 3600)} h ${Math.floor((seg % 3600) / 60)} min`
+                : seg >= 60
+                  ? `${Math.floor(seg / 60)} min ${seg % 60} s`
+                  : `${seg} s`;
+              const esAutor = String(lautor) === String(userKey);
+              const quien = esAutor ? (es ? 'Iniciaste' : 'You started') : (es ? 'Llamada de' : 'Call from');
+              const tipoTxt = video ? (es ? 'videollamada' : 'video call') : (es ? 'llamada de voz' : 'voice call');
+              const finalizada = lest === 'finalizada';
+              const durTxt = finalizada ? ` · ${dur}` : ` · ${es ? 'cancelada' : 'cancelled'}`;
+              return (
+                <div key={m.id} className={styles.sistema}>
+                  <span className={styles.sistemaText}>
+                    <ion-icon name={video ? 'videocam-outline' : 'call-outline'} className={styles.sistemaIcon} suppressHydrationWarning></ion-icon>
+                    {`${quien} ${esAutor ? '' : m.usuario + ' · '}${tipoTxt}${durTxt}`}
+                  </span>
+                  <span className={styles.sistemaTime}>{hora(m.created_at, es)}</span>
+                </div>
+              );
+            }
             if (typeof m.texto === 'string' && m.texto.startsWith('icono|')) {
               const em = m.texto.slice(6).trim();
               label = em

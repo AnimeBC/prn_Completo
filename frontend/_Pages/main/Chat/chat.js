@@ -9,7 +9,6 @@ import { mediaUrl } from '@/_Extras/Api/api.js';
 import { apiComunidad } from '@/_Extras/Comunidad/api.js';
 import Compositor from '@/_Pages/main/Chat/componentes/compositor';
 import ChatFlotante from '@/_Pages/main/Chat/componentes/ChatFlotante';
-import Mantenimiento from '@/_Pages/main/Chat/componentes/mantenimiento';
 
 const FILTROS = [
   { id: 'todos', es: 'Todos', en: 'All' },
@@ -101,7 +100,7 @@ export default function ChatClient() {
 
   const convos = useMemo(() => {
     const g = grupos.map((c) => ({
-      key: `g:${c.id}`,
+      key: `g:${c.slug || c.id}`,
       tipo: 'grupo',
       nombre: c.nombre,
       avatar: c.avatar,
@@ -110,7 +109,7 @@ export default function ChatClient() {
       ultimo_tipo: c.ultimo_tipo,
       ultimo_user_key: c.ultimo_user_key,
       ultimo_creado: c.ultimo_creado,
-      chat: { id: c.id, nombre: c.nombre, avatar: c.avatar, miembros: c.miembros },
+      chat: { id: c.id, slug: c.slug || null, nombre: c.nombre, avatar: c.avatar, miembros: c.miembros },
     }));
     const d = dms.map((c) => {
       const nombre = c.otro_usuario || c.otro_nombre || 'Usuario';
@@ -131,7 +130,15 @@ export default function ChatClient() {
     return [...g, ...d].sort((a, b) => new Date(b.ultimo_creado || 0) - new Date(a.ultimo_creado || 0));
   }, [grupos, dms]);
 
-  const activa = convos.find((c) => c.key === sel) || null;
+  const activa = convos.find((c) => {
+    if (c.key === sel) return true;
+    // Compatibilidad: enlaces antiguos ?conv=<id> -> resolver por id.
+    if (sel.startsWith('g:') && c.tipo === 'grupo') {
+      const ref = sel.slice(2);
+      return String(c.chat?.id) === String(ref) || String(c.chat?.slug) === String(ref);
+    }
+    return false;
+  }) || null;
 
   // Avisa si hay un chat abierto + sus datos (para el header y la barra inferior).
   useEffect(() => {
@@ -246,12 +253,6 @@ export default function ChatClient() {
               <button type="button" className={styles.loginBtn} onClick={() => setCompOpen(true)}>
                 {es ? 'Redactar mensaje' : 'New message'}
               </button>
-            </div>
-          ) : activa.tipo === 'grupo' ? (
-            <div className={styles.placeholder}>
-              <span className={styles.placeholderIcon}><ion-icon name="construct-outline" suppressHydrationWarning></ion-icon></span>
-              <p className={styles.placeholderText}>{es ? 'Grupos en mantenimiento' : 'Groups under maintenance'}</p>
-              <Mantenimiento open onClose={() => seleccionar('')} />
             </div>
           ) : (
             <ChatFlotante

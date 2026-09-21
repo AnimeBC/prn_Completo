@@ -12,7 +12,7 @@ import { crearNotificacion, notificarDueno, notificarMenciones } from './notific
 
 const r = Router();
 
-const FILTROS = ['recientes', 'videos', 'fotos', 'populares', 'guardados'];
+const FILTROS = ['recientes', 'videos', 'fotos', 'populares', 'guardados', 'para-ti'];
 const TIPOS_MSJ = ['texto', 'foto', 'video', 'audio', 'sticker', 'emoji'];
 
 // Un mensaje solo puede editarse/eliminarse (para todos) dentro de estas horas.
@@ -145,6 +145,8 @@ r.get('/grupos', async (req, res, next) => {
     const userKey = String(req.query.userKey || '').trim();
     const q = String(req.query.q || '').trim().toLowerCase();
     const soloDestacados = String(req.query.destacados) === 'true';
+    const filtro = String(req.query.filtro || 'todas'); // todas | mis | pendientes | publicas | privadas
+    const orden = String(req.query.orden || 'miembros'); // miembros | recientes | activos | publicaciones
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(60, Math.max(1, Number(req.query.limit) || 30));
     const offset = (page - 1) * limit;
@@ -156,41 +158,79 @@ r.get('/grupos', async (req, res, next) => {
       where.push(`(lower(c.nombre) LIKE $${params.length} OR lower(COALESCE(c.descripcion,'')) LIKE $${params.length})`);
     }
     if (soloDestacados) where.push('c.destacado = TRUE');
+    if (filtro === 'publicas') where.push("c.privacidad = 'publica' AND c.modo_union = 'libre'");
+    if (filtro === 'privadas') where.push("(c.privacidad = 'privada' OR c.modo_union = 'invitacion')");
+
+    // Expresiones base (se usan en el SELECT y para filtrar/ordenar).
+    const expMiembro = userKey
+      ? 'EXISTS (SELECT 1 FROM comunidad_miembros cmx WHERE cmx.comunidad_id = c.id AND cmx.user_key = $USER)'
+      : 'FALSE';
+    const expSolicitud = userKey
+      ? "(SELECT cs.estado FROM comunidad_solicitudes cs WHERE cs.comunidad_id = c.id AND cs.user_key = $USER LIMIT 1)"
+      : 'NULL';
+    const expActivos = `(SELECT COUNT(*)::int FROM comunidad_miembros cm
+                 JOIN comunidad_presencia pr ON pr.user_key = cm.user_key
+                WHERE cm.comunidad_id = c.id
+                  AND pr.last_seen > NOW() - INTERVAL '5 minutes')`;
+    const expArchivos = `((SELECT COALESCE(SUM(jsonb_array_length(p.media)), 0)::int
+                   FROM comunidad_posts p WHERE p.comunidad_id = c.id AND p.activo = TRUE)
+                + (SELECT COUNT(*)::int FROM comunidad_mensajes m
+                   WHERE m.comunidad_id = c.id AND m.activo = TRUE AND m.media IS NOT NULL))`;
+
+    // Filtros que dependen del usuario (agregan el userKey al WHERE).
+    if (filtro === 'mis' && userKey) {
+      params.push(userKey);
+      where.push(expMiembro.replace('$USER', `$${params.length}`));
+    }
+    if (filtro === 'pendientes' && userKey) {
+      params.push(userKey);
+      where.push(`${expSolicitud.replace('$USER', `$${params.length}`)} = 'pendiente'`);
+    }
+
     const whereSql = where.join(' AND ');
-    // Params solo del WHERE (para el COUNT); el userKey se usa después en el SELECT.
+    // Params solo del WHERE del COUNT (sin el userKey del SELECT, salvo los filtros).
     const countParams = [...params];
 
     let miembro = 'FALSE';
     let dueno = 'FALSE';
     let solicitud = 'NULL';
+    const selParams = [...params];
     if (userKey) {
-      params.push(userKey);
-      miembro = `EXISTS (SELECT 1 FROM comunidad_miembros cmx WHERE cmx.comunidad_id = c.id AND cmx.user_key = $${params.length})`;
-      dueno = `(c.user_key = $${params.length})`;
-      solicitud = `(SELECT cs.estado FROM comunidad_solicitudes cs WHERE cs.comunidad_id = c.id AND cs.user_key = $${params.length} LIMIT 1)`;
+      selParams.push(userKey);
+      const uidx = selParams.length;
+      miembro = expMiembro.replace('$USER', `$${uidx}`);
+      dueno = `(c.user_key = $${uidx})`;
+      solicitud = expSolicitud.replace('$USER', `$${uidx}`);
     }
 
     const totalQ = await query(`SELECT COUNT(*)::int AS n FROM comunidades c WHERE ${whereSql}`, countParams);
-    const limitIdx = params.length + 1;
-    const offsetIdx = params.length + 2;
+    const limitIdx = selParams.length + 1;
+    const offsetIdx = selParams.length + 2;
+
+    const orderSql = orden === 'recientes' ? 'c.created_at DESC'
+      : orden === 'activos' ? `${expActivos} DESC, c.miembros DESC`
+        : orden === 'publicaciones' ? `${expArchivos} DESC, c.miembros DESC`
+          : 'c.destacado DESC, c.miembros DESC';
 
     const { rows } = await query(
       `SELECT c.id, c.nombre, c.slug, c.descripcion, c.avatar, c.banner, c.reglas, c.privacidad,
               c.modo_union, c.miembros, c.destacado, c.created_at,
               ${miembro} AS miembro, ${dueno} AS soy_dueno, ${solicitud} AS solicitud,
-              (SELECT COUNT(*)::int FROM comunidad_miembros cm
-                 JOIN comunidad_presencia pr ON pr.user_key = cm.user_key
-                WHERE cm.comunidad_id = c.id
-                  AND pr.last_seen > NOW() - INTERVAL '5 minutes') AS activos,
-              ((SELECT COALESCE(SUM(jsonb_array_length(p.media)), 0)::int
-                  FROM comunidad_posts p WHERE p.comunidad_id = c.id AND p.activo = TRUE)
-               + (SELECT COUNT(*)::int FROM comunidad_mensajes m
-                  WHERE m.comunidad_id = c.id AND m.activo = TRUE AND m.media IS NOT NULL)) AS archivos
+              ${expActivos} AS activos,
+              ${expArchivos} AS archivos,
+              COALESCE(
+                c.banner,
+                c.avatar,
+                (SELECT media->0->>'url' FROM comunidad_posts p
+                  WHERE p.comunidad_id = c.id AND p.activo = TRUE
+                    AND jsonb_array_length(COALESCE(p.media,'[]'::jsonb)) > 0
+                  ORDER BY p.created_at DESC LIMIT 1)
+              ) AS portada
          FROM comunidades c
         WHERE ${whereSql}
-        ORDER BY c.destacado DESC, c.miembros DESC, c.id ASC
+        ORDER BY ${orderSql}, c.id ASC
         LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
-      [...params, limit, offset]
+      [...selParams, limit, offset]
     );
     const total = totalQ.rows[0].n;
     res.json({ data: rows, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) });
@@ -200,12 +240,17 @@ r.get('/grupos', async (req, res, next) => {
 // GET /api/comunidad/grupos/:id  (+ mensajes recientes + si soy miembro)
 r.get('/grupos/:id', async (req, res, next) => {
   try {
-    const id = intOrNull(req.params.id);
-    if (!id) return res.status(404).json({ error: 'Comunidad no encontrada' });
+    // Acepta id numerico o slug (para URLs tipo /comunidad/grupo/mi-grupo-abc).
+    const ref = String(req.params.id || '').trim();
+    let id = intOrNull(ref);
+    if (!id && !ref) return res.status(404).json({ error: 'Comunidad no encontrada' });
     const userKey = String(req.query.userKey || '').trim();
-    const { rows } = await query('SELECT * FROM comunidades WHERE id = $1 AND activo = TRUE', [id]);
+    const { rows } = id
+      ? await query('SELECT * FROM comunidades WHERE id = $1 AND activo = TRUE', [id])
+      : await query('SELECT * FROM comunidades WHERE slug = $1 AND activo = TRUE', [ref]);
     const grupo = rows[0];
     if (!grupo) return res.status(404).json({ error: 'Comunidad no encontrada' });
+    id = grupo.id;
     let soyMiembro = false;
     let solicitud = null;
     let rol = null;
@@ -273,6 +318,41 @@ r.post('/grupos', avatarUpload.single('avatar'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// POST /api/comunidad/grupos/:id/avatar  (multipart: avatar, body userKey)
+// Solo el dueno (o admin) puede cambiar la foto/banner del grupo.
+r.post('/grupos/:id/avatar', avatarUpload.single('avatar'), async (req, res, next) => {
+  try {
+    const id = intOrNull(req.params.id);
+    const user = await resolveUser(req.body?.userKey);
+    if (!id || !user) return res.status(401).json({ error: 'Inicia sesión' });
+    if (!req.file) return res.status(400).json({ error: 'Adjunta una imagen' });
+    const g = await query('SELECT user_key FROM comunidades WHERE id = $1 AND activo = TRUE', [id]);
+    if (!g.rows[0]) return res.status(404).json({ error: 'Comunidad no encontrada' });
+    if (String(g.rows[0].user_key) !== String(user.user_key)) return res.status(403).json({ error: 'Solo el dueño puede editarla' });
+    const avatar = saveFile(req.file, user.user_key, 'grupos');
+    await query('UPDATE comunidades SET avatar = $2, updated_at = NOW() WHERE id = $1', [id, avatar]);
+    await notify('comunidad_grupo', { id });
+    res.json({ ok: true, avatar });
+  } catch (e) { next(e); }
+});
+
+// POST /api/comunidad/grupos/:id/banner  (multipart: banner, body userKey)
+r.post('/grupos/:id/banner', avatarUpload.single('banner'), async (req, res, next) => {
+  try {
+    const id = intOrNull(req.params.id);
+    const user = await resolveUser(req.body?.userKey);
+    if (!id || !user) return res.status(401).json({ error: 'Inicia sesión' });
+    if (!req.file) return res.status(400).json({ error: 'Adjunta una imagen' });
+    const g = await query('SELECT user_key FROM comunidades WHERE id = $1 AND activo = TRUE', [id]);
+    if (!g.rows[0]) return res.status(404).json({ error: 'Comunidad no encontrada' });
+    if (String(g.rows[0].user_key) !== String(user.user_key)) return res.status(403).json({ error: 'Solo el dueño puede editarla' });
+    const banner = saveFile(req.file, user.user_key, 'grupos');
+    await query('UPDATE comunidades SET banner = $2, updated_at = NOW() WHERE id = $1', [id, banner]);
+    await notify('comunidad_grupo', { id });
+    res.json({ ok: true, banner });
+  } catch (e) { next(e); }
+});
+
 // POST /api/comunidad/grupos/:id/join
 r.post('/grupos/:id/join', async (req, res, next) => {
   try {
@@ -290,8 +370,19 @@ r.post('/grupos/:id/join', async (req, res, next) => {
       return res.json({ ok: true, joined: false });
     }
 
-    // Privado o por invitación -> queda como solicitud pendiente
+    // Privado o por invitación -> solicitud pendiente
     if (g.rows[0].privacidad === 'privada' || g.rows[0].modo_union === 'invitacion') {
+      const accion = String(req.body?.accion || '').trim();
+      const yaPendiente = await query(
+        "SELECT 1 FROM comunidad_solicitudes WHERE comunidad_id = $1 AND user_key = $2 AND estado = 'pendiente'",
+        [id, user.user_key]
+      );
+      // Cancelar la solicitud pendiente.
+      if (accion === 'cancelar' || yaPendiente.rows[0]) {
+        await query('DELETE FROM comunidad_solicitudes WHERE comunidad_id = $1 AND user_key = $2', [id, user.user_key]);
+        await notify('comunidad_solicitud', { comunidad_id: id, user_key: user.user_key });
+        return res.json({ ok: true, cancelado: true });
+      }
       await query(
         `INSERT INTO comunidad_solicitudes (comunidad_id, user_key, usuario, mensaje)
          VALUES ($1, $2, $3, $4)
@@ -392,7 +483,21 @@ r.get('/feed', async (req, res, next) => {
     const grupo = intOrNull(req.query.grupo);
     const where = ['p.activo = TRUE'];
     const params = [];
-    if (grupo) { params.push(grupo); where.push(`p.comunidad_id = $${params.length}`); }
+    if (grupo) {
+      // Los grupos privados solo dejan ver sus publicaciones a sus miembros.
+      const gInfo = await query('SELECT privacidad, modo_union, user_key FROM comunidades WHERE id = $1', [grupo]);
+      const gi = gInfo.rows[0];
+      if (gi && (gi.privacidad === 'privada' || gi.modo_union === 'invitacion')) {
+        let permitido = !!userKey && String(gi.user_key || '') === String(userKey);
+        if (!permitido && userKey) {
+          const m = await query('SELECT 1 FROM comunidad_miembros WHERE comunidad_id = $1 AND user_key = $2', [grupo, userKey]);
+          permitido = !!m.rows[0];
+        }
+        if (!permitido) return res.json({ data: [], privado: true });
+      }
+      params.push(grupo);
+      where.push(`p.comunidad_id = $${params.length}`);
+    }
     if (filtro === 'videos') where.push(`p.tipo = 'video'`);
     if (filtro === 'fotos') where.push(`p.tipo = 'foto'`);
     if (filtro === 'guardados') {
@@ -407,6 +512,37 @@ r.get('/feed', async (req, res, next) => {
       liked = `EXISTS (SELECT 1 FROM comunidad_post_likes l WHERE l.post_id = p.id AND l.user_key = $${params.length})`;
       saved = `EXISTS (SELECT 1 FROM comunidad_post_guardados g2 WHERE g2.post_id = p.id AND g2.user_key = $${params.length})`;
     }
+    // ===== Feed personalizado ("Para ti") =====
+    // Muestra publicaciones de los grupos/comunidades del usuario y de gente
+    // con la que interactua. Sin chat global: solo lo que publican los grupos.
+    if (filtro === 'para-ti' && userKey) {
+      const base = await query(
+        `SELECT p.*, c.nombre AS grupo_nombre,
+                ${liked} AS liked, ${saved} AS saved
+           FROM comunidad_posts p
+           JOIN comunidad_miembros cm ON cm.comunidad_id = p.comunidad_id AND cm.user_key = $1
+           JOIN comunidades c ON c.id = p.comunidad_id
+          WHERE p.activo = TRUE
+          ORDER BY p.created_at DESC
+          LIMIT 60`,
+        [userKey]
+      );
+      // Si aun no hay nada de sus grupos, prueba con grupos publicos populares
+      // que le puedan interesar (relleno); si tampoco, queda vacio.
+      if (base.rows.length === 0) {
+        const relleno = await query(
+          `SELECT p.*, c.nombre AS grupo_nombre, FALSE AS liked, FALSE AS saved
+             FROM comunidad_posts p
+             JOIN comunidades c ON c.id = p.comunidad_id
+            WHERE p.activo = TRUE AND c.activo = TRUE
+            ORDER BY p.likes DESC, p.created_at DESC
+            LIMIT 20`
+        );
+        return res.json({ data: relleno.rows, vacio: relleno.rows.length === 0 });
+      }
+      return res.json({ data: base.rows, vacio: false });
+    }
+
     params.push(80);
     const limitIdx = params.length;
 
@@ -421,7 +557,7 @@ r.get('/feed', async (req, res, next) => {
         LIMIT $${limitIdx}`,
       params
     );
-    res.json({ data: rows });
+    res.json({ data: rows, vacio: rows.length === 0 });
   } catch (e) { next(e); }
 });
 
@@ -866,7 +1002,7 @@ r.get('/chats', async (req, res, next) => {
          UNION
          SELECT cm.comunidad_id FROM comunidad_miembros cm WHERE cm.user_key = $1
        )
-       SELECT c.id, c.nombre, c.avatar, c.descripcion, c.privacidad, c.miembros,
+       SELECT c.id, c.slug, c.nombre, c.avatar, c.descripcion, c.privacidad, c.miembros,
               m.texto AS ultimo_texto, m.tipo AS ultimo_tipo, m.usuario AS ultimo_usuario,
               m.user_key AS ultimo_user_key, m.media AS ultimo_media, m.created_at AS ultimo_creado,
               (SELECT COUNT(*)::int
@@ -1267,6 +1403,9 @@ r.get('/buscar', async (req, res, next) => {
       ? req.query.filtro : 'todos';
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(30, Math.max(5, Number(req.query.limit) || 12));
+    const limP = Math.min(30, Math.max(1, Number(req.query.limitPersonas) || limit));
+    const limG = Math.min(30, Math.max(1, Number(req.query.limitGrupos) || limit));
+    const limM = Math.min(30, Math.max(1, Number(req.query.limitPosts) || limit));
     const offset = (page - 1) * limit;
     const like = `%${q}%`;
     const out = { personas: [], grupos: [], posts: [] };
@@ -1299,7 +1438,7 @@ r.get('/buscar', async (req, res, next) => {
           WHERE u.email_verified = TRUE
             AND (lower(COALESCE(u.usuario,'')) LIKE $1 OR lower(COALESCE(u.nombre,'')) LIKE $1)${extra}
           ORDER BY (u.usuario IS NULL), u.usuario ASC
-          LIMIT ${limit} OFFSET ${offset}`,
+          LIMIT ${limP} OFFSET ${offset}`,
         params
       );
       out.personas = rows;
@@ -1313,7 +1452,7 @@ r.get('/buscar', async (req, res, next) => {
           WHERE activo = TRUE
             AND (lower(nombre) LIKE $1 OR lower(COALESCE(descripcion,'')) LIKE $1)
           ORDER BY miembros DESC
-          LIMIT ${limit} OFFSET ${offset}`,
+          LIMIT ${limG} OFFSET ${offset}`,
         [like]
       );
       out.grupos = rows;
@@ -1337,7 +1476,7 @@ r.get('/buscar', async (req, res, next) => {
           WHERE p.activo = TRUE
             AND (lower(COALESCE(p.texto,'')) LIKE $1 OR lower(COALESCE(p.usuario,'')) LIKE $1)
           ORDER BY p.created_at DESC
-          LIMIT ${limit} OFFSET ${offset}`,
+          LIMIT ${limM} OFFSET ${offset}`,
         params
       );
       out.posts = rows;

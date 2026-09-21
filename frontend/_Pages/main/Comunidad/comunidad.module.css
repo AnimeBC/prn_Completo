@@ -9,7 +9,7 @@
 .hidden { display: none; }
 
 /* ================= BUSCADOR ================= */
-.buscador { margin: 0 0 16px; position: relative; z-index: 40; }
+.buscador { margin: 0 0 16px; position: relative; z-index: 60; }
 
 .buscadorBox {
   display: flex;
@@ -21,6 +21,8 @@
   padding: 13px 18px;
   width: 100%;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  position: relative;
+  z-index: 61;
 }
 .buscadorBox:focus-within { border-color: var(--primary, #F20D16); }
 
@@ -53,42 +55,75 @@
 
 
 .buscadorClear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: none;
   background: transparent;
   color: var(--text-secondary, #A1A1AA);
-  font-size: 18px;
-  cursor: pointer;
-  display: flex;
-}
-
-.buscadorFiltros { display: flex; gap: 6px; margin-top: 10px; }
-
-.buscadorChip {
-  border: 1px solid var(--border, #27272A);
-  background: transparent;
-  color: var(--text-secondary, #A1A1AA);
-  font-size: 12px;
-  font-weight: 700;
-  padding: 6px 14px;
-  border-radius: 16px;
-  cursor: pointer;
+  font-size: 15px;
   font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 2px 4px;
 }
-.buscadorChip:hover { border-color: var(--primary, #F20D16); }
-.buscadorChipOn {
-  background: var(--primary, #F20D16);
-  border-color: var(--primary, #F20D16);
-  color: #FFFFFF;
+.buscadorClear:hover { color: var(--primary, #F20D16); }
+.buscadorClearLabel { font-size: 13px; font-weight: 700; }
+
+/* ===== Filtros de resultados (pestanas tipo Google) ===== */
+.buscarTabs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin-top: 12px;
+  border-bottom: 1px solid var(--border, #27272A);
+  flex-wrap: wrap;
 }
 
-.buscadorChipGhost {
+.buscarTab {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: auto;
+  gap: 7px;
+  border: none;
+  background: transparent;
   color: var(--text-secondary, #A1A1AA);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
-.buscadorChipGhost:hover { color: var(--primary, #F20D16); }
+.buscarTab ion-icon { font-size: 17px; }
+.buscarTab:hover { color: var(--text-primary, #E4E6EB); }
+.buscarTabOn {
+  color: var(--primary, #F20D16);
+  border-bottom-color: var(--primary, #F20D16);
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  /* En celular si los filtros no caben en una fila, bajan a la siguiente
+     (wrap) y quedan centrados horizontalmente. */
+  .buscarTabs {
+    justify-content: center;
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .buscarTab { padding: 9px 10px; font-size: 12.5px; white-space: nowrap; }
+  .buscarTab ion-icon { font-size: 16px; }
+
+  .buscadorBox { padding: 10px 12px; gap: 6px; }
+  .buscadorInput { font-size: 14px; }
+  .buscadorBtn { padding: 8px 12px; font-size: 12.5px; }
+  .buscadorClear { font-size: 14px; gap: 3px; }
+  .buscadorClearLabel { font-size: 12px; }
+}
+
+
 
 /* ===== Resultados de busqueda (reemplazan el contenido) ===== */
 .buscarResultados {
@@ -139,6 +174,118 @@
   font-size: 12px;
   color: var(--text-secondary, #A1A1AA);
 }
+
+/* ===== Sugerencias en vivo bajo el buscador ===== */
+/* Fondo con blur y transparencia mientras se usa el buscador. */
+.buscarBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: buscarFade 0.15s ease;
+}
+
+@keyframes buscarFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Flotante pegado debajo del buscador: NO empuja el contenido de abajo. */
+.sugerencias {
+  position: absolute;
+  top: calc(100% - 6px);
+  left: 0;
+  right: 0;
+  z-index: 62;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-card, #121215);
+  border: 1px solid var(--border, #27272A);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  max-height: 60vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.sugerencias::-webkit-scrollbar { width: 6px; }
+.sugerencias::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 999px; }
+
+.sugerenciaHead {
+  margin: 0;
+  padding: 10px 14px 4px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+.sugerenciaEmpty {
+  margin: 0;
+  padding: 8px 14px 12px;
+  font-size: 12.5px;
+  color: var(--text-secondary, #71717A);
+  font-style: italic;
+}
+
+.sugerenciaItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.sugerenciaItem:hover { background: var(--bg-surface, #18181B); }
+
+.sugerenciaAvatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--bg-surface, #3A3B3C);
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sugerenciaAvatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.sugerenciaInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sugerenciaNombre { font-size: 13.5px; font-weight: 700; color: var(--text-primary, #E4E6EB); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sugerenciaMeta { font-size: 11.5px; color: var(--text-secondary, #A1A1AA); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sugerenciaTipo { font-size: 18px; color: var(--text-secondary, #A1A1AA); flex-shrink: 0; }
+
+.sugerenciaVerMas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--border, #27272A);
+  background: var(--bg-surface, #18181B);
+  color: var(--primary, #F20D16);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 11px;
+  cursor: pointer;
+}
+.sugerenciaVerMas:hover { background: var(--bg-card, #242526); }
+.sugerenciaVerMas ion-icon { font-size: 16px; }
 
 /* ===== Resultados estilo Facebook ===== */
 .fbCard {
@@ -1018,6 +1165,9 @@
   .publishWrap { justify-content: space-between; }
   .chatsDock { left: 8px; right: 8px; bottom: 0; max-width: none; }
   .chatPanel { width: min(86vw, 320px); height: 55vh; }
+
+  /* Al buscar en celular se oculta la columna derecha (Grupos y Amigos). */
+  .rightHiddenMobile { display: none; }
 }
 
 /* ===== Grupo: archivo + rail compacto + lista de en linea ===== */
@@ -1074,6 +1224,23 @@
 
 .sectionLabel{ display:flex; align-items:center; gap:6px; font-size:13px; font-weight:800; color:var(--text-primary,#FFFFFF); margin:0 }
 .sectionLabel ion-icon{ color:var(--primary,#F20D16); font-size:16px }
+
+/* Estado vacio del feed personalizado */
+.feedEmpty{
+  display:flex; flex-direction:column; align-items:center; gap:12px;
+  padding:40px 24px; text-align:center;
+  background:var(--bg-card,#121215); border:1px solid var(--border,#27272A); border-radius:12px;
+}
+.feedEmptyIcon{ font-size:52px; color:var(--primary,#F20D16); opacity:.85 }
+.feedEmptyText{ margin:0; font-size:13.5px; line-height:1.5; color:var(--text-secondary,#A1A1AA); max-width:420px }
+.feedEmptyBtn{
+  display:inline-flex; align-items:center; gap:8px;
+  border:none; border-radius:10px; padding:11px 20px;
+  background:var(--primary,#F20D16); color:#FFFFFF;
+  font-family:inherit; font-size:13.5px; font-weight:800; cursor:pointer;
+}
+.feedEmptyBtn:hover{ filter:brightness(1.1) }
+.feedEmptyBtn ion-icon{ font-size:17px }
 
 /* ===== Crear historia (opciones) ===== */
 .storyOpts{ display:flex; flex-direction:column; gap:10px }
