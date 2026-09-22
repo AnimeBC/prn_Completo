@@ -254,16 +254,64 @@ function RemoteAudio({ stream }) {
   return <audio ref={ref} autoPlay playsInline />;
 }
 
+// Video local (mi camara). Estable: solo reasigna srcObject si cambia el stream
+// (evita el parpadeo/tizne que causaba reasignarlo en cada render).
+function LocalVideo({ stream, className }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !stream) return undefined;
+    const track = stream.getVideoTracks()[0];
+    if (el.srcObject !== stream) el.srcObject = stream;
+    // Si la camara se apaga/enciende, el navegador puede pausar el video.
+    const reintentar = () => {
+      const p = el.play();
+      if (p && typeof p.catch === 'function') p.catch(() => { /* noop */ });
+    };
+    reintentar();
+    track?.addEventListener?.('mute', reintentar);
+    track?.addEventListener?.('unmute', reintentar);
+    return () => {
+      track?.removeEventListener?.('mute', reintentar);
+      track?.removeEventListener?.('unmute', reintentar);
+    };
+  }, [stream]);
+  return <video ref={ref} className={className} autoPlay playsInline muted />;
+}
+
 // Video remoto (1:1 y grupal). Asigna srcObject al montar y reintenta play().
+// Si el navegador bloquea el autoplay con audio, primero reproduce en silencio
+// (asi el video se ve) y reintenta con audio al primer toque del usuario.
 function RemoteVideo({ stream, className }) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
     if (!el || !stream) return undefined;
     if (el.srcObject !== stream) el.srcObject = stream;
-    const p = el.play();
-    if (p && typeof p.catch === 'function') p.catch(() => { /* bloqueado; se reintenta al gesto */ });
-    return undefined;
+    const intentar = () => {
+      const p = el.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          // Bloqueado por autoplay: reproducir en silencio y desmute al tocar.
+          el.muted = true;
+          const p2 = el.play();
+          if (p2 && typeof p2.catch === 'function') p2.catch(() => { /* noop */ });
+        });
+      }
+    };
+    intentar();
+    const desmutear = () => {
+      el.muted = false;
+      intentar();
+      window.removeEventListener('pointerdown', desmutear);
+      window.removeEventListener('touchstart', desmutear);
+    };
+    window.addEventListener('pointerdown', desmutear);
+    window.addEventListener('touchstart', desmutear);
+    return () => {
+      window.removeEventListener('pointerdown', desmutear);
+      window.removeEventListener('touchstart', desmutear);
+    };
   }, [stream]);
   return <video ref={ref} className={className} autoPlay playsInline />;
 }
@@ -481,6 +529,7 @@ export function CallProvider({ children }) {
       if (e.candidate && c) post('ice', c.peerKey, { userKey, callId: c.callId, candidate: e.candidate });
     };
     pc.ontrack = (e) => {
+      dlog('1:1 ontrack', e.track?.kind, 'streams', e.streams?.length);
       if (e.streams && e.streams[0]) setRemoteStream(e.streams[0]);
       afinarAudio(pc);
     };
@@ -520,7 +569,12 @@ export function CallProvider({ children }) {
         channelCount: 1,
         sampleRate: 48000,
       },
-      video: quiereVideo ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } : false,
+      video: quiereVideo ? {
+        facingMode: 'user',
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        frameRate: { ideal: 24, max: 30 },
+      } : false,
     };
     try {
       const raw = await navigator.mediaDevices.getUserMedia(constraints);
@@ -591,11 +645,13 @@ export function CallProvider({ children }) {
     }
     const media = await obtenerMedia(tipo);
     if (!media) { dlog('1:1 iniciar sin media'); return; }
+    dlog('media tracks', media.getTracks().map((t) => `${t.kind}:${t.readyState}`));
     const pc = crearPc();
     media.getTracks().forEach((t) => pc.addTrack(t, media));
     const offer = await pc.createOffer();
     offer.sdp = mejorarSdp(offer.sdp);
     await pc.setLocalDescription(offer);
+    dlog('offer sdp len', offer.sdp.length, 'audio?', offer.sdp.includes('m=audio'), 'video?', offer.sdp.includes('m=video'));
 
     const info2 = {
       callId: nuevoCallId(), tipo, peerKey: otroKey,
@@ -893,10 +949,16 @@ export function CallProvider({ children }) {
       const p = d.payload || {};
       const esGrupo = tipo.startsWith('call_grupo_');
       if (esGrupo) dlog('evento', tipo, p, 'salaLocal?', !!salaRef.current);
-      if (String(p.de) === String(userKey)) return;
+      // call_state llega a AMBOS lados (de y para); los demas 1:1 solo al
+      // destinatario. Los de grupo se filtran por callId mas abajo.
+      const soyParte = String(p.de) === String(userKey) || String(p.para) === String(userKey);
+      if (tipo === 'call_state') {
+        if (!soyParte) return;
+      } else {
+        if (String(p.de) === String(userKey)) return;
+        if (!esGrupo && String(p.para) !== String(userKey)) return;
+      }
       const c = callRef.current;
-      // Los eventos 1 a 1 van dirigidos (para); los de grupo se filtran por callId.
-      if (!esGrupo && String(p.para) !== String(userKey)) return;
 
       if (tipo === 'call_offer') {
         dlog('1:1 offer entrante de', p.de, p.callId, 'ocupado?', !!c);
@@ -927,6 +989,26 @@ export function CallProvider({ children }) {
         if (c && String(p.callId) === String(c.callId)) limpiar();
       } else if (tipo === 'call_hangup') {
         if (c && String(p.callId) === String(c.callId)) limpiar();
+
+      } else if (tipo === 'call_state') {
+        // Sincroniza todas las pestanas del mismo usuario: si la llamada
+        // cambio de estado (aceptada/rechazada/finalizada) en OTRA pestana,
+        // aqui se cierra el modal o se corta la llamada local.
+        dlog('call_state', p.estado, p.callId, 'quien', p.quien);
+        if (String(p.quien) === String(userKey)) return; // lo hice yo
+        if (p.estado === 'sonando') {
+          // Ya estoy en otra llamada distinta: la rechazo para no duplicar.
+          if (callRef.current && String(callRef.current.callId) !== String(p.callId)) {
+            await post('reject', p.de, { userKey, callId: p.callId });
+          }
+          return;
+        }
+        // La llamada ya no esta sonando: cierro modal o corto la llamada.
+        if (callRef.current && String(callRef.current.callId) === String(p.callId)) {
+          limpiar();
+        }
+        // La sala grupal tambien (por si el aviso era grupal).
+        setSala((prev) => (prev && String(prev.callId) === String(p.callId) ? null : prev));
 
       // ---- Grupales ----
       } else if (tipo === 'call_grupo_start') {
@@ -1082,16 +1164,7 @@ export function CallProvider({ children }) {
         />
 
         {call.tipo === 'video' && (
-          <video
-            ref={(el) => {
-              localVideoRef.current = el;
-              if (el && localStream) el.srcObject = localStream;
-            }}
-            className={styles.localVideo}
-            autoPlay
-            playsInline
-            muted
-          />
+          <LocalVideo stream={localStream} className={styles.localVideo} />
         )}
 
         <div className={styles.controls}>
@@ -1181,7 +1254,7 @@ export function CallProvider({ children }) {
           onClose={salirGrupo}
         />
 
-        {esVideo && <video ref={localVideoRef} className={styles.localVideo} autoPlay playsInline muted />}
+        {esVideo && <LocalVideo stream={localStream} className={styles.localVideo} />}
 
         <div className={styles.controls}>
           <button type="button" className={`${styles.rnd} ${micOn ? styles.rndDim : styles.rndRed}`} onClick={toggleMic} title={micOn ? 'Silenciar' : 'Activar micrófono'}>

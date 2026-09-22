@@ -148,6 +148,8 @@ r.post('/:otroKey/offer', async (req, res, next) => {
       de: user.user_key, para: otro.user_key, callId, tipo, sdp,
       de_nombre: user.nombre || user.usuario || '', de_avatar: user.avatar || null,
     });
+    // Sincroniza todas las pestanas de ambos (una sola llamada a la vez).
+    await publishEvent('call_state', { de: user.user_key, para: otro.user_key, callId, estado: 'sonando', quien: user.user_key });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -164,6 +166,8 @@ r.post('/:otroKey/answer', async (req, res, next) => {
       [callId, user.user_key]
     );
     await publishEvent('call_answer', { de: user.user_key, para: req.params.otroKey, callId, sdp: req.body.sdp });
+    // Sincroniza TODAS las pestanas de ambos usuarios (cerrar modales abiertos).
+    await publishEvent('call_state', { de: user.user_key, para: req.params.otroKey, callId, estado: 'activa', quien: user.user_key });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -197,6 +201,7 @@ r.post('/:otroKey/reject', async (req, res, next) => {
     const row = upd.rows[0];
     if (row) await avisoLlamadaDm(row.de_key, row.para_key, row.tipo, row.duracion_seg, 'rechazada');
     await publishEvent('call_reject', { de: user.user_key, para: req.params.otroKey, callId });
+    await publishEvent('call_state', { de: user.user_key, para: req.params.otroKey, callId, estado: 'rechazada', quien: user.user_key });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
@@ -226,6 +231,7 @@ r.post('/:otroKey/hangup', async (req, res, next) => {
       await avisoLlamadaDm(row.de_key, row.para_key, row.tipo, row.duracion_seg, estado);
     }
     await publishEvent('call_hangup', { de: user.user_key, para: req.params.otroKey, callId });
+    await publishEvent('call_state', { de: user.user_key, para: req.params.otroKey, callId, estado: 'finalizada', quien: user.user_key });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
