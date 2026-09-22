@@ -281,19 +281,74 @@ function LocalVideo({ stream, className }) {
 
 // Recuadro "mi cara" en la videollamada: si hay camara, video local; si no
 // (PC sin webcam o camara apagada), muestra la foto de perfil y el nombre.
+// Es arrastrable por el asa de su esquina (la posicion se guarda).
 function LocalBox({ stream, videoOn, user, userKey }) {
-  if (videoOn && stream) return <LocalVideo stream={stream} className={styles.localVideo} />;
+  const wrapRef = useRef(null);
+  const [pos, setPos] = useState(null);
+
+  // Recuerda donde lo dejo el usuario (entre recargas y llamadas).
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem('pkp_localbox_pos');
+      if (raw) {
+        const p = JSON.parse(raw);
+        if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) setPos(p);
+      }
+    } catch { /* noop */ }
+  }, []);
+
+  const guardar = (x, y) => {
+    const p = { x: Math.round(x), y: Math.round(y) };
+    setPos(p);
+    try { window.localStorage.setItem('pkp_localbox_pos', JSON.stringify(p)); } catch { /* noop */ }
+  };
+
+  // Arrastre del asa (pointer events: funciona con raton y dedo).
+  const onDown = (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const wrap = wrapRef.current;
+    const cont = wrap?.offsetParent;
+    if (!wrap || !cont) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const cRect = cont.getBoundingClientRect();
+    const wRect = wrap.getBoundingClientRect();
+    const offX = e.clientX - wRect.left;
+    const offY = e.clientY - wRect.top;
+    const move = (ev) => {
+      const x = Math.max(4, Math.min(cRect.width - wRect.width - 4, ev.clientX - cRect.left - offX));
+      const y = Math.max(4, Math.min(cRect.height - wRect.height - 4, ev.clientY - cRect.top - offY));
+      guardar(x, y);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+
+  const estilo = pos ? { top: `${pos.y}px`, left: `${pos.x}px`, right: 'auto' } : undefined;
   const nombre = user?.nombre || user?.usuario || '';
   return (
-    <div className={styles.localVideo}>
-      <div className={styles.localFallback}>
-        {user?.avatar ? (
-          <img className={styles.localFallbackImg} src={mediaUrl(user.avatar)} alt="" />
-        ) : (
-          <span className={styles.localFallbackImg}>{String(nombre || userKey || '?').trim().charAt(0).toUpperCase()}</span>
-        )}
-        <span className={styles.localFallbackName}>{nombre || userKey || ''}</span>
-      </div>
+    <div ref={wrapRef} className={styles.localVideo} style={estilo}>
+      <button type="button" className={styles.localDrag} onPointerDown={onDown} title="Mover" aria-label="Mover recuadro">
+        <ion-icon name="move-outline" suppressHydrationWarning></ion-icon>
+      </button>
+      {videoOn && stream ? (
+        <LocalVideo stream={stream} className={styles.localVideoInner} />
+      ) : (
+        <div className={styles.localFallback}>
+          {user?.avatar ? (
+            <img className={styles.localFallbackImg} src={mediaUrl(user.avatar)} alt="" />
+          ) : (
+            <span className={styles.localFallbackImg}>{String(nombre || userKey || '?').trim().charAt(0).toUpperCase()}</span>
+          )}
+          <span className={styles.localFallbackName}>{nombre || userKey || ''}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -777,6 +832,17 @@ export function CallProvider({ children }) {
     if (sala) {
       for (const peerKey of Object.keys(remotosRef.current)) {
         postSala(sala.comunidadId, 'signal', { userKey, callId: sala.callId, paraKey: peerKey, kind: 'cam', camOn: on });
+      }
+    }
+    // 1 a 1: al apagar la camara quitamos la pista del sender (replaceTrack null)
+    // para que el otro vea "corte" al instante y muestre NUESTRA foto de perfil.
+    const pc11 = pcRef.current;
+    if (pc11) {
+      const vt = s.getVideoTracks()[0] || null;
+      for (const sender of pc11.getSenders()) {
+        if (sender.track && sender.track.kind === 'video') {
+          (on ? sender.replaceTrack(vt) : sender.replaceTrack(null)).catch(() => {});
+        }
       }
     }
   }

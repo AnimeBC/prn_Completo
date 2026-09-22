@@ -29,10 +29,10 @@
   pointer-events: auto;
 }
 /* En minimizado: barra arriba, contenido al medio, controles abajo (sin solapar). */
-.overlayMin .winBar { position: relative; height: 36px; flex-shrink: 0; z-index: 8; }
+.overlayMin .winBar { position: relative; height: 36px; flex-shrink: 0; z-index: 12; pointer-events: auto; }
 .overlayMin .winTitle { font-size: 12px; }
-.overlayMin .winSub { display: none; }
-.overlayMin .winBtn { width: 26px; height: 26px; font-size: 16px; }
+.overlayMin .winSub { font-size: 10px; }
+.overlayMin .winBtn { width: 26px; height: 26px; font-size: 16px; pointer-events: auto; }
 .overlayMin .audioCall {
   position: relative;
   flex: 1;
@@ -54,12 +54,24 @@
   padding: 4px;
 }
 .overlayMin .tileVideo, .overlayMin .tile { min-height: 50px; }
-.overlayMin .remoteVideo { position: absolute; inset: 0; border-radius: 0; }
-.overlayMin .videoFallback { position: absolute; inset: 0; }
-.overlayMin .localVideo { width: 54px; height: 72px; top: 42px; right: 8px; }
+/* Franja central: el video NO tapa la barra ni los controles. */
+.overlayMin .remoteVideo,
+.overlayMin .videoFallback {
+  position: absolute;
+  top: 36px;
+  bottom: 54px;
+  left: 0;
+  right: 0;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  pointer-events: none;
+}
+.overlayMin .localVideo { width: 54px; height: 72px; top: 44px; right: 8px; z-index: 6; }
 .overlayMin .localFallback { gap: 3px; }
 .overlayMin .localFallbackImg { width: 30px; height: 30px; font-size: 14px; }
 .overlayMin .localFallbackName { font-size: 9px; }
+.overlayMin .localDrag { width: 20px; height: 20px; font-size: 12px; border-radius: 6px; }
 /* Controles en flujo normal, anclados abajo, encima de todo. */
 .overlayMin .controls {
   position: relative;
@@ -69,9 +81,12 @@
   flex-shrink: 0;
   height: 54px;
   gap: 12px;
-  z-index: 9;
+  margin-top: auto;
+  z-index: 12;
+  pointer-events: auto;
   background: rgba(20, 20, 24, 0.72);
 }
+.overlayMin .rnd { pointer-events: auto; }
 .overlayMin .rnd { width: 40px; height: 40px; font-size: 19px; }
 .overlayMin .audiosOcultos { display: none; }
 .overlayMin .error { bottom: 60px; }
@@ -165,12 +180,6 @@
 .winBtn:hover { background: rgba(255, 255, 255, 0.16); }
 .winClose:hover { background: #F20D16; }
 
-/* En ventana minimizada la barra se compacta */
-.overlayMin .winBar { height: 34px; padding-left: 10px; }
-.overlayMin .winTitle { font-size: 12px; }
-.overlayMin .winSub { display: none; }
-.overlayMin .winBtn { width: 26px; height: 26px; font-size: 16px; }
-
 /* ===== Llamada entrante ===== */
 .incoming {
   width: 100%;
@@ -256,13 +265,13 @@
   background: linear-gradient(160deg, #2a2a2e, #17171a);
 }
 
+/* Recuadro local: contenedor (video o fallback) + asa para arrastrarlo. */
 .localVideo {
   position: absolute;
   top: 66px;
   right: 16px;
   width: 130px;
   height: 175px;
-  object-fit: cover;
   border-radius: 12px;
   border: 2px solid rgba(255, 255, 255, 0.25);
   background: #111;
@@ -270,6 +279,33 @@
   overflow: hidden;
   box-sizing: border-box;
 }
+.localVideoInner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Asa de arrastre en la esquina superior izquierda del recuadro local. */
+.localDrag {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  z-index: 3;
+  touch-action: none;
+  padding: 0;
+}
+.localDrag:active { cursor: grabbing; background: rgba(0, 0, 0, 0.75); }
 
 /* Sin camara: foto de perfil + nombre en el recuadro local. */
 .localFallback {
