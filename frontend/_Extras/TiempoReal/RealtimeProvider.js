@@ -37,7 +37,7 @@ const NO_REFRESH = new Set([
   'user_google_login', 'admin_login',
   'notificacion', 'notificacion_admin',
   // Llamadas: se manejan en vivo por pikantepe:change (CallProvider/ChatFlotante).
-  'call_offer', 'call_answer', 'call_ice', 'call_reject', 'call_hangup',
+  'call_offer', 'call_answer', 'call_ice', 'call_reject', 'call_hangup', 'call_state',
   'call_grupo_start', 'call_grupo_join', 'call_grupo_leave', 'call_grupo_signal', 'call_grupo_end',
 ]);
 
@@ -104,7 +104,9 @@ export function RealtimeProvider({ children }) {
         if (sonar) playNotification();
         // refresca datos de los server components (solo cambios de contenido).
         // Se difiere para evitar "Router action dispatched before initialization".
-        if (!NO_REFRESH.has(tipo) && !tipo.startsWith('comunidad_')) {
+        // Nunca refrescar server components por eventos de llamada/comunidad/dm:
+        // se manejan en vivo y refrescar re-monta todo (bucles y cortes).
+        if (!NO_REFRESH.has(tipo) && !tipo.startsWith('comunidad_') && !tipo.startsWith('call_')) {
           setTimeout(() => {
             try { router.refresh(); } catch { /* router aún no listo */ }
           }, 80);

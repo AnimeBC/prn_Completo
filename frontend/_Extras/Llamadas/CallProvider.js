@@ -122,25 +122,25 @@ function mejorarSdp(sdp) {
   if (!m) return sdp;
   const pt = m[1];
 
-  // fmtp: agrega/actualiza parametros de Opus.
+  // fmtp: agrega/actualiza parametros de Opus (sin .test() con flag 'g'
+  // para no dejar lastIndex avanzado y romper el SDP).
   const fmtpRe = new RegExp(`a=fmtp:${pt} ([^\\r\\n]*)`, 'g');
-  if (fmtpRe.test(sdp)) {
-    sdp = sdp.replace(fmtpRe, (full, params) => {
-      const set = new Set(String(params).split(';').map((x) => x.trim()).filter(Boolean));
-      // Quita valores viejos que podrian molestar.
-      for (const k of ['stereo', 'sprop-stereo', 'useinbandfec', 'usedtx', 'maxaveragebitrate', 'minptime', 'maxplaybackrate']) {
-        for (const item of [...set]) if (item.startsWith(`${k}=`)) set.delete(item);
-      }
-      set.add('minptime=10');
-      set.add('useinbandfec=1');
-      // usedtx=0: DTX corta el inicio de las palabras (se "entrecortan").
-      // El silencio suave se logra con la puerta de ruido (opt-in), no con DTX.
-      set.add('usedtx=0');
-      set.add('maxaveragebitrate=48000');
-      set.add('maxplaybackrate=48000');
-      return `a=fmtp:${pt} ${[...set].join(';')}`;
-    });
-  } else {
+  const limpiar = (params) => {
+    const set = new Set(String(params).split(';').map((x) => x.trim()).filter(Boolean));
+    for (const k of ['stereo', 'sprop-stereo', 'useinbandfec', 'usedtx', 'maxaveragebitrate', 'minptime', 'maxplaybackrate']) {
+      for (const item of [...set]) if (item.startsWith(`${k}=`)) set.delete(item);
+    }
+    set.add('minptime=10');
+    set.add('useinbandfec=1');
+    // usedtx=0: DTX corta el inicio de las palabras (se "entrecortan").
+    set.add('usedtx=0');
+    set.add('maxaveragebitrate=48000');
+    set.add('maxplaybackrate=48000');
+    return `a=fmtp:${pt} ${[...set].join(';')}`;
+  };
+  let encontrada = false;
+  sdp = sdp.replace(fmtpRe, (full, params) => { encontrada = true; return limpiar(params); });
+  if (!encontrada) {
     // Si no habia linea fmtp, la inserta justo despues del rtpmap de Opus.
     sdp = sdp.replace(
       new RegExp(`(a=rtpmap:${pt}\\s+opus/48000[^\\r\\n]*)`, 'i'),
@@ -292,10 +292,13 @@ function RemoteVideo({ stream, className }) {
       const p = el.play();
       if (p && typeof p.catch === 'function') {
         p.catch(() => {
-          // Bloqueado por autoplay: reproducir en silencio y desmute al tocar.
+          // Bloqueado por autoplay con audio: primero en silencio (se ve el
+          // video) y se reintenta con audio en cuanto sea posible.
           el.muted = true;
           const p2 = el.play();
-          if (p2 && typeof p2.catch === 'function') p2.catch(() => { /* noop */ });
+          if (p2 && typeof p2.catch === 'function') {
+            p2.then(() => { setTimeout(() => { el.muted = false; el.play().catch(() => {}); }, 400); }).catch(() => {});
+          }
         });
       }
     };
@@ -991,24 +994,29 @@ export function CallProvider({ children }) {
         if (c && String(p.callId) === String(c.callId)) limpiar();
 
       } else if (tipo === 'call_state') {
-        // Sincroniza todas las pestanas del mismo usuario: si la llamada
-        // cambio de estado (aceptada/rechazada/finalizada) en OTRA pestana,
-        // aqui se cierra el modal o se corta la llamada local.
-        dlog('call_state', p.estado, p.callId, 'quien', p.quien);
-        if (String(p.quien) === String(userKey)) return; // lo hice yo
-        if (p.estado === 'sonando') {
-          // Ya estoy en otra llamada distinta: la rechazo para no duplicar.
-          if (callRef.current && String(callRef.current.callId) !== String(p.callId)) {
-            await post('reject', p.de, { userKey, callId: p.callId });
-          }
+        // Sincroniza TODAS las pestanas del mismo usuario:
+        // - estado terminal (rechazada/finalizada): cierra modal o corta llamada.
+        // - estado activa: cierra el modal entrante si OTRA pestana lo acepto
+        //   (NO corta la llamada del que esta en curso; eso mataba la videollamada).
+        // - estado sonando: si ya estoy en OTRA llamada, rechazo la nueva.
+        dlog('call_state', p.estado, p.callId, 'quien', p.quien, 'miCall', c?.callId);
+        const esTerminal = p.estado === 'rechazada' || p.estado === 'finalizada' || p.estado === 'cancelada';
+        if (esTerminal) {
+          if (c && String(p.callId) === String(c.callId)) limpiar();
+          setSala((prev) => (prev && String(prev.callId) === String(p.callId) ? null : prev));
           return;
         }
-        // La llamada ya no esta sonando: cierro modal o corto la llamada.
-        if (callRef.current && String(callRef.current.callId) === String(p.callId)) {
-          limpiar();
+        if (p.estado === 'activa') {
+          // Modal entrante "sonando" en esta pestana: otra pestana lo acepto.
+          if (c && c.direction === 'in' && c.estado === 'sonando' && String(p.callId) === String(c.callId)) limpiar();
+          return;
         }
-        // La sala grupal tambien (por si el aviso era grupal).
-        setSala((prev) => (prev && String(prev.callId) === String(p.callId) ? null : prev));
+        if (p.estado === 'sonando') {
+          // Ya estoy en otra llamada distinta: la rechazo para no duplicar.
+          if (c && String(c.callId) !== String(p.callId)) {
+            await post('reject', p.de, { userKey, callId: p.callId });
+          }
+        }
 
       // ---- Grupales ----
       } else if (tipo === 'call_grupo_start') {
