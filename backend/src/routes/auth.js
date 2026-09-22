@@ -636,6 +636,15 @@ r.post('/profile/avatar', avatarUpload.single('avatar'), async (req, res, next) 
     const avatarPublic = publicOf(path.join(destDir, chosen ? chosen.file : main));
 
     await query('UPDATE users SET avatar = $1, updated_at = NOW() WHERE user_key = $2', [avatarPublic, userKey]);
+    // Sincroniza la foto del canal publico del usuario (si tiene uno), para que
+    // /canal/<slug> muestre la misma imagen que el perfil.
+    try {
+      await query(
+        'UPDATE channels SET avatar = COALESCE($2, avatar), updated_at = NOW() WHERE user_key = $1',
+        [userKey, avatarPublic]
+      );
+      await publishEvent('channel_updated', { userKey });
+    } catch { /* opcional */ }
     await publishEvent('user_profile', { userKey });
 
     const fresh = await findUserByKey(userKey);

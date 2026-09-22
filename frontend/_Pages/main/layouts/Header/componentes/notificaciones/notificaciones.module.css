@@ -242,10 +242,25 @@
 }
 
 .accept:disabled,
-.reject:disabled {
+.reject:disabled,
+.profile:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.profile {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #27272A);
+  background-color: transparent;
+  color: var(--text-secondary, #B0B3B8);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.profile:hover { background-color: rgba(255, 255, 255, 0.06); }
 
 /* Light theme */
 [data-theme="light"] .bellBtn:hover {

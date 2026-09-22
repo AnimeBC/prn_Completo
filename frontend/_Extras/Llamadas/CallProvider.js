@@ -6,6 +6,7 @@ import styles from './llamadas.module.css';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { playRing, stopRing } from '@/_Extras/Sonido/sonido.js';
+import { apiComunidad } from '@/_Extras/Comunidad/api.js';
 
 const CallContext = createContext({
   iniciar: () => {}, colgar: () => {}, enLlamada: false,
@@ -253,6 +254,30 @@ function RemoteVideo({ stream, className }) {
   return <video ref={ref} className={className} autoPlay playsInline />;
 }
 
+// Barra de titulo estilo ventana de app: minimizar / agrandar / cerrar.
+function WindowBar({ titulo, sub, minimizado, grande, pipWin, onMin, onMax, onClose }) {
+  return (
+    <div className={styles.winBar}>
+      <span className={styles.winDot} />
+      <div className={styles.winInfo}>
+        <strong className={styles.winTitle}>{titulo}</strong>
+        {sub && <span className={styles.winSub}>{sub}</span>}
+      </div>
+      <div className={styles.winBtns}>
+        <button type="button" className={styles.winBtn} onClick={onMin} title={minimizado ? 'Restaurar' : 'Minimizar'}>
+          <ion-icon name={minimizado ? 'chevron-up-outline' : 'chevron-down-outline'} suppressHydrationWarning></ion-icon>
+        </button>
+        <button type="button" className={styles.winBtn} onClick={onMax} title={grande ? 'Restaurar' : 'Agrandar'}>
+          <ion-icon name={grande ? 'contract-outline' : 'expand-outline'} suppressHydrationWarning></ion-icon>
+        </button>
+        <button type="button" className={`${styles.winBtn} ${styles.winClose}`} onClick={onClose} title="Cerrar (colgar)">
+          <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function fmtDur(seg) {
   const s = Math.max(0, Math.floor(seg));
   const m = Math.floor(s / 60);
@@ -278,6 +303,17 @@ export function CallProvider({ children }) {
   const [tick, setTick] = useState(0);
   const [error, setError] = useState('');
   const [remoteVideoOn, setRemoteVideoOn] = useState(false);
+  // Ventana de llamada minimizada (para poder navegar por la app).
+  const [minimizado, setMinimizado] = useState(false);
+  // Ventana agrandada (casi pantalla completa dentro de la app).
+  const [grande, setGrande] = useState(false);
+  // Document Picture-in-Picture: ventana flotante siempre encima del navegador.
+  const [pipWin, setPipWin] = useState(null);
+  const pipWinRef = useRef(null);
+  const cerrarPipRef = useRef(null);
+  // Modal "solo amigos": { peerKey, nombre, avatar, estado } estado: pedir|enviada
+  const [amistadModal, setAmistadModal] = useState(null);
+  const [amistadEnviando, setAmistadEnviando] = useState(false);
 
   const callRef = useRef(null);
   const pcRef = useRef(null);
@@ -356,12 +392,15 @@ export function CallProvider({ children }) {
 
   async function post(kind, otroKey, body) {
     try {
-      await fetch(`${API_URL}/api/calls/${encodeURIComponent(otroKey)}/${kind}`, {
+      const r = await fetch(`${API_URL}/api/calls/${encodeURIComponent(otroKey)}/${kind}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-    } catch { /* noop */ }
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok && j?.error) return j;
+      return j;
+    } catch { return { error: 'Sin conexión' }; }
   }
 
   function setEstado(estado) {
@@ -471,6 +510,9 @@ export function CallProvider({ children }) {
     setConectadoEn(null);
     setMicOn(true);
     setCamOn(true);
+    setMinimizado(false);
+    setGrande(false);
+    cerrarPipRef.current?.();
   }
 
   const iniciar = useCallback(async (otroKey, tipo, info) => {
@@ -496,7 +538,18 @@ export function CallProvider({ children }) {
     setLocalStream(media);
     localStreamRef.current = media;
     dlog('1:1 offer ->', otroKey, info2.callId);
-    await post('offer', otroKey, { userKey, callId: info2.callId, tipo, sdp: offer.sdp });
+    const res = await post('offer', otroKey, { userKey, callId: info2.callId, tipo, sdp: offer.sdp });
+    if (res?.error) {
+      limpiar();
+      // No son amigos: modal centrado con opcion de enviar solicitud.
+      if (String(res.error).toLowerCase().includes('amigos')) {
+        setAmistadModal({
+          peerKey: otroKey, nombre: info?.nombre || '', avatar: info?.avatar || null, estado: 'pedir',
+        });
+      } else {
+        setError(res.error);
+      }
+    }
   }, [userKey]);
 
   const aceptar = useCallback(async () => {
@@ -710,6 +763,9 @@ export function CallProvider({ children }) {
     setRemotos({});
     setMicOn(true);
     setCamOn(true);
+    setMinimizado(false);
+    setGrande(false);
+    cerrarPipRef.current?.();
   }
 
   const salirGrupoRef = useRef(null);
@@ -803,6 +859,11 @@ export function CallProvider({ children }) {
 
       // ---- Grupales ----
       } else if (tipo === 'call_grupo_start') {
+        // Solo los miembros del grupo pueden recibir la llamada.
+        if (Array.isArray(p.miembros) && !p.miembros.map(String).includes(String(userKey))) {
+          dlog('start ignorado, no soy miembro del grupo', p.conv);
+          return;
+        }
         // Aviso de llamada grupal entrante (solo si no estoy ya en una).
         if (salaRef.current || callRef.current) { dlog('start ignorado, ya en llamada'); return; }
         dlog('start entrante callId', p.callId, 'conv', p.conv);
@@ -918,7 +979,7 @@ export function CallProvider({ children }) {
     }
 
     return (
-      <div className={`${styles.overlay} ${call.tipo === 'video' ? styles.overlayVideo : ''}`}>
+      <div className={`${minimizado ? styles.overlayMin : (grande ? styles.overlayMax : styles.overlay)} ${call.tipo === 'video' ? styles.overlayVideo : ''}`}>
         {call.tipo === 'video' ? (
           <>
             <div className={styles.videoFallback} style={{ display: remoteVideoOn ? 'none' : 'flex' }}>
@@ -940,10 +1001,16 @@ export function CallProvider({ children }) {
           </div>
         )}
 
-        <div className={styles.topBar}>
-          <span className={styles.callName}>{titulo}</span>
-          <span className={styles.callTime}>{call.estado === 'activa' ? fmtDur(dur) : 'Conectando…'}</span>
-        </div>
+        <WindowBar
+          titulo={titulo}
+          sub={call.estado === 'activa' ? fmtDur(dur) : 'Conectando…'}
+          minimizado={minimizado}
+          grande={grande}
+          pipWin={pipWin}
+          onMin={toggleMin}
+          onMax={() => { if (minimizado) { setMinimizado(false); return; } setGrande((v) => !v); }}
+          onClose={colgar}
+        />
 
         {call.tipo === 'video' && (
           <video
@@ -1010,7 +1077,7 @@ export function CallProvider({ children }) {
     const grid = Object.values(remotos);
     const esVideo = sala.tipo === 'video';
     return (
-      <div className={`${styles.overlay} ${esVideo ? styles.overlayVideo : ''}`}>
+      <div className={`${minimizado ? styles.overlayMin : (grande ? styles.overlayMax : styles.overlay)} ${esVideo ? styles.overlayVideo : ''}`}>
         {/* Audio de cada peer, siempre presente (voz grupal y video). */}
         <div className={styles.audiosOcultos} aria-hidden="true">
           {grid.map((r) => (r.stream ? <RemoteAudio key={r.info?.userKey} stream={r.stream} /> : null))}
@@ -1036,10 +1103,16 @@ export function CallProvider({ children }) {
           </div>
         )}
 
-        <div className={styles.topBar}>
-          <span className={styles.callName}>{titulo}</span>
-          <span className={styles.callTime}>En llamada</span>
-        </div>
+        <WindowBar
+          titulo={titulo}
+          sub={`${grid.length + 1} en la llamada`}
+          minimizado={minimizado}
+          grande={grande}
+          pipWin={pipWin}
+          onMin={toggleMin}
+          onMax={() => { if (minimizado) { setMinimizado(false); return; } setGrande((v) => !v); }}
+          onClose={salirGrupo}
+        />
 
         {esVideo && <video ref={localVideoRef} className={styles.localVideo} autoPlay playsInline muted />}
 
@@ -1062,6 +1135,108 @@ export function CallProvider({ children }) {
     );
   })();
 
+  // ============================================================
+  // Document Picture-in-Picture: la llamada vive en su propia ventana
+  // flotante (siempre encima) y puedes navegar por la app con normalidad.
+  // ============================================================
+  const abrirPip = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+    const activa = !!(callRef.current || salaRef.current);
+    if (!activa) return;
+    if (!('documentPictureInPicture' in window)) {
+      // Sin soporte: cae al modo ventana flotante dentro de la pagina.
+      setMinimizado(true);
+      return;
+    }
+    if (pipWinRef.current) return;
+    try {
+      const pip = await window.documentPictureInPicture.requestWindow({ width: 360, height: 260 });
+      // Copia las hojas de estilo (incluye el CSS module con hashes).
+      for (const hoja of Array.from(document.styleSheets)) {
+        try {
+          const reglas = Array.from(hoja.cssRules || []).map((r) => r.cssText).join('\n');
+          const style = pip.document.createElement('style');
+          style.textContent = reglas;
+          pip.document.head.appendChild(style);
+        } catch {
+          // Hoja externa (CORS): la enlazamos por URL.
+          if (hoja.href) {
+            const link = pip.document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = hoja.href;
+            pip.document.head.appendChild(link);
+          }
+        }
+      }
+      pip.document.documentElement.style.background = '#08080a';
+      pip.document.body.style.margin = '0';
+      pip.document.body.className = document.body.className;
+      pip.addEventListener('pagehide', () => {
+        pipWinRef.current = null;
+        setPipWin(null);
+      });
+      pipWinRef.current = pip;
+      setPipWin(pip);
+      setMinimizado(false);
+    } catch { /* cancelado por el usuario */ }
+  }, []);
+
+  const cerrarPip = useCallback(() => {
+    try { pipWinRef.current?.close(); } catch { /* noop */ }
+    pipWinRef.current = null;
+    setPipWin(null);
+  }, []);
+  cerrarPipRef.current = cerrarPip;
+
+  function toggleMin() {
+    if (pipWinRef.current) { cerrarPip(); return; }
+    // Intenta ventana aparte; si no hay soporte, usa el modo flotante.
+    abrirPip();
+    setMinimizado((v) => (('documentPictureInPicture' in (typeof window !== 'undefined' ? window : {})) ? false : !v));
+  }
+
+  // Envia la solicitud de amistad desde el modal "solo amigos".
+  async function enviarSolicitudAmistad() {
+    if (!amistadModal?.peerKey || amistadEnviando) return;
+    setAmistadEnviando(true);
+    const r = await apiComunidad.amistadAccion(amistadModal.peerKey, userKey, 'solicitar');
+    setAmistadEnviando(false);
+    if (r?.error) { setError(r.error); return; }
+    setAmistadModal((m) => (m ? { ...m, estado: 'enviada' } : m));
+  }
+
+  const modalAmistad = amistadModal ? (
+    <div className={styles.amistadOverlay} onClick={() => setAmistadModal(null)}>
+      <div className={styles.amistadCard} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <span className={styles.amistadAvatar}>
+          {amistadModal.avatar
+            ? <img src={mediaUrl(amistadModal.avatar)} alt="" />
+            : String(amistadModal.nombre || '?').charAt(0).toUpperCase()}
+        </span>
+        <strong className={styles.amistadTitle}>
+          {amistadModal.estado === 'enviada' ? 'Solicitud enviada' : (amistadModal.nombre || 'Este usuario')}
+        </strong>
+        <span className={styles.amistadText}>
+          {amistadModal.estado === 'enviada'
+            ? 'Tu solicitud de amistad fue enviada. Podras llamarle cuando la acepte.'
+            : 'Solo puedes llamar a tus amigos. Envia una solicitud de amistad para poder llamarle.'}
+        </span>
+        <div className={styles.amistadActions}>
+          {amistadModal.estado === 'enviada' ? (
+            <button type="button" className={styles.amistadOk} onClick={() => setAmistadModal(null)}>Entendido</button>
+          ) : (
+            <>
+              <button type="button" className={styles.amistadCancel} onClick={() => setAmistadModal(null)}>Cancelar</button>
+              <button type="button" className={styles.amistadOk} onClick={enviarSolicitudAmistad} disabled={amistadEnviando}>
+                {amistadEnviando ? 'Enviando...' : 'Enviar solicitud'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   // Toast de error cuando no hay UI de llamada (p. ej. fallo la camara al iniciar).
   const toastError = error ? (
     <div className={styles.toastError} role="alert">
@@ -1080,9 +1255,13 @@ export function CallProvider({ children }) {
       avisar: setError,
     }}>
       {children}
-      {mounted && ui && createPortal(ui, document.body)}
-      {mounted && uiSala && createPortal(uiSala, document.body)}
+      {/* Con ventana PiP: la llamada va ahi y deja la app navegable. */}
+      {mounted && ui && !pipWin && createPortal(ui, document.body)}
+      {mounted && uiSala && !pipWin && createPortal(uiSala, document.body)}
+      {mounted && pipWin && ui && createPortal(ui, pipWin.document.body)}
+      {mounted && pipWin && uiSala && createPortal(uiSala, pipWin.document.body)}
       {mounted && toastError && createPortal(toastError, document.body)}
+      {mounted && modalAmistad && createPortal(modalAmistad, document.body)}
     </CallContext.Provider>
   );
 }

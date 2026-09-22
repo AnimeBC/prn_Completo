@@ -203,6 +203,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
       const p = d.payload || {};
       if (String(p.conv) !== String(grupoId)) return;
       if (t === 'call_grupo_start') {
+        if (Array.isArray(p.miembros) && !p.miembros.map(String).includes(String(userKey))) return;
         setSalaActiva({
           call_id: p.callId, comunidad_id: p.conv,
           tipo: p.tipo === 'video' ? 'video' : 'audio',
@@ -743,12 +744,12 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
               </button>
             )}
             {tipo === 'dm' && (
-              <button type="button" className={styles.iconBtn} onClick={() => llamar('audio')} title={es ? 'Llamada de voz' : 'Voice call'}>
+              <button type="button" className={styles.iconBtn} onClick={() => llamar('audio')} disabled={enCualquierLlamada} title={es ? 'Llamada de voz' : 'Voice call'}>
                 <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
             {tipo === 'dm' && (
-              <button type="button" className={styles.iconBtn} onClick={() => llamar('video')} title={es ? 'Videollamada' : 'Video call'}>
+              <button type="button" className={styles.iconBtn} onClick={() => llamar('video')} disabled={enCualquierLlamada} title={es ? 'Videollamada' : 'Video call'}>
                 <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
@@ -808,13 +809,13 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                     </button>
                   )}
                   {tipo === 'dm' && (
-                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); llamar('audio'); }}>
+                    <button type="button" role="menuitem" disabled={enCualquierLlamada} onClick={() => { setHeadMenuOpen(false); llamar('audio'); }}>
                       <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Llamada de voz' : 'Voice call'}
                     </button>
                   )}
                   {tipo === 'dm' && (
-                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); llamar('video'); }}>
+                    <button type="button" role="menuitem" disabled={enCualquierLlamada} onClick={() => { setHeadMenuOpen(false); llamar('video'); }}>
                       <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Videollamada' : 'Video call'}
                     </button>

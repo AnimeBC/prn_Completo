@@ -122,18 +122,36 @@ r.get('/', async (req, res, next) => {
          LEFT JOIN notificaciones_leidas nl
                 ON nl.notificacion_id = n.id AND nl.user_key = $1
         WHERE n.user_key = $1 OR (n.user_key IS NULL AND n.tipo = 'admin')
+          -- No repite solicitudes de amistad no leidas del mismo actor:
+          -- solo se muestra la mas reciente.
+          AND (
+            n.tipo <> 'amistad' OR nl.id IS NOT NULL
+            OR n.id = (
+              SELECT MAX(n2.id) FROM notificaciones n2
+               LEFT JOIN notificaciones_leidas nl2
+                      ON nl2.notificacion_id = n2.id AND nl2.user_key = $1
+               WHERE n2.user_key = $1 AND n2.tipo = 'amistad'
+                 AND n2.actor_key = n.actor_key AND nl2.id IS NULL
+            )
+          )
         ORDER BY n.created_at DESC
         LIMIT $2`,
       [userKey, limit]
     );
 
+    // Cuenta leyendo el mismo criterio agrupado: las amistades no leidas del
+    // mismo actor cuentan como una sola.
     const { rows: cnt } = await query(
-      `SELECT COUNT(*)::int AS n
-         FROM notificaciones n
-         LEFT JOIN notificaciones_leidas nl
-                ON nl.notificacion_id = n.id AND nl.user_key = $1
-        WHERE (n.user_key = $1 OR (n.user_key IS NULL AND n.tipo = 'admin'))
-          AND nl.id IS NULL`,
+      `SELECT COUNT(*)::int AS n FROM (
+         SELECT DISTINCT
+                CASE WHEN n.tipo = 'amistad' THEN 'amistad:' || COALESCE(n.actor_key, n.id::text)
+                     ELSE 'n:' || n.id::text END AS clave
+           FROM notificaciones n
+           LEFT JOIN notificaciones_leidas nl
+                  ON nl.notificacion_id = n.id AND nl.user_key = $1
+          WHERE (n.user_key = $1 OR (n.user_key IS NULL AND n.tipo = 'admin'))
+            AND nl.id IS NULL
+       ) t`,
       [userKey]
     );
 

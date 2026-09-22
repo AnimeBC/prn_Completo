@@ -126,6 +126,18 @@ r.post('/:otroKey/offer', async (req, res, next) => {
     if (!user || !otro || !callId || !sdp) return res.status(400).json({ error: 'Datos inválidos' });
     if (String(user.user_key) === String(otro.user_key)) return res.status(400).json({ error: 'No puedes llamarte' });
 
+    // Solo amigos (amistad aceptada) pueden llamarse 1 a 1.
+    const [a, b] = String(user.user_key) < String(otro.user_key)
+      ? [String(user.user_key), String(otro.user_key)]
+      : [String(otro.user_key), String(user.user_key)];
+    const amistad = await query(
+      "SELECT 1 FROM amistades WHERE a_key = $1 AND b_key = $2 AND estado = 'aceptado'",
+      [a, b]
+    );
+    if (!amistad.rows[0]) {
+      return res.status(403).json({ error: 'Solo puedes llamar a tus amigos' });
+    }
+
     await query(
       `INSERT INTO llamadas (call_id, de_key, para_key, tipo, estado)
        VALUES ($1, $2, $3, $4, 'sonando')
@@ -301,12 +313,20 @@ r.post('/grupo/:comunidadId/iniciar', async (req, res, next) => {
       [callId, user.user_key]
     );
 
+    // Solo los miembros del grupo deben recibir el aviso de llamada.
+    const mem = await query(
+      `SELECT user_key FROM comunidad_miembros WHERE comunidad_id = $1
+        UNION SELECT $2::varchar`,
+      [comunidadId, g.rows[0].user_key || user.user_key]
+    );
+    const miembros = mem.rows.map((r) => String(r.user_key));
+
     await publishEvent('call_grupo_start', {
       conv: comunidadId, callId, tipo, de: user.user_key,
       de_nombre: user.nombre || user.usuario || '', de_avatar: user.avatar || null,
-      grupo_nombre: g.rows[0].nombre,
+      grupo_nombre: g.rows[0].nombre, miembros,
     });
-    if (process.env.DEBUG_CALLS) console.log('[calls] iniciar', { comunidadId, callId, tipo, de: user.user_key });
+    if (process.env.DEBUG_CALLS) console.log('[calls] iniciar', { comunidadId, callId, tipo, de: user.user_key, nMiembros: miembros.length });
     res.json({ ok: true, callId, iniciador: user.user_key, tipo });
   } catch (e) { next(e); }
 });

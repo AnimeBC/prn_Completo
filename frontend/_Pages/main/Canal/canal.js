@@ -249,6 +249,17 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
 
   useEffect(() => { cargarRel(); }, [cargarRel]);
 
+  // Tiempo real: si llega un cambio de amistad/notificacion, refresca la
+  // relacion (boton Aceptar/Rechazar/Cancelar) sin recargar la pagina.
+  useEffect(() => {
+    const onChange = (e) => {
+      const t = String(e?.detail?.type || '');
+      if (t === 'amistad' || t === 'notificacion' || t === 'user_profile') cargarRel();
+    };
+    window.addEventListener('pikantepe:change', onChange);
+    return () => window.removeEventListener('pikantepe:change', onChange);
+  }, [cargarRel]);
+
   // Al volver con el boton atras (bfcache) el navegador restaura el DOM sin
   // re-ejecutar efectos: hay que refrescar la relacion aqui.
   useEffect(() => {

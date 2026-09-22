@@ -15,7 +15,22 @@ const FILTROS = [
   { id: 'noLeidos', es: 'No leídos', en: 'Unread' },
 ];
 
+function previewLlamada(texto, es) {
+  // Formato: "llamada|<tipo>|<seg>|<estado>|<autorKey>"
+  const [, lt, lseg, lest] = texto.split('|');
+  const video = lt === 'video';
+  const seg = Math.max(0, parseInt(lseg, 10) || 0);
+  const dur = seg >= 3600
+    ? `${Math.floor(seg / 3600)} h`
+    : seg >= 60 ? `${Math.floor(seg / 60)} min` : `${seg} s`;
+  const tipoTxt = video ? (es ? 'videollamada' : 'video call') : (es ? 'llamada de voz' : 'voice call');
+  return lest === 'finalizada' ? `${tipoTxt} · ${dur}` : `${tipoTxt} · ${es ? 'cancelada' : 'cancelled'}`;
+}
+
 function preview(c, es) {
+  if (typeof c.ultimo_texto === 'string' && c.ultimo_texto.startsWith('llamada|')) {
+    return previewLlamada(c.ultimo_texto, es);
+  }
   if (c.ultimo_texto) return c.ultimo_texto;
   if (c.ultimo_tipo && c.ultimo_tipo !== 'texto') return `[${c.ultimo_tipo}]`;
   return es ? 'Sin mensajes todavía' : 'No messages yet';

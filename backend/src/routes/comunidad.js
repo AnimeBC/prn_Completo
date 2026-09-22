@@ -1567,30 +1567,69 @@ r.post('/amistad/:userKey', async (req, res, next) => {
     const soyA = a === me;
 
     if (accion === 'solicitar') {
+      // Si ya hay una solicitud pendiente del mismo solicitante, no duplica aviso.
+      const prev = await query('SELECT solicitante, estado FROM amistades WHERE a_key = $1 AND b_key = $2', [a, b]);
+      const yaPendiente = prev.rows[0]?.estado === 'pendiente' && String(prev.rows[0]?.solicitante) === String(me);
+      if (prev.rows[0]?.estado === 'aceptado') return res.json({ ok: true, yaAmigos: true });
+
       await query(
         `INSERT INTO amistades (a_key, b_key, solicitante, estado) VALUES ($1, $2, $3, 'pendiente')
          ON CONFLICT (a_key, b_key) DO UPDATE SET solicitante = $3, estado = 'pendiente', updated_at = NOW()
          WHERE amistades.estado <> 'aceptado'`,
         [a, b, me]
       );
-      try {
-        const u = await query('SELECT user_key, usuario, nombre, avatar FROM users WHERE user_key = $1', [me]);
-        const actor = u.rows[0] || null;
-        await crearNotificacion({
-          userKey: otro,
-          tipo: 'amistad',
-          titulo: 'Nueva solicitud de amistad',
-          texto: `${nameOf(actor || {})} quiere ser tu amigo`,
-          url: '/notificaciones',
-          icono: 'person-add',
-          actor,
-          meta: { de: me },
-        });
-      } catch { /* opcional */ }
+
+      if (!yaPendiente) {
+        try {
+          const u = await query('SELECT user_key, usuario, nombre, avatar FROM users WHERE user_key = $1', [me]);
+          const actor = u.rows[0] || null;
+          // Borra avisos de amistad viejos no leidos de este mismo actor (evita repetidos).
+          await query(
+            `DELETE FROM notificaciones
+              WHERE user_key = $1 AND tipo = 'amistad' AND actor_key = $2
+                AND NOT EXISTS (
+                  SELECT 1 FROM notificaciones_leidas nl
+                   WHERE nl.notificacion_id = notificaciones.id AND nl.user_key = $1
+                )`,
+            [otro, me]
+          );
+          await crearNotificacion({
+            userKey: otro,
+            tipo: 'amistad',
+            titulo: 'Nueva solicitud de amistad',
+            texto: `${nameOf(actor || {})} quiere ser tu amigo`,
+            url: otroCanalUrl({ user_key: me }),
+            icono: 'person-add',
+            actor,
+            meta: { de: me, amistad: true },
+          });
+        } catch { /* opcional */ }
+      }
+      return res.json({ ok: true, pendiente: true });
     } else if (accion === 'cancelar') {
-      await query("DELETE FROM amistades WHERE a_key = $1 AND b_key = $2 AND estado = 'pendiente' AND solicitante = $3", [a, b, me]);
+      // Elimina la solicitud pendiente sin importar quien la creo: da igual
+      // cancelar (el que invito) o rechazar (el invitado). Ambos casos la
+      // solicitud deja de existir y el perfil actualiza su estado.
+      await query("DELETE FROM amistades WHERE a_key = $1 AND b_key = $2 AND estado = 'pendiente'", [a, b]);
+      // No desaparece el aviso: pasa a ser registro "Solicitud cancelada"
+      // sin botones de aceptar/cancelar (solo ver perfil).
+      await query(
+        `UPDATE notificaciones
+            SET titulo = 'Solicitud cancelada',
+                meta = (COALESCE(meta, '{}'::jsonb) - 'amistad') || '{"cancelada": true}'::jsonb
+          WHERE tipo = 'amistad' AND user_key IN ($1, $2) AND actor_key IN ($1, $2)
+            AND lower(titulo) LIKE '%solicitud%' AND lower(titulo) NOT LIKE '%aceptad%'`,
+        [me, otro]
+      );
     } else if (accion === 'aceptar') {
-      await query("UPDATE amistades SET estado = 'aceptado', updated_at = NOW() WHERE a_key = $1 AND b_key = $2 AND estado = 'pendiente' AND solicitante = $3", [a, b, otro]);
+      await query("UPDATE amistades SET estado = 'aceptado', updated_at = NOW() WHERE a_key = $1 AND b_key = $2 AND estado = 'pendiente'", [a, b]);
+      // Limpia los avisos de solicitud pendiente (leidos o no) en ambos lados.
+      await query(
+        `DELETE FROM notificaciones
+          WHERE tipo = 'amistad' AND user_key IN ($1, $2) AND actor_key IN ($1, $2)
+            AND lower(titulo) LIKE '%solicitud%' AND lower(titulo) NOT LIKE '%aceptad%'`,
+        [me, otro]
+      );
       try {
         const u = await query('SELECT user_key, usuario, nombre, avatar FROM users WHERE user_key = $1', [me]);
         await crearNotificacion({
@@ -1598,14 +1637,19 @@ r.post('/amistad/:userKey', async (req, res, next) => {
           tipo: 'amistad',
           titulo: 'Solicitud aceptada',
           texto: `${nameOf(u.rows[0] || {})} aceptó tu solicitud de amistad`,
-          url: `/canal/${me}`,
+          url: otroCanalUrl({ user_key: me }),
           icono: 'people',
           actor: u.rows[0] || null,
           meta: { de: me },
         });
       } catch { /* opcional */ }
     } else if (accion === 'rechazar') {
-      await query("DELETE FROM amistades WHERE a_key = $1 AND b_key = $2 AND estado = 'pendiente' AND solicitante = $3", [a, b, otro]);
+      await query("DELETE FROM amistades WHERE a_key = $1 AND b_key = $2 AND estado = 'pendiente'", [a, b]);
+      await query(
+        `DELETE FROM notificaciones
+          WHERE tipo = 'amistad' AND user_key IN ($1, $2) AND actor_key IN ($1, $2)`,
+        [me, otro]
+      );
     } else if (accion === 'eliminar') {
       await query('DELETE FROM amistades WHERE a_key = $1 AND b_key = $2', [a, b]);
     } else if (accion === 'favorito' || accion === 'nofavorito') {
@@ -1616,7 +1660,25 @@ r.post('/amistad/:userKey', async (req, res, next) => {
     }
 
     await notify('amistad', { de: me, para: otro });
+    // Aviso dirigido a ambos (el SSE lo reenvia a todos; cada cliente filtra
+    // y recarga sus notificaciones al instante).
+    try { await publishEvent('notificacion', { userKey: me, tipo: 'amistad' }); } catch { /* opcional */ }
+    try { await publishEvent('notificacion', { userKey: otro, tipo: 'amistad' }); } catch { /* opcional */ }
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// GET /api/comunidad/canal-slug/:userKey  -> slug del canal publico del usuario
+// (para enlazar a /canal/<slug>; el userKey no sirve como slug).
+r.get('/canal-slug/:userKey', async (req, res, next) => {
+  try {
+    const userKey = String(req.params.userKey || '').trim();
+    if (!userKey) return res.json({ slug: null });
+    const { rows } = await query(
+      'SELECT slug FROM channels WHERE user_key = $1 AND activo = TRUE LIMIT 1',
+      [userKey]
+    );
+    res.json({ slug: rows[0]?.slug || null });
   } catch (e) { next(e); }
 });
 

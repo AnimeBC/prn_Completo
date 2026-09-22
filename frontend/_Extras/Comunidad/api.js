@@ -153,6 +153,8 @@ export const apiComunidad = {
   chats: (userKey) => req(`/api/comunidad/chats?userKey=${encodeURIComponent(userKey)}`),
   /** Sala de llamada grupal activa del grupo (o null). */
   llamadaGrupoActiva: (id) => req(`/api/calls/grupo/${id}/activa`),
+  /** Slug del canal publico de un usuario (para enlazar /canal/<slug>). */
+  canalSlug: (userKey) => req(`/api/comunidad/canal-slug/${encodeURIComponent(userKey)}`),
   marcarChatLeido: (id, userKey) => req(`/api/comunidad/chats/${id}/leido`, jsonPost({ userKey })),
   /** Mensajes directos (1 a 1). */
   dmChats: (userKey) => req(`/api/comunidad/dm/chats?userKey=${encodeURIComponent(userKey)}`),

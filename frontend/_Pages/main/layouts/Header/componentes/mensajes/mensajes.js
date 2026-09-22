@@ -33,8 +33,20 @@ function relTime(dateStr, es) {
   return new Date(dateStr).toLocaleDateString(es ? 'es-PE' : 'en-US', { day: 'numeric', month: 'short' });
 }
 
+function previewLlamada(texto, es) {
+  const [, lt, lseg, lest] = texto.split('|');
+  const video = lt === 'video';
+  const seg = Math.max(0, parseInt(lseg, 10) || 0);
+  const dur = seg >= 3600
+    ? `${Math.floor(seg / 3600)} h`
+    : seg >= 60 ? `${Math.floor(seg / 60)} min` : `${seg} s`;
+  const tipoTxt = video ? (es ? 'videollamada' : 'video call') : (es ? 'llamada de voz' : 'voice call');
+  return lest === 'finalizada' ? `${tipoTxt} · ${dur}` : `${tipoTxt} · ${es ? 'cancelada' : 'cancelled'}`;
+}
+
 function preview(chat, es) {
   const t = chat.ultimo_texto;
+  if (typeof t === 'string' && t.startsWith('llamada|')) return previewLlamada(t, es);
   if (t) return t;
   if (chat.ultimo_media) return es ? 'Archivo adjunto' : 'Attachment';
   if (chat.ultimo_tipo && chat.ultimo_tipo !== 'texto') return `[${chat.ultimo_tipo}]`;

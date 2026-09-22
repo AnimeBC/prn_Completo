@@ -32,13 +32,26 @@ function cleanPos(value) {
 }
 
 async function channelBySlug(slug) {
+  const s = String(slug || '').trim();
   const { rows } = await query(
-    `SELECT id, nombre, slug, descripcion, avatar, avatar_pos, banner, banner_pos, pais,
-            verificado, seguidores, created_at, user_key
-       FROM channels
-      WHERE slug = $1 AND activo = TRUE
+    `SELECT c.id, c.nombre, c.slug, c.descripcion,
+            -- Si el canal pertenece a un usuario (por user_key o por nombre
+            -- de usuario), su foto es la del perfil.
+            COALESCE(u_owner.avatar, u_name.avatar, c.avatar) AS avatar,
+            c.avatar_pos, c.banner, c.banner_pos, c.pais,
+            c.verificado, c.seguidores, c.created_at,
+            COALESCE(c.user_key, u_name.user_key) AS user_key
+       FROM channels c
+       LEFT JOIN users u_owner ON u_owner.user_key = c.user_key
+       LEFT JOIN LATERAL (
+         -- Solo si el canal no tiene dueno: intenta emparejar por usuario exacto.
+         SELECT user_key, avatar FROM users
+          WHERE c.user_key IS NULL AND lower(usuario) = lower($1)
+          LIMIT 1
+       ) u_name ON TRUE
+       WHERE c.slug = $1 AND c.activo = TRUE
       LIMIT 1`,
-    [String(slug || '').trim()]
+    [s]
   );
   return rows[0] || null;
 }
