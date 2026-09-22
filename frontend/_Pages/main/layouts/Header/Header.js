@@ -11,6 +11,7 @@ import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { videoUrl } from '@/_Extras/Datos/urls.js';
 import Notificaciones from '@/_Pages/main/layouts/Header/componentes/notificaciones';
 import Mensajes from '@/_Pages/main/layouts/Header/componentes/mensajes';
+import { useCall } from '@/_Extras/Llamadas/CallProvider.js';
 
 const filters = [
   { value: 'recientes', label: 'filtros.recientes' },
@@ -25,6 +26,7 @@ export default function Header() {
   const { isOpen, toggle: toggleSidebar, openMaint } = useSidebar();
   const { t, locale } = useLanguage();
   const es = locale !== 'en';
+  const { iniciar: iniciarLlamada, iniciarGrupo, enCualquierLlamada, avisar } = useCall();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -67,6 +69,23 @@ export default function Header() {
   function irAlCanal() {
     if (chatInfo?.canal_slug) router.push(`/canal/${chatInfo.canal_slug}`);
     else openMaint();
+  }
+
+  // Llamada / videollamada desde el header de chat en celular.
+  function llamarDesdeHeader(tipoLlamada) {
+    if (enCualquierLlamada) {
+      avisar(es ? 'Ya estas en una llamada' : 'You are already in a call');
+      return;
+    }
+    if (chatInfo?.tipo === 'dm' && chatInfo?.user_key) {
+      iniciarLlamada(chatInfo.user_key, tipoLlamada, { nombre: chatInfo.nombre, avatar: chatInfo.avatar });
+      return;
+    }
+    if (chatInfo?.tipo === 'grupo' && chatInfo?.grupo_id) {
+      iniciarGrupo(chatInfo.grupo_id, tipoLlamada, { nombre: chatInfo.nombre, avatar: chatInfo.avatar });
+      return;
+    }
+    avisar(es ? 'No se pudo iniciar la llamada' : 'Could not start the call');
   }
 
   // Cierra el menú del perfil al hacer clic fuera o cambiar de página
@@ -184,10 +203,10 @@ export default function Header() {
           <span className={styles.chatHeadName}>{chatInfo.nombre}</span>
         </div>
         <div className={styles.chatHeadActions}>
-          <button type="button" className={styles.chatHeadBtn} onClick={openMaint} aria-label={es ? 'Llamada de voz' : 'Voice call'} title={es ? 'Próximamente' : 'Coming soon'}>
+          <button type="button" className={styles.chatHeadBtn} onClick={() => llamarDesdeHeader('audio')} disabled={enCualquierLlamada} aria-label={es ? 'Llamada de voz' : 'Voice call'} title={es ? 'Llamada de voz' : 'Voice call'}>
             <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
           </button>
-          <button type="button" className={styles.chatHeadBtn} onClick={openMaint} aria-label={es ? 'Videollamada' : 'Video call'} title={es ? 'Próximamente' : 'Coming soon'}>
+          <button type="button" className={styles.chatHeadBtn} onClick={() => llamarDesdeHeader('video')} disabled={enCualquierLlamada} aria-label={es ? 'Videollamada' : 'Video call'} title={es ? 'Videollamada' : 'Video call'}>
             <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
           </button>
           <button type="button" className={styles.chatHeadBtn} onClick={irAlCanal} aria-label={es ? 'Información' : 'Info'}>

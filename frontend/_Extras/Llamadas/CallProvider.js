@@ -15,10 +15,24 @@ const CallContext = createContext({
 });
 
 // Logs de diagnostico: activar con localStorage.setItem('pkpDebugCalls','1') y recargar.
+// Ademas se guardan en window.__pkpCallLogs para verlos desde el panel en pantalla
+// (util en celular, donde no hay consola).
 const DEBUG_CALLS = typeof window !== 'undefined' && (() => {
   try { return window.localStorage.getItem('pkpDebugCalls') === '1'; } catch { return false; }
 })();
 function dlog(...args) {
+  try {
+    if (typeof window !== 'undefined') {
+      const w = window;
+      w.__pkpCallLogs = w.__pkpCallLogs || [];
+      const txt = args.map((a) => {
+        try { return typeof a === 'string' ? a : JSON.stringify(a); } catch { return String(a); }
+      }).join(' ');
+      w.__pkpCallLogs.push(`${new Date().toLocaleTimeString()} ${txt}`);
+      if (w.__pkpCallLogs.length > 120) w.__pkpCallLogs.shift();
+      if (typeof w.__pkpCallLogsOnScreen === 'function') w.__pkpCallLogsOnScreen();
+    }
+  } catch { /* noop */ }
   if (DEBUG_CALLS) { try { console.log('[calls]', ...args); } catch { /* noop */ } }
 }
 
@@ -255,7 +269,7 @@ function RemoteVideo({ stream, className }) {
 }
 
 // Barra de titulo estilo ventana de app: minimizar / agrandar / cerrar.
-function WindowBar({ titulo, sub, minimizado, grande, pipWin, onMin, onMax, onClose }) {
+function WindowBar({ titulo, sub, minimizado, pipWin, onMin, onClose }) {
   return (
     <div className={styles.winBar}>
       <span className={styles.winDot} />
@@ -264,16 +278,56 @@ function WindowBar({ titulo, sub, minimizado, grande, pipWin, onMin, onMax, onCl
         {sub && <span className={styles.winSub}>{sub}</span>}
       </div>
       <div className={styles.winBtns}>
-        <button type="button" className={styles.winBtn} onClick={onMin} title={minimizado ? 'Restaurar' : 'Minimizar'}>
-          <ion-icon name={minimizado ? 'chevron-up-outline' : 'chevron-down-outline'} suppressHydrationWarning></ion-icon>
-        </button>
-        <button type="button" className={styles.winBtn} onClick={onMax} title={grande ? 'Restaurar' : 'Agrandar'}>
-          <ion-icon name={grande ? 'contract-outline' : 'expand-outline'} suppressHydrationWarning></ion-icon>
+        <button type="button" className={styles.winBtn} onClick={onMin} title={minimizado || pipWin ? 'Restaurar' : 'Minimizar'}>
+          <ion-icon name={minimizado || pipWin ? 'chevron-up-outline' : 'chevron-down-outline'} suppressHydrationWarning></ion-icon>
         </button>
         <button type="button" className={`${styles.winBtn} ${styles.winClose}`} onClick={onClose} title="Cerrar (colgar)">
           <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
         </button>
       </div>
+    </div>
+  );
+}
+
+// Panel de diagnostico en pantalla (util en celular, sin consola).
+function PanelDiagnostico({ onCerrar }) {
+  const [lineas, setLineas] = useState([]);
+  useEffect(() => {
+    const upd = () => {
+      try { setLineas([...(window.__pkpCallLogs || [])]); } catch { /* noop */ }
+    };
+    window.__pkpCallLogsOnScreen = upd;
+    upd();
+    const iv = setInterval(upd, 800);
+    return () => { window.__pkpCallLogsOnScreen = null; clearInterval(iv); };
+  }, []);
+
+  // Estado del entorno (por que podria no soportar llamadas).
+  const entorno = (() => {
+    if (typeof window === 'undefined') return {};
+    const secure = window.isSecureContext;
+    const hasMedia = !!navigator?.mediaDevices?.getUserMedia;
+    const hasPC = typeof window.RTCPeerConnection !== 'undefined' || typeof window.webkitRTCPeerConnection !== 'undefined';
+    return { secure, hasMedia, hasPC, proto: window.location.protocol, host: window.location.host };
+  })();
+
+  return (
+    <div className={styles.diagPanel}>
+      <div className={styles.diagHead}>
+        <strong>Diagnostico llamadas</strong>
+        <button type="button" onClick={onCerrar} aria-label="Cerrar">x</button>
+      </div>
+      <div className={styles.diagEnv}>
+        <span>HTTPS: {String(entorno.secure)}</span>
+        <span>mediaDevices: {String(entorno.hasMedia)}</span>
+        <span>RTCPeer: {String(entorno.hasPC)}</span>
+        <span>{entorno.proto}//{entorno.host}</span>
+      </div>
+      <div className={styles.diagLogs}>
+        {lineas.length === 0 && <span className={styles.diagEmpty}>Sin eventos aun...</span>}
+        {lineas.map((l, i) => <div key={i} className={styles.diagLine}>{l}</div>)}
+      </div>
+      <button type="button" className={styles.diagClear} onClick={() => { window.__pkpCallLogs = []; setLineas([]); }}>Limpiar</button>
     </div>
   );
 }
@@ -305,12 +359,13 @@ export function CallProvider({ children }) {
   const [remoteVideoOn, setRemoteVideoOn] = useState(false);
   // Ventana de llamada minimizada (para poder navegar por la app).
   const [minimizado, setMinimizado] = useState(false);
-  // Ventana agrandada (casi pantalla completa dentro de la app).
-  const [grande, setGrande] = useState(false);
+  const micOnRef = useRef(true);
+  micOnRef.current = micOn;
   // Document Picture-in-Picture: ventana flotante siempre encima del navegador.
   const [pipWin, setPipWin] = useState(null);
   const pipWinRef = useRef(null);
   const cerrarPipRef = useRef(null);
+  const reafirmarSendersRef = useRef(null);
   // Modal "solo amigos": { peerKey, nombre, avatar, estado } estado: pedir|enviada
   const [amistadModal, setAmistadModal] = useState(null);
   const [amistadEnviando, setAmistadEnviando] = useState(false);
@@ -348,6 +403,14 @@ export function CallProvider({ children }) {
     const iv = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(iv);
   }, [conectadoEn]);
+
+  // Al mover/reescalar la ventana, React remonta los elementos de la UI;
+  // reafirmamos los senders para no perder el audio saliente.
+  useEffect(() => {
+    if (!pipWinRef.current && !minimizado) return undefined;
+    const t = setTimeout(() => { reafirmarSendersRef.current?.(); }, 120);
+    return () => clearTimeout(t);
+  }, [pipWin, minimizado]);
 
   // Auto-oculta el aviso de error a los pocos segundos.
   useEffect(() => {
@@ -511,15 +574,21 @@ export function CallProvider({ children }) {
     setMicOn(true);
     setCamOn(true);
     setMinimizado(false);
-    setGrande(false);
     cerrarPipRef.current?.();
   }
 
   const iniciar = useCallback(async (otroKey, tipo, info) => {
-    dlog('1:1 iniciar', { otroKey, tipo, userKey });
+    dlog('1:1 iniciar', { otroKey, tipo, userKey, enLlamada: !!callRef.current });
     setError('');
-    if (!userKey || !otroKey || callRef.current) { dlog('1:1 iniciar abortado'); return; }
-    if (!navigator?.mediaDevices?.getUserMedia) { setError('Tu navegador no soporta llamadas'); return; }
+    if (!userKey || !otroKey || callRef.current) { dlog('1:1 abortado', { userKey: !!userKey, otroKey: !!otroKey, ocupado: !!callRef.current }); return; }
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      dlog('SIN mediaDevices', {
+        secure: (typeof window !== 'undefined' && window.isSecureContext),
+        proto: (typeof window !== 'undefined' && window.location.protocol),
+        host: (typeof window !== 'undefined' && window.location.host),
+      });
+      setError('Tu navegador no soporta llamadas'); return;
+    }
     const media = await obtenerMedia(tipo);
     if (!media) { dlog('1:1 iniciar sin media'); return; }
     const pc = crearPc();
@@ -706,8 +775,11 @@ export function CallProvider({ children }) {
 
   async function iniciarGrupo(comunidadId, tipo, info) {
     dlog('iniciarGrupo', { comunidadId, tipo, userKey, enSala: !!salaRef.current, enLlamada: !!callRef.current });
-    if (!userKey || !comunidadId || salaRef.current || callRef.current) { dlog('iniciarGrupo abortado (guarda)'); return; }
-    if (!navigator?.mediaDevices?.getUserMedia) { setError('Tu navegador no soporta llamadas'); return; }
+    if (!userKey || !comunidadId || salaRef.current || callRef.current) { dlog('iniciarGrupo abortado', { userKey: !!userKey, comunidadId: !!comunidadId, enSala: !!salaRef.current, enLlamada: !!callRef.current }); return; }
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      dlog('SIN mediaDevices (grupo)', { secure: (typeof window !== 'undefined' && window.isSecureContext), proto: (typeof window !== 'undefined' && window.location.protocol) });
+      setError('Tu navegador no soporta llamadas'); return;
+    }
     const media = await obtenerMedia(tipo);
     if (!media) { dlog('iniciarGrupo sin media'); return; }
     const callId = nuevoCallId();
@@ -764,7 +836,6 @@ export function CallProvider({ children }) {
     setMicOn(true);
     setCamOn(true);
     setMinimizado(false);
-    setGrande(false);
     cerrarPipRef.current?.();
   }
 
@@ -979,7 +1050,7 @@ export function CallProvider({ children }) {
     }
 
     return (
-      <div className={`${minimizado ? styles.overlayMin : (grande ? styles.overlayMax : styles.overlay)} ${call.tipo === 'video' ? styles.overlayVideo : ''}`}>
+      <div className={`${(minimizado || pipWin) ? styles.overlayMin : styles.overlay} ${pipWin ? styles.overlayPip : ''} ${call.tipo === 'video' ? styles.overlayVideo : ''}`}>
         {call.tipo === 'video' ? (
           <>
             <div className={styles.videoFallback} style={{ display: remoteVideoOn ? 'none' : 'flex' }}>
@@ -1005,10 +1076,8 @@ export function CallProvider({ children }) {
           titulo={titulo}
           sub={call.estado === 'activa' ? fmtDur(dur) : 'Conectando…'}
           minimizado={minimizado}
-          grande={grande}
           pipWin={pipWin}
           onMin={toggleMin}
-          onMax={() => { if (minimizado) { setMinimizado(false); return; } setGrande((v) => !v); }}
           onClose={colgar}
         />
 
@@ -1077,7 +1146,7 @@ export function CallProvider({ children }) {
     const grid = Object.values(remotos);
     const esVideo = sala.tipo === 'video';
     return (
-      <div className={`${minimizado ? styles.overlayMin : (grande ? styles.overlayMax : styles.overlay)} ${esVideo ? styles.overlayVideo : ''}`}>
+      <div className={`${(minimizado || pipWin) ? styles.overlayMin : styles.overlay} ${pipWin ? styles.overlayPip : ''} ${esVideo ? styles.overlayVideo : ''}`}>
         {/* Audio de cada peer, siempre presente (voz grupal y video). */}
         <div className={styles.audiosOcultos} aria-hidden="true">
           {grid.map((r) => (r.stream ? <RemoteAudio key={r.info?.userKey} stream={r.stream} /> : null))}
@@ -1107,10 +1176,8 @@ export function CallProvider({ children }) {
           titulo={titulo}
           sub={`${grid.length + 1} en la llamada`}
           minimizado={minimizado}
-          grande={grande}
           pipWin={pipWin}
           onMin={toggleMin}
-          onMax={() => { if (minimizado) { setMinimizado(false); return; } setGrande((v) => !v); }}
           onClose={salirGrupo}
         />
 
@@ -1168,6 +1235,16 @@ export function CallProvider({ children }) {
           }
         }
       }
+      // Copia los scripts de la pagina (incluye ionicons) para que los
+      // <ion-icon> se rendericen en la ventana PiP.
+      for (const script of Array.from(document.scripts)) {
+        if (!script.src) continue;
+        if (!/ionicons|unpkg|esm\.sh/i.test(script.src)) continue;
+        const s = pip.document.createElement('script');
+        s.type = script.type || 'module';
+        s.src = script.src;
+        pip.document.head.appendChild(s);
+      }
       pip.document.documentElement.style.background = '#08080a';
       pip.document.body.style.margin = '0';
       pip.document.body.className = document.body.className;
@@ -1188,11 +1265,41 @@ export function CallProvider({ children }) {
   }, []);
   cerrarPipRef.current = cerrarPip;
 
+  // Asegura que el audio del microfono sigue enviandose tras mover la ventana.
+  // (Al remontar la UI en PiP algunos navegadores pausan pistas; aqui se
+  // reactivan y, si el sender perdio el track, se vuelve a enganchar.)
+  const reafirmarSenders = useCallback(() => {
+    const local = localStreamRef.current;
+    if (!local) return;
+    // Reactiva las pistas por si quedaron deshabilitadas.
+    try { local.getAudioTracks().forEach((t) => { if (!micOnRef.current) t.enabled = false; }); } catch { /* noop */ }
+    const pcs = [];
+    if (pcRef.current) pcs.push(pcRef.current);
+    for (const p of Object.values(remotosRef.current)) if (p?.pc) pcs.push(p.pc);
+    for (const pc of pcs) {
+      try {
+        for (const s of pc.getSenders()) {
+          if (!s.track || s.track.kind !== 'audio') continue;
+          if (s.track.readyState === 'ended' || s.track !== local.getAudioTracks()[0]) {
+            // El sender perdio el track: lo vuelve a enganchar con el actual.
+            const at = local.getAudioTracks()[0];
+            if (at) s.replaceTrack(at).catch(() => {});
+          }
+        }
+        afinarAudio(pc);
+      } catch { /* noop */ }
+    }
+    dlog('reafirmarSenders', { pcs: pcs.length });
+  }, []);
+  reafirmarSendersRef.current = reafirmarSenders;
+
   function toggleMin() {
+    // Si ya esta achicado (PiP o ventana flotante), restaura a la app.
     if (pipWinRef.current) { cerrarPip(); return; }
-    // Intenta ventana aparte; si no hay soporte, usa el modo flotante.
-    abrirPip();
-    setMinimizado((v) => (('documentPictureInPicture' in (typeof window !== 'undefined' ? window : {})) ? false : !v));
+    if (minimizado) { setMinimizado(false); return; }
+    // Si no, intenta ventana aparte; sin soporte, usa el modo flotante.
+    if ('documentPictureInPicture' in (typeof window !== 'undefined' ? window : {})) abrirPip();
+    else setMinimizado(true);
   }
 
   // Envia la solicitud de amistad desde el modal "solo amigos".
@@ -1262,6 +1369,18 @@ export function CallProvider({ children }) {
       {mounted && pipWin && uiSala && createPortal(uiSala, pipWin.document.body)}
       {mounted && toastError && createPortal(toastError, document.body)}
       {mounted && modalAmistad && createPortal(modalAmistad, document.body)}
+      {mounted && DEBUG_CALLS && createPortal(<PanelDiagnostico onCerrar={() => { try { window.localStorage.removeItem('pkpDebugCalls'); } catch { /* noop */ } window.location.reload(); }} />, document.body)}
+      {mounted && !DEBUG_CALLS && createPortal(
+        <button
+          type="button"
+          className={styles.diagFab}
+          title="Activar diagnostico de llamadas"
+          onClick={() => { try { window.localStorage.setItem('pkpDebugCalls', '1'); } catch { /* noop */ } window.location.reload(); }}
+        >
+          <ion-icon name="bug-outline" suppressHydrationWarning></ion-icon>
+        </button>,
+        document.body
+      )}
     </CallContext.Provider>
   );
 }

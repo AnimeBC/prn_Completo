@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { usePathname } from 'next/navigation';
 import styles from './chatDock.module.css';
 import ChatFlotante from '@/_Pages/main/Chat/componentes/ChatFlotante';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
@@ -20,6 +21,10 @@ function claveDock(tipo, chat) {
 /** Dock global de chats: las ventanas/burbujas se mantienen en todo el sitio. */
 export function ChatDockProvider({ children }) {
   const { userKey, authed } = useAuth();
+  const pathname = usePathname();
+  // En la pagina /chat las conversaciones se ven en el panel: no mostramos el
+  // dock flotante ahi (sigue vivo el estado para que reaparezca al navegar).
+  const enPaginaChat = typeof pathname === 'string' && pathname.startsWith('/chat');
   const [flotantes, setFlotantes] = useState([]);
   const [activoId, setActivoId] = useState(null);
   const [drag, setDrag] = useState(null);
@@ -296,7 +301,7 @@ export function ChatDockProvider({ children }) {
     <ChatDockContext.Provider value={{ abrir, cerrar, minimizar, restaurar, flotantes }}>
       {children}
 
-      {mounted && authed && flotantes.length > 0 && (() => {
+      {mounted && authed && !enPaginaChat && flotantes.length > 0 && (() => {
         const abiertos = flotantes.filter((f) => !f.minimizado);
         const visibles = abiertos.slice(-maxAbiertos);
         const visiblesIds = new Set(visibles.map((f) => String(f.id)));
@@ -389,7 +394,7 @@ export function ChatDockProvider({ children }) {
         );
       })()}
 
-      {mounted && drag && createPortal(
+      {mounted && drag && !enPaginaChat && createPortal(
         <div className={`${styles.trash} ${drag.over ? styles.trashOn : ''}`} aria-hidden="true">
           <ion-icon name={drag.over ? 'trash' : 'trash-outline'} suppressHydrationWarning></ion-icon>
         </div>,

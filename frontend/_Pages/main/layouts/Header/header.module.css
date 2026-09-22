@@ -727,6 +727,14 @@
   background-color: var(--bg-surface, #242526);
 }
 
+.chatHeadBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.chatHeadBtn:disabled:hover {
+  background-color: transparent;
+}
+
 .chatHeadUser {
   flex: 1;
   min-width: 0;

@@ -162,6 +162,8 @@ export default function ChatClient() {
       open: true,
       tipo: activa.tipo,
       user_key: activa.tipo === 'dm' ? (activa.chat?.user_key || null) : null,
+      grupo_id: activa.tipo === 'grupo' ? (activa.chat?.id || null) : null,
+      grupo_slug: activa.tipo === 'grupo' ? (activa.chat?.slug || null) : null,
       nombre: activa.nombre || '',
       avatar: activa.avatar || null,
       canal_slug: activa.canal_slug || null,

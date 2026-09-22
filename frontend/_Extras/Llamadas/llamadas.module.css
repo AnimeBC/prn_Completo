@@ -16,34 +16,75 @@
   position: fixed;
   right: 16px;
   bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  width: min(300px, 82vw);
-  height: min(200px, 40vh);
-  z-index: 5000;
-  background: rgba(8, 8, 10, 0.96);
+  width: min(320px, 84vw);
+  height: min(230px, 44vh);
+  z-index: 7000;
+  background: rgba(8, 8, 10, 0.98);
   border-radius: 14px;
-  overflow: hidden;
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.12);
+  overflow: hidden;
   display: flex;
-  align-items: center;
-  justify-content: center;
   flex-direction: column;
   pointer-events: auto;
 }
-.overlayMin .bigAvatar { width: 56px; height: 56px; font-size: 22px; }
-.overlayMin .inName { font-size: 14px; }
-.overlayMin .inSub { font-size: 11px; }
-.overlayMin .audioCall { gap: 6px; }
-.overlayMin .gridVideo { grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); padding: 4px; }
-.overlayMin .tileVideo, .overlayMin .tile { min-height: 60px; }
-.overlayMin .localVideo { width: 62px; height: 84px; top: 40px; right: 8px; }
-.overlayMin .remoteVideo { border-radius: 12px; }
-.overlayMin .topBar { height: 38px; padding-top: 4px; }
-.overlayMin .callName { font-size: 12.5px; }
-.overlayMin .callTime { font-size: 10.5px; }
-.overlayMin .controls { bottom: 8px; gap: 10px; }
-.overlayMin .rnd { width: 38px; height: 38px; font-size: 18px; }
+/* En minimizado: barra arriba, contenido al medio, controles abajo (sin solapar). */
+.overlayMin .winBar { position: relative; height: 36px; flex-shrink: 0; z-index: 8; }
+.overlayMin .winTitle { font-size: 12px; }
+.overlayMin .winSub { display: none; }
+.overlayMin .winBtn { width: 26px; height: 26px; font-size: 16px; }
+.overlayMin .audioCall {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 0;
+  overflow: hidden;
+}
+.overlayMin .bigAvatar { width: 48px; height: 48px; font-size: 20px; }
+.overlayMin .inName { font-size: 13px; max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.overlayMin .inSub { font-size: 10.5px; }
+.overlayMin .gridVideo {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  padding: 4px;
+}
+.overlayMin .tileVideo, .overlayMin .tile { min-height: 50px; }
+.overlayMin .remoteVideo { position: absolute; inset: 0; border-radius: 0; }
+.overlayMin .videoFallback { position: absolute; inset: 0; }
+.overlayMin .localVideo { width: 54px; height: 72px; top: 42px; right: 8px; }
+/* Controles en flujo normal, anclados abajo, encima de todo. */
+.overlayMin .controls {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  flex-shrink: 0;
+  height: 54px;
+  gap: 12px;
+  z-index: 9;
+  background: rgba(20, 20, 24, 0.72);
+}
+.overlayMin .rnd { width: 40px; height: 40px; font-size: 19px; }
 .overlayMin .audiosOcultos { display: none; }
+.overlayMin .error { bottom: 60px; }
+
+/* Dentro de la ventana PiP ocupa todo el espacio disponible. */
+.overlayPip {
+  position: fixed;
+  inset: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+}
 
 /* Boton minimizar/ampliar en la barra superior */
 .minBtn {
@@ -63,24 +104,6 @@
   justify-content: center;
 }
 .minBtn:hover { background: rgba(255, 255, 255, 0.28); }
-
-/* ===== Overlay agrandado: ventana grande centrada (deja ver la app) ===== */
-.overlayMax {
-  position: fixed;
-  inset: 4vh 4vw;
-  z-index: 5900;
-  background: rgba(8, 8, 10, 0.98);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-.overlayMax .remoteVideo,
-.overlayMax .videoFallback { border-radius: 16px; }
 
 /* ===== Barra de titulo estilo ventana de app ===== */
 .winBar {
@@ -296,6 +319,56 @@
 }
 
 /* Toast de error de llamadas (visible aunque no haya overlay de llamada). */
+/* Panel de diagnostico de llamadas (celular). */
+.diagPanel {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  max-height: 46vh;
+  z-index: 10050;
+  background: rgba(12, 12, 16, 0.97);
+  color: #e4e6eb;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.diagHead { display: flex; align-items: center; justify-content: space-between; }
+.diagHead strong { font-size: 12.5px; }
+.diagHead button { background: #F20D16; color: #fff; border: none; border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.diagEnv { display: flex; flex-wrap: wrap; gap: 6px; }
+.diagEnv span { background: rgba(255, 255, 255, 0.1); padding: 2px 6px; border-radius: 6px; }
+.diagLogs { overflow-y: auto; max-height: 30vh; display: flex; flex-direction: column; gap: 2px; font-family: ui-monospace, monospace; }
+.diagLine { word-break: break-word; border-bottom: 1px solid rgba(255, 255, 255, 0.06); padding-bottom: 2px; }
+.diagEmpty { opacity: 0.6; }
+.diagClear { align-self: flex-start; background: rgba(255, 255, 255, 0.14); color: #fff; border: none; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+
+/* Boton flotante minimo para activar el diagnostico en celular. */
+.diagFab {
+  position: fixed;
+  left: 8px;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(12, 12, 16, 0.72);
+  color: #fff;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+  cursor: pointer;
+  opacity: 0.5;
+}
+.diagFab:hover { opacity: 1; }
+
 .toastError {
   position: fixed;
   left: 50%;

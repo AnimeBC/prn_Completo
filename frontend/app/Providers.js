@@ -17,11 +17,11 @@ export default function Providers({ children }) {
           <ThemeProvider>
             <RealtimeProvider>
               <PwaProvider>
-                <ChatDockProvider>
-                  <CallProvider>
+                <CallProvider>
+                  <ChatDockProvider>
                     {children}
-                  </CallProvider>
-                </ChatDockProvider>
+                  </ChatDockProvider>
+                </CallProvider>
               </PwaProvider>
             </RealtimeProvider>
           </ThemeProvider>
