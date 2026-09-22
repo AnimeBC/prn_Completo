@@ -227,6 +227,7 @@ function VideoTile({ stream, info }) {
         style={{ visibility: mostrarVideo ? 'visible' : 'hidden' }}
         autoPlay
         playsInline
+        muted
       />
       {!mostrarVideo && (
         <div className={styles.tileFallback}>
@@ -240,16 +241,30 @@ function VideoTile({ stream, info }) {
   );
 }
 
-// Reproduce el audio de un peer (necesario para llamadas de voz grupales).
+// Reproduce la voz del peer. En video se usa SIEMPRE aparte del <video>
+// (que va muted): asi el audio no depende del autoplay del video.
+// Reintenta play() hasta que suene y en cada gesto del usuario.
 function RemoteAudio({ stream }) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
     if (!el || !stream) return undefined;
     if (el.srcObject !== stream) el.srcObject = stream;
-    const p = el.play();
-    if (p && typeof p.catch === 'function') p.catch(() => { /* requiere gesto; se reintenta al pulsar */ });
-    return undefined;
+    const intentar = () => {
+      const p = el.play();
+      if (p && typeof p.catch === 'function') p.catch(() => { /* se reintenta */ });
+    };
+    intentar();
+    // Reintenta en silencio mientras el navegador lo tenga bloqueado.
+    const iv = setInterval(() => { if (el.paused) intentar(); }, 1000);
+    const gesto = () => intentar();
+    window.addEventListener('pointerdown', gesto);
+    window.addEventListener('touchstart', gesto);
+    return () => {
+      clearInterval(iv);
+      window.removeEventListener('pointerdown', gesto);
+      window.removeEventListener('touchstart', gesto);
+    };
   }, [stream]);
   return <audio ref={ref} autoPlay playsInline />;
 }
@@ -353,44 +368,20 @@ function LocalBox({ stream, videoOn, user, userKey }) {
   );
 }
 
-// Video remoto (1:1 y grupal). Asigna srcObject al montar y reintenta play().
-// Si el navegador bloquea el autoplay con audio, primero reproduce en silencio
-// (asi el video se ve) y reintenta con audio al primer toque del usuario.
+// Video remoto: SOLO IMAGEN (siempre muted). La voz llega por <RemoteAudio>,
+// asi el video jamas queda bloqueado/mudo por la politica de autoplay.
 function RemoteVideo({ stream, className }) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
     if (!el || !stream) return undefined;
     if (el.srcObject !== stream) el.srcObject = stream;
-    const intentar = () => {
-      const p = el.play();
-      if (p && typeof p.catch === 'function') {
-        p.catch(() => {
-          // Bloqueado por autoplay con audio: primero en silencio (se ve el
-          // video) y se reintenta con audio en cuanto sea posible.
-          el.muted = true;
-          const p2 = el.play();
-          if (p2 && typeof p2.catch === 'function') {
-            p2.then(() => { setTimeout(() => { el.muted = false; el.play().catch(() => {}); }, 400); }).catch(() => {});
-          }
-        });
-      }
-    };
-    intentar();
-    const desmutear = () => {
-      el.muted = false;
-      intentar();
-      window.removeEventListener('pointerdown', desmutear);
-      window.removeEventListener('touchstart', desmutear);
-    };
-    window.addEventListener('pointerdown', desmutear);
-    window.addEventListener('touchstart', desmutear);
-    return () => {
-      window.removeEventListener('pointerdown', desmutear);
-      window.removeEventListener('touchstart', desmutear);
-    };
+    el.muted = true;
+    const p = el.play();
+    if (p && typeof p.catch === 'function') p.catch(() => { /* muted: no deberia bloquearse */ });
+    return undefined;
   }, [stream]);
-  return <video ref={ref} className={className} autoPlay playsInline />;
+  return <video ref={ref} className={className} autoPlay playsInline muted />;
 }
 
 // Barra de titulo estilo ventana de app: minimizar / agrandar / cerrar.
@@ -1261,6 +1252,9 @@ export function CallProvider({ children }) {
               <span className={styles.inSub}>{call.estado === 'activa' ? 'Cámara apagada' : 'Conectando…'}</span>
             </div>
             {remoteVideoOn && <RemoteVideo stream={remoteStream} className={styles.remoteVideo} />}
+            {/* La voz SIEMPRE por <audio> (el <video> va muted): si el otro
+                no tiene camara, igual se escucha su micro. */}
+            {remoteStream && <RemoteAudio stream={remoteStream} />}
           </>
         ) : (
           <div className={styles.audioCall}>
