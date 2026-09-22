@@ -188,6 +188,7 @@ function publicUser(u) {
     usuario: u.usuario || null,
     email: u.email,
     avatar: u.avatar,
+    banner: u.banner || null,
     rol: u.rol,
     provider: u.provider || 'local',
     email_verified: !!u.email_verified,
@@ -198,7 +199,7 @@ function publicUser(u) {
 
 async function findUserByKey(userKey) {
   const { rows } = await query(
-    `SELECT id, user_key, nombre, usuario, email, avatar, rol, provider, email_verified, created_at,
+    `SELECT id, user_key, nombre, usuario, email, avatar, banner, rol, provider, email_verified, created_at,
             (password_hash IS NOT NULL) AS has_password
        FROM users WHERE user_key = $1`,
     [userKey]
@@ -652,6 +653,53 @@ r.post('/profile/avatar', avatarUpload.single('avatar'), async (req, res, next) 
   } catch (e) { next(e); }
 });
 
+// POST /api/auth/profile/banner  (multipart: banner)  { userKey }
+// Portada del perfil (la misma que /canal, pero en el perfil del usuario).
+r.post('/profile/banner', avatarUpload.single('banner'), async (req, res, next) => {
+  try {
+    const userKey = normalizeUserKey(req.body?.userKey || req.query.userKey);
+    if (!userKey) {
+      if (req.file) fs.rm(req.file.path, { force: true }, () => {});
+      return res.status(400).json({ error: 'userKey inválido' });
+    }
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Adjunta una imagen' });
+
+    const user = await findUserByKey(userKey);
+    if (!user) {
+      fs.rm(file.path, { force: true }, () => {});
+      return res.status(401).json({ error: 'Inicia sesión para cambiar tu portada' });
+    }
+
+    // Carpeta propia de la portada (separate de la foto: borrar el avatar
+    // con removeAvatarFolder no debe borrar la portada ni al reves).
+    const destDir = path.join(DIRS.avatars, `${avatarFolderName(userKey)}_portada`);
+    fs.mkdirSync(destDir, { recursive: true });
+    try {
+      for (const f of fs.readdirSync(destDir)) fs.rmSync(path.join(destDir, f), { force: true });
+    } catch { /* noop */ }
+
+    const ext = (path.extname(file.originalname) || '.jpg').toLowerCase();
+    const target = path.join(destDir, `banner${ext}`);
+    try { fs.renameSync(file.path, target); } catch { fs.copyFileSync(file.path, target); fs.rm(file.path, { force: true }, () => {}); }
+    const bannerPublic = publicOf(target);
+
+    await query('UPDATE users SET banner = $1, updated_at = NOW() WHERE user_key = $2', [bannerPublic, userKey]);
+    // Sincroniza la portada del canal publico del usuario (si tiene uno).
+    try {
+      await query(
+        'UPDATE channels SET banner = COALESCE($2, banner), updated_at = NOW() WHERE user_key = $1',
+        [userKey, bannerPublic]
+      );
+      await publishEvent('channel_updated', { userKey });
+    } catch { /* opcional */ }
+    await publishEvent('user_profile', { userKey });
+
+    const fresh = await findUserByKey(userKey);
+    res.json({ ok: true, user: publicUser(fresh), banner: bannerPublic });
+  } catch (e) { next(e); }
+});
+
 // POST /api/auth/profile/register  { userKey, nombre, usuario, email, password }
 r.post('/profile/register', async (req, res, next) => {
   try {
@@ -812,7 +860,7 @@ r.post('/profile/login', async (req, res, next) => {
     if (!email || !password) return res.status(400).json({ error: 'Correo y contraseña son obligatorios' });
 
     const { rows } = await query(
-      `SELECT id, user_key, nombre, usuario, email, avatar, rol, provider, email_verified, created_at,
+      `SELECT id, user_key, nombre, usuario, email, avatar, banner, rol, provider, email_verified, created_at,
               password_hash, (password_hash IS NOT NULL) AS has_password
          FROM users WHERE email = $1 LIMIT 1`,
       [String(email).trim().toLowerCase()]
@@ -837,6 +885,10 @@ r.post('/profile/login', async (req, res, next) => {
       await migrateGuestData(guestKey, user.user_key);
       await publishEvent('user_migrate', { from: guestKey, to: user.user_key });
     }
+
+    // Redis: avisa a TODAS las pestanas de este usuario que la sesion cambio
+    // (el AuthProvider escucha y actualiza perfil + server components).
+    await publishEvent('user_login', { userKey: user.user_key });
 
     res.json({ ok: true, user: publicUser(user), stats: await getUserStats(user.user_key) });
   } catch (e) { next(e); }

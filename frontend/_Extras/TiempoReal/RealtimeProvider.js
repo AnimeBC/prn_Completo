@@ -34,7 +34,7 @@ const NO_REFRESH = new Set([
   'pack_like', 'pack_save', 'pack_download',
   'comment_created', 'comment_like', 'comment_deleted',
   'user_profile', 'user_register', 'user_verified', 'user_migrate',
-  'user_google_login', 'admin_login',
+  'user_google_login', 'admin_login', 'user_login',
   'notificacion', 'notificacion_admin',
   // Llamadas: se manejan en vivo por pikantepe:change (CallProvider/ChatFlotante).
   'call_offer', 'call_answer', 'call_ice', 'call_reject', 'call_hangup', 'call_state',

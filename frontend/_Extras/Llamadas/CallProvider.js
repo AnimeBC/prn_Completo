@@ -194,11 +194,80 @@ function mensajeMedia(e) {
   return 'No se pudo acceder a la cámara/micrófono';
 }
 
+// ======================================================================
+// Deteccion de voz: devuelve true mientras la persona del stream habla.
+// Usa UN solo AudioContext compartido (limitan los navegadores) y muestrea
+// el nivel de audio cada 100ms con histeresis para que no parpadee.
+// ======================================================================
+let _ctxAudio = null;
+function getAudioCtx() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    if (!_ctxAudio || _ctxAudio.state === 'closed') _ctxAudio = new AC();
+    if (_ctxAudio.state === 'suspended') _ctxAudio.resume().catch(() => {});
+    return _ctxAudio;
+  } catch { return null; }
+}
+
+function useIsSpeaking(stream) {
+  const [hablando, setHablando] = useState(false);
+  useEffect(() => {
+    setHablando(false);
+    if (!stream || typeof window === 'undefined') return undefined;
+    if (!stream.getAudioTracks || !stream.getAudioTracks().length) return undefined;
+    const ctx = getAudioCtx();
+    if (!ctx) return undefined;
+    let src = null;
+    let an = null;
+    let iv = 0;
+    let acum = 0;
+    let prevHablando = false;
+    try {
+      src = ctx.createMediaStreamSource(stream);
+      an = ctx.createAnalyser();
+      an.fftSize = 512;
+      an.smoothingTimeConstant = 0.55;
+      src.connect(an);
+      const data = new Uint8Array(an.frequencyBinCount);
+      iv = setInterval(() => {
+        an.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i += 1) sum += data[i];
+        const avg = sum / data.length;
+        // Histeresis: encendido ~330ms de voz seguida, apagado tras silencio.
+        if (avg > 11) acum = Math.min(acum + 110, 1100);
+        else acum = Math.max(0, acum - 140);
+        const h = prevHablando ? acum >= 60 : acum >= 330;
+        if (h !== prevHablando) { prevHablando = h; setHablando(h); }
+      }, 100);
+    } catch { /* noop */ }
+    return () => {
+      clearInterval(iv);
+      try { src?.disconnect(); } catch { /* noop */ }
+    };
+  }, [stream]);
+  return hablando;
+}
+
+// Avatar grande con "ondas" de voz: emite pulsos verdes cuando la persona
+// del stream esta hablando (para identificar al que habla sin camara).
+function WaveAvatar({ stream, avatar, nombre }) {
+  const hablando = useIsSpeaking(stream);
+  const ini = String(nombre || '?').trim().charAt(0).toUpperCase();
+  return (
+    <span className={`${styles.bigAvatar} ${hablando ? styles.speaking : ''}`}>
+      {avatar ? <img src={mediaUrl(avatar)} alt="" /> : ini}
+    </span>
+  );
+}
+
 // Tile de video grupal (estilo Meet/Teams): video o avatar, nombre SIEMPRE
 // visible y boton para fijar/quitar fijado (pantalla completa). Sin arrastre.
 function VideoTile({ stream, info, onPin, pinned }) {
   const videoRef = useRef(null);
   const [hayVideo, setHayVideo] = useState(false);
+  const hablando = useIsSpeaking(stream);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -238,7 +307,7 @@ function VideoTile({ stream, info, onPin, pinned }) {
       />
       {!mostrarVideo && (
         <div className={styles.tileFallback}>
-          <span className={styles.tileAvatar}>
+          <span className={`${styles.tileAvatar} ${hablando ? styles.speaking : ''}`}>
             {info?.avatar ? <img src={mediaUrl(info.avatar)} alt="" /> : inicial}
           </span>
         </div>
@@ -320,6 +389,8 @@ function LocalVideo({ stream, className }) {
 function LocalBox({ stream, videoOn, user, userKey }) {
   const wrapRef = useRef(null);
   const [pos, setPos] = useState(null);
+  // Ondas en MI foto cuando hablo (caso: PC sin camara).
+  const hablando = useIsSpeaking(stream);
 
   // Recuerda donde lo dejo el usuario (entre recargas y llamadas).
   useEffect(() => {
@@ -377,9 +448,9 @@ function LocalBox({ stream, videoOn, user, userKey }) {
       ) : (
         <div className={styles.localFallback}>
           {user?.avatar ? (
-            <img className={styles.localFallbackImg} src={mediaUrl(user.avatar)} alt="" />
+            <img className={`${styles.localFallbackImg} ${hablando ? styles.speaking : ''}`} src={mediaUrl(user.avatar)} alt="" />
           ) : (
-            <span className={styles.localFallbackImg}>{String(nombre || userKey || '?').trim().charAt(0).toUpperCase()}</span>
+            <span className={`${styles.localFallbackImg} ${hablando ? styles.speaking : ''}`}>{String(nombre || userKey || '?').trim().charAt(0).toUpperCase()}</span>
           )}
           <span className={styles.localFallbackName}>{nombre || userKey || ''}</span>
         </div>
@@ -964,6 +1035,16 @@ export function CallProvider({ children }) {
       dlog('SIN mediaDevices (grupo)', { secure: (typeof window !== 'undefined' && window.isSecureContext), proto: (typeof window !== 'undefined' && window.location.protocol) });
       setError('Tu navegador no soporta llamadas'); return;
     }
+    // Si ya hay una llamada en curso en el grupo (iniciada por OTRO),
+    // no se puede crear otra: hay que unirse a la existente.
+    try {
+      const act = await apiComunidad.llamadaGrupoActiva(comunidadId);
+      if (act?.sala && String(act.sala.iniciador_key) !== String(userKey)) {
+        dlog('iniciarGrupo abortado: ya hay llamada en curso', act.sala.call_id);
+        setError('Ya hay una llamada en curso en este grupo. Únete a ella.');
+        return;
+      }
+    } catch { /* sin red: el backend igual lo valida */ }
     const media = await obtenerMedia(tipo);
     if (!media) { dlog('iniciarGrupo sin media'); return; }
     const callId = nuevoCallId();
@@ -1270,9 +1351,7 @@ export function CallProvider({ children }) {
         {call.tipo === 'video' ? (
           <>
             <div className={styles.videoFallback} style={{ display: remoteVideoOn ? 'none' : 'flex' }}>
-              <span className={styles.bigAvatar}>
-                {call.peerAvatar ? <img src={mediaUrl(call.peerAvatar)} alt="" /> : String(titulo).charAt(0).toUpperCase()}
-              </span>
+              <WaveAvatar stream={remoteStream} avatar={call.peerAvatar} nombre={titulo} />
               <strong className={styles.inName}>{titulo}</strong>
               <span className={styles.inSub}>{call.estado === 'activa' ? 'Cámara apagada' : 'Conectando…'}</span>
             </div>
@@ -1284,9 +1363,7 @@ export function CallProvider({ children }) {
         ) : (
           <div className={styles.audioCall}>
             {remoteStream && <RemoteAudio stream={remoteStream} />}
-            <span className={styles.bigAvatar}>
-              {call.peerAvatar ? <img src={mediaUrl(call.peerAvatar)} alt="" /> : String(titulo).charAt(0).toUpperCase()}
-            </span>
+            <WaveAvatar stream={remoteStream} avatar={call.peerAvatar} nombre={titulo} />
             <strong className={styles.inName}>{titulo}</strong>
           </div>
         )}
@@ -1399,9 +1476,7 @@ export function CallProvider({ children }) {
           <div className={styles.audioCall}>
             <div className={styles.gridAudio}>
               {grid.map((r) => (
-                <span key={r.info?.userKey} className={styles.bigAvatar}>
-                  {r.info?.avatar ? <img src={mediaUrl(r.info.avatar)} alt="" /> : String(r.info?.nombre || '?').charAt(0).toUpperCase()}
-                </span>
+                <WaveAvatar key={r.info?.userKey} stream={r.stream} avatar={r.info?.avatar} nombre={r.info?.nombre} />
               ))}
             </div>
             <strong className={styles.inName}>{titulo}</strong>

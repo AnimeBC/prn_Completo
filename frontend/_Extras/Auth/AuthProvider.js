@@ -1,11 +1,21 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { API_URL } from '@/_Extras/Api/api.js';
 import { getUserKey, importGuestData } from '@/_Extras/Interacciones/interactions.js';
 import { hasGuestData, getGuestImportPayload, clearGuestData } from '@/_Extras/Interacciones/local.js';
 
 const KEY = 'pkp_user_key';
+
+// Eventos Redis que cambian la sesion (login/registro/verificacion).
+const AUTH_EVENTS = new Set([
+  'user_login',
+  'user_register',
+  'user_verified',
+  'user_migrate',
+  'user_google_login',
+]);
 
 const AuthContext = createContext(null);
 
@@ -25,6 +35,7 @@ const FALLBACK = {
  * a la vez, sin recargar la página.
  */
 export function AuthProvider({ children }) {
+  const router = useRouter();
   const [user, setUser] = useState(null);
   const [userKey, setUserKeyState] = useState('');
   const [ready, setReady] = useState(false);
@@ -45,14 +56,40 @@ export function AuthProvider({ children }) {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    const onChange = () => load();
-    window.addEventListener('pkp:me', onChange);
-    window.addEventListener('pikantepe:change', onChange);
-    return () => {
-      window.removeEventListener('pkp:me', onChange);
-      window.removeEventListener('pikantepe:change', onChange);
+    // Eventos de sesion propios (Redis -> SSE): recarga el perfil y los
+    // server components al instante, SIN recargar la pagina a mano.
+    const onChange = (e) => {
+      const t = String(e?.detail?.type || '');
+      if (AUTH_EVENTS.has(t)) {
+        const payloadKey = String(e?.detail?.payload?.userKey || '');
+        const myKey = String(getUserKey() || '');
+        // Solo me interesa MI sesion (evento sin userKey tambien cuenta).
+        if (payloadKey && payloadKey !== myKey) return;
+        load();
+        try { router.refresh(); } catch { /* noop */ }
+        return;
+      }
+      load();
     };
-  }, [load]);
+    const onMe = () => load();
+    window.addEventListener('pikantepe:change', onChange);
+    window.addEventListener('pkp:me', onMe);
+    return () => {
+      window.removeEventListener('pikantepe:change', onChange);
+      window.removeEventListener('pkp:me', onMe);
+    };
+  }, [load, router]);
+
+  // Otra pestana inicio/cerro sesion -> esta pestaion se entera al instante.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key && e.key !== KEY) return;
+      load();
+      try { router.refresh(); } catch { /* noop */ }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [load, router]);
 
   // Al iniciar sesión (o verificar la cuenta) sube la actividad guardada
   // en el navegador cuando era invitado y limpia el almacén local.
@@ -80,7 +117,9 @@ export function AuthProvider({ children }) {
     setUserKeyState(key);
     if (userObj) setUser(userObj);
     try { window.dispatchEvent(new Event('pkp:me')); } catch { /* noop */ }
-  }, []);
+    // Refresca los server components (cabecera, contadores...) sin F5.
+    try { router.refresh(); } catch { /* noop */ }
+  }, [router]);
 
   const logout = useCallback(() => {
     try { localStorage.removeItem(KEY); } catch { /* noop */ }
@@ -88,7 +127,8 @@ export function AuthProvider({ children }) {
     setUserKeyState(k);
     setUser(null);
     try { window.dispatchEvent(new Event('pkp:me')); } catch { /* noop */ }
-  }, []);
+    try { router.refresh(); } catch { /* noop */ }
+  }, [router]);
 
   const value = {
     user,

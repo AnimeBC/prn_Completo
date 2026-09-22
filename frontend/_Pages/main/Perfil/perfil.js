@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import styles from './perfil.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
@@ -51,10 +52,21 @@ function fmtMember(dateStr, es) {
 const availCls = (a) => (a.state === 'ok' ? styles.hintOk : a.state === 'taken' || a.state === 'invalid' ? styles.hintBad : styles.hint);
 const availIcon = (a) => (a.state === 'ok' ? 'checkmark-circle-outline' : a.state === 'checking' ? 'sync-outline' : a.state === 'idle' ? null : 'alert-circle-outline');
 
+// Fortaleza de la contraseña: 0 (vacía) a 4 (muy fuerte).
+function passStrength(p) {
+  if (!p) return 0;
+  let s = 1;
+  if (p.length >= 8) s += 1;
+  if (/\d/.test(p) && /[a-zA-Z]/.test(p)) s += 1;
+  if (/[^a-zA-Z0-9]/.test(p) || p.length >= 12) s += 1;
+  return Math.min(4, s);
+}
+
 export default function PerfilClient() {
   const { locale } = useLanguage();
   const es = locale !== 'en';
   const { setAccount, logout: authLogout } = useAuth();
+  const router = useRouter();
 
   const [userKey, setUserKey] = useState('');
   const [user, setUser] = useState(null);
@@ -63,13 +75,15 @@ export default function PerfilClient() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState('perfil');
 
-  const [form, setForm] = useState({ nombre: '', usuario: '', email: '', avatar: '' });
+  const [form, setForm] = useState({ nombre: '', usuario: '', email: '', avatar: '', banner: '' });
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [avatarBusy, setAvatarBusy] = useState(false);
-  const [avatarDrag, setAvatarDrag] = useState(false);
   const [cropFile, setCropFile] = useState(null);
+  const [bannerCropFile, setBannerCropFile] = useState(null);
   const avatarInputRef = useRef(null);
+  const [bannerBusy, setBannerBusy] = useState(false);
+  const bannerInputRef = useRef(null);
 
   const [lists, setLists] = useState({});
   const [listLoading, setListLoading] = useState(false);
@@ -93,7 +107,7 @@ export default function PerfilClient() {
   const [codeVal, setCodeVal] = useState('');
   const [codeBusy, setCodeBusy] = useState(false);
   const [codeMsg, setCodeMsg] = useState('');
-  const [authTab, setAuthTab] = useState('login'); // móvil: 'login' | 'register'
+  const [authTab, setAuthTab] = useState('login'); // 'login' | 'register' (pestañas en móvil)
 
   const [googleCred, setGoogleCred] = useState('');
 
@@ -133,6 +147,7 @@ export default function PerfilClient() {
         usuario: j.user?.usuario || '',
         email: j.user?.email || '',
         avatar: j.user?.avatar || '',
+        banner: j.user?.banner || '',
       });
       try { window.dispatchEvent(new Event('pkp:me')); } catch { /* noop */ }
     } catch {
@@ -157,6 +172,17 @@ export default function PerfilClient() {
     else if (v === '0') setVerifyNotice(es ? 'El enlace es inválido o caducó.' : 'The link is invalid or expired.');
     if (v) loadProfile(getUserKey());
   }, [es, loadProfile]);
+
+  // URL por estado de sesion: /perfil?sesion=invitado | /perfil?sesion=activa.
+  // Se sincroniza sola al entrar, verificar o cerrar sesion (sin recargar).
+  useEffect(() => {
+    if (typeof window === 'undefined' || loading) return;
+    const estado = authed ? 'activa' : 'invitado';
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('sesion') === estado) return;
+    sp.set('sesion', estado);
+    router.replace(`/perfil?${sp.toString()}`, { scroll: false });
+  }, [authed, loading, router]);
 
   // Google Identity Services
   const gisReady = useRef(false);
@@ -351,11 +377,46 @@ export default function PerfilClient() {
     if (file) setCropFile(file);
   }
 
-  function onDropAvatar(e) {
-    e.preventDefault();
-    setAvatarDrag(false);
-    const file = e.dataTransfer?.files?.[0];
-    if (file) setCropFile(file);
+  // Portada (banner) del perfil: misma validacion que la foto.
+  async function uploadBanner(file) {
+    if (!file) return;
+    if (!(file.type.startsWith('image/') || /\.(png|jpe?g|webp|avif)$/i.test(file.name))) {
+      setSaveMsg(es ? 'Solo imágenes (JPG/PNG/WebP).' : 'Images only (JPG/PNG/WebP).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setSaveMsg(es ? 'La imagen no debe pesar más de 5 MB.' : 'Image must be under 5 MB.');
+      return;
+    }
+    setBannerBusy(true);
+    setSaveMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('userKey', userKey);
+      fd.append('banner', file);
+      const r = await fetch(`${API_URL}/api/auth/profile/banner`, { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setSaveMsg(j.error || (es ? 'No se pudo subir la portada' : 'Could not upload the cover'));
+        return;
+      }
+      setUser(j.user || user);
+      setForm((f) => ({ ...f, banner: j.banner || j.user?.banner || '' }));
+      try { window.dispatchEvent(new Event('pkp:me')); } catch { /* noop */ }
+      setSaveMsg(es ? 'Portada actualizada ✓' : 'Cover updated ✓');
+    } catch {
+      setSaveMsg(es ? 'No hay conexión con el servidor.' : 'No connection to the server.');
+    } finally {
+      setBannerBusy(false);
+    }
+  }
+
+  function onPickBanner(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    // En vez de subirla directo: abre el modal de encuadre (estilo
+    // Facebook/YouTube) para elegir que parte de la foto se ve.
+    if (file) setBannerCropFile(file);
   }
 
   async function doRegister(e) {
@@ -468,6 +529,14 @@ export default function PerfilClient() {
     }
   }
 
+  // Cierra el modal de codigo: vuelve al formulario para corregir el correo
+  // o la contraseña y registrarse de nuevo.
+  function cancelarCodigo() {
+    setPendingEmail('');
+    setCodeVal('');
+    setCodeMsg('');
+  }
+
   function logout() {
     authLogout();
     const key = getUserKey();
@@ -517,6 +586,13 @@ export default function PerfilClient() {
         accept="image/*"
         onChange={onPickAvatar}
       />
+      <input
+        ref={bannerInputRef}
+        className={styles.avatarInput}
+        type="file"
+        accept="image/*"
+        onChange={onPickBanner}
+      />
 
       <ImageCropModal
         open={!!cropFile}
@@ -529,6 +605,22 @@ export default function PerfilClient() {
           const f = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
           setCropFile(null);
           uploadAvatar(f);
+        }}
+      />
+
+      {/* Portada: mismo modal, marco panoramico 16:5 (estilo Facebook/YouTube). */}
+      <ImageCropModal
+        open={!!bannerCropFile}
+        file={bannerCropFile}
+        shape="banner"
+        outputSize={1600}
+        title={es ? 'Ajusta tu portada' : 'Adjust your cover'}
+        subtitle={es ? 'Arrastra la imagen y usa el zoom para elegir qué parte se muestra.' : 'Drag and zoom to choose which part is shown.'}
+        onCancel={() => setBannerCropFile(null)}
+        onSave={(blob) => {
+          const f = new File([blob], 'banner.jpg', { type: 'image/jpeg' });
+          setBannerCropFile(null);
+          uploadBanner(f);
         }}
       />
 
@@ -549,277 +641,364 @@ export default function PerfilClient() {
         </div>
       )}
 
-      {/* ===== Cabecera del perfil (Invitado / usuario) ===== */}
+      {/* ===== Cabecera del perfil: portada + avatar estilo canal ===== */}
       <section className={styles.hero}>
-        <div className={styles.heroGlow} aria-hidden="true" />
-        <div className={styles.avatarWrap}>
-          {avatarSrc
-            ? <img className={styles.avatarImg} src={avatarSrc} alt="" />
-            : <span className={styles.avatarInitial}>{initial}</span>}
-          <button
-            type="button"
-            className={styles.avatarEdit}
-            onClick={() => avatarInputRef.current?.click()}
-            aria-label={es ? 'Cambiar foto de perfil' : 'Change profile photo'}
-            title={es ? 'Cambiar foto de perfil' : 'Change profile photo'}
-          >
-            <ion-icon name="camera-outline" suppressHydrationWarning></ion-icon>
-          </button>
-        </div>
-        <div className={styles.heroInfo}>
-          <div className={styles.heroTopLine}>
-            <h1 className={styles.heroName}>{user?.nombre || (es ? 'Invitado' : 'Guest')}</h1>
-            {authed
-              ? verifiedBadge('shield-checkmark-outline', es ? 'Cuenta' : 'Account', false)
-              : verifiedBadge('person-outline', es ? 'Invitado' : 'Guest', true)}
-          </div>
-          <p className={styles.heroMail}>
-            <ion-icon name="mail-outline" suppressHydrationWarning></ion-icon>
-            {user?.email || (es ? 'Sin correo' : 'No email')}
-          </p>
-          {user?.created_at && (
-            <p className={styles.heroSince}>
-              <ion-icon name="calendar-outline" suppressHydrationWarning></ion-icon>
-              {es ? 'Miembro desde' : 'Member since'} {fmtMember(user.created_at, es)}
-            </p>
+        <div
+          className={`${styles.banner} ${authed ? styles.bannerEditable : ''}`}
+          style={form.banner ? { backgroundImage: `url(${mediaUrl(form.banner)})` } : undefined}
+          onClick={authed && !bannerBusy ? () => bannerInputRef.current?.click() : undefined}
+          onDragOver={authed ? (e) => e.preventDefault() : undefined}
+          onDrop={authed ? (e) => { e.preventDefault(); const f = e.dataTransfer?.files?.[0]; if (f) setBannerCropFile(f); } : undefined}
+          role={authed ? 'button' : undefined}
+          tabIndex={authed ? 0 : undefined}
+          onKeyDown={authed ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); bannerInputRef.current?.click(); } } : undefined}
+          aria-label={authed ? (es ? 'Cambiar portada' : 'Change cover') : undefined}
+        >
+          {!form.banner && <span className={styles.bannerGlow} aria-hidden="true" />}
+          {authed && !form.banner && (
+            <div className={styles.bannerHint}>
+              <ion-icon name="image-outline" suppressHydrationWarning></ion-icon>
+              <span>{es ? 'Toca o arrastra una imagen para tu portada' : 'Tap or drop an image for your cover'}</span>
+              <button
+                type="button"
+                className={styles.bannerHintBtn}
+                disabled={bannerBusy}
+                onClick={(e) => { e.stopPropagation(); bannerInputRef.current?.click(); }}
+              >
+                <ion-icon name={bannerBusy ? 'sync-outline' : 'cloud-upload-outline'} suppressHydrationWarning></ion-icon>
+                {bannerBusy ? (es ? 'Subiendo…' : 'Uploading…') : (es ? 'Subir portada' : 'Upload cover')}
+              </button>
+            </div>
+          )}
+          {authed && form.banner && (
+            <button
+              type="button"
+              className={styles.bannerEdit}
+              disabled={bannerBusy}
+              onClick={(e) => { e.stopPropagation(); bannerInputRef.current?.click(); }}
+            >
+              <ion-icon name={bannerBusy ? 'sync-outline' : 'image-outline'} suppressHydrationWarning></ion-icon>
+              {bannerBusy ? (es ? 'Subiendo…' : 'Uploading…') : (es ? 'Editar portada' : 'Edit cover')}
+            </button>
           )}
         </div>
-        <div className={styles.heroStats}>
-          {statsList.map((s) => (
-            <div key={s.key} className={styles.stat}>
-              <ion-icon name={s.icon} className={styles.statIcon} suppressHydrationWarning></ion-icon>
-              <span className={styles.statValue}>{Number(s.value || 0).toLocaleString(es ? 'es-PE' : 'en-US')}</span>
-              <span className={styles.statLabel}>{s.label}</span>
+
+        <div className={styles.head}>
+          <div
+            className={styles.avatarWrap}
+            onClick={() => avatarInputRef.current?.click()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); avatarInputRef.current?.click(); } }}
+            aria-label={es ? 'Cambiar foto de perfil' : 'Change profile photo'}
+          >
+            {avatarSrc
+              ? <img className={styles.avatarImg} src={avatarSrc} alt="" />
+              : <span className={styles.avatarInitial}>{initial}</span>}
+            <button
+              type="button"
+              className={styles.avatarEdit}
+              onClick={(e) => { e.stopPropagation(); avatarInputRef.current?.click(); }}
+              aria-label={es ? 'Cambiar foto de perfil' : 'Change profile photo'}
+              title={es ? 'Cambiar foto de perfil' : 'Change profile photo'}
+            >
+              <ion-icon name={avatarBusy ? 'sync-outline' : 'camera-outline'} suppressHydrationWarning></ion-icon>
+            </button>
+          </div>
+
+          <div className={styles.headInfo}>
+            <div className={styles.heroTopLine}>
+              <h1 className={styles.heroName}>{user?.nombre || (es ? 'Invitado' : 'Guest')}</h1>
+              {authed
+                ? verifiedBadge('shield-checkmark-outline', es ? 'Cuenta' : 'Account', false)
+                : verifiedBadge('person-outline', es ? 'Invitado' : 'Guest', true)}
             </div>
-          ))}
+            <p className={styles.heroMail}>
+              <ion-icon name="mail-outline" suppressHydrationWarning></ion-icon>
+              {user?.email || (es ? 'Sin correo' : 'No email')}
+            </p>
+            {user?.created_at && (
+              <p className={styles.heroSince}>
+                <ion-icon name="calendar-outline" suppressHydrationWarning></ion-icon>
+                {es ? 'Miembro desde' : 'Member since'} {fmtMember(user.created_at, es)}
+              </p>
+            )}
+
+            <div className={styles.statsRow}>
+              {statsList.map((s) => (
+                <span key={s.key} className={styles.statPill}>
+                  <ion-icon name={s.icon} suppressHydrationWarning></ion-icon>
+                  <b>{Number(s.value || 0).toLocaleString(es ? 'es-PE' : 'en-US')}</b>
+                  {s.label}
+                </span>
+              ))}
+            </div>
+
+            {saveMsg && (
+              <div className={styles.actionsRow}>
+                <span className={`${styles.heroMsg} ${saveMsg.includes('✓') ? styles.heroMsgOk : ''}`}>
+                  {saveMsg}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* ===== Login / Registro ===== */}
+      {/* ===== Acceso (invitado): panel dividido branding + formulario (Diseño 1) ===== */}
       {!authed && (
         <section className={styles.authSection}>
-          <div className={styles.authIntro}>
-            <span className={styles.authIntroIcon}>
-              <ion-icon name="flame-outline" suppressHydrationWarning></ion-icon>
-            </span>
-            <div>
-              <h2 className={styles.authIntroTitle}>
+          <div className={styles.authHero}>
+            <aside className={styles.authBrand}>
+              <span className={styles.authBrandIcon}>
+                <ion-icon name="flame-outline" suppressHydrationWarning></ion-icon>
+              </span>
+              <h2 className={styles.authBrandTitle}>
                 {es ? 'Entra o crea tu cuenta' : 'Sign in or create your account'}
               </h2>
-              <p className={styles.authIntroText}>
-                {es
-                  ? 'Guarda videos, dale like y sigue canales. Tu actividad de invitado se conserva.'
-                  : 'Save videos, like and follow channels. Your guest activity is kept.'}
+              <p className={styles.authBrandSub}>
+                {es ? 'Únete a la comunidad de pikante pe.' : 'Join the pikante pe community.'}
               </p>
-            </div>
-          </div>
+              <ul className={styles.authList}>
+                <li>
+                  <span className={styles.authListNum}>1</span>
+                  {es ? 'Guarda videos y dale like' : 'Save videos and like'}
+                </li>
+                <li>
+                  <span className={styles.authListNum}>2</span>
+                  {es ? 'Sigue tus canales favoritos' : 'Follow your favorite channels'}
+                </li>
+                <li>
+                  <span className={styles.authListNum}>3</span>
+                  {es ? 'Califica y comenta los videos' : 'Rate and comment on videos'}
+                </li>
+                <li>
+                  <span className={styles.authListNum}>4</span>
+                  {es ? 'Chatea con amigos y en grupos' : 'Chat with friends and in groups'}
+                </li>
+                <li>
+                  <span className={styles.authListNum}>5</span>
+                  {es ? 'Únete a grupos y comunidades' : 'Join groups and communities'}
+                </li>
+                <li>
+                  <span className={styles.authListNum}>6</span>
+                  {es ? 'Tu actividad de invitado se conserva' : 'Your guest activity is kept'}
+                </li>
+              </ul>
+            </aside>
 
-          {/* En móvil: navegación con botones (primero Iniciar sesión) */}
-          <div className={styles.authTabs} role="tablist" aria-label={es ? 'Acceso' : 'Access'}>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={authTab === 'login'}
-              className={`${styles.authTab} ${authTab === 'login' ? styles.authTabActive : ''}`}
-              onClick={() => setAuthTab('login')}
-            >
-              <ion-icon name="log-in-outline" suppressHydrationWarning></ion-icon>
-              {es ? 'Iniciar sesión' : 'Sign in'}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={authTab === 'register'}
-              className={`${styles.authTab} ${authTab === 'register' ? styles.authTabActive : ''}`}
-              onClick={() => setAuthTab('register')}
-            >
-              <ion-icon name="person-add-outline" suppressHydrationWarning></ion-icon>
-              {es ? 'Crear cuenta' : 'Create account'}
-            </button>
-          </div>
-
-          <div className={styles.authGrid}>
-          {/* Iniciar sesión */}
-          <div className={`${styles.authCard} ${authTab !== 'login' ? styles.authCardHidden : ''}`}>
-            <h2 className={styles.authTitle}>{es ? 'Iniciar sesión' : 'Sign in'}</h2>
-            <p className={styles.authSub}>{es ? 'Bienvenido de nuevo' : 'Welcome back'}</p>
-
-            <form className={styles.form} onSubmit={doLogin}>
-              <div className={styles.control}>
-                <ion-icon name="mail-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
-                <input
-                  className={styles.ctrlInput}
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  placeholder={es ? 'Correo electrónico' : 'Email'}
-                  value={logEmail}
-                  onChange={(e) => setLogEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className={styles.control}>
-                <ion-icon name="lock-closed-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
-                <input
-                  className={styles.ctrlInput}
-                  type={logShow ? 'text' : 'password'}
-                  name="password"
-                  autoComplete="current-password"
-                  placeholder={es ? 'Contraseña' : 'Password'}
-                  value={logPass}
-                  onChange={(e) => setLogPass(e.target.value)}
-                  required
-                />
-                <button type="button" className={styles.ctrlEye} onClick={() => setLogShow((v) => !v)} aria-label="Ver contraseña">
-                  <ion-icon name={logShow ? 'eye-off-outline' : 'eye-outline'} suppressHydrationWarning></ion-icon>
+            <div className={styles.authPane}>
+              <div className={styles.authTabs} role="tablist" aria-label={es ? 'Acceso' : 'Access'}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={authTab === 'login'}
+                  className={`${styles.authTab} ${authTab === 'login' ? styles.authTabActive : ''}`}
+                  onClick={() => setAuthTab('login')}
+                >
+                  <ion-icon name="log-in-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Iniciar sesión' : 'Sign in'}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={authTab === 'register'}
+                  className={`${styles.authTab} ${authTab === 'register' ? styles.authTabActive : ''}`}
+                  onClick={() => setAuthTab('register')}
+                >
+                  <ion-icon name="person-add-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Crear cuenta' : 'Create account'}
                 </button>
               </div>
 
-              {logMsg && <p className={styles.msgError}>{logMsg}</p>}
-              {pendingEmail && logMsg && (
-                <button type="button" className={styles.linkBtn} onClick={resendVerification}>
-                  {es ? 'Reenviar correo de verificación' : 'Resend verification email'}
-                </button>
-              )}
+              {/* Iniciar sesión */}
+              <div className={`${styles.authPanel} ${authTab !== 'login' ? styles.authPanelHidden : ''}`}>
+                <h3 className={styles.authTitle}>{es ? 'Iniciar sesión' : 'Sign in'}</h3>
+                <p className={styles.authSub}>{es ? 'Bienvenido de nuevo' : 'Welcome back'}</p>
 
-              <button className={styles.cta} type="submit" disabled={logBusy}>
-                {logBusy ? (es ? 'Ingresando…' : 'Signing in…') : (es ? 'Iniciar sesión' : 'Sign in')}
-              </button>
-            </form>
+                <form className={styles.form} onSubmit={doLogin}>
+                  <div className={styles.control}>
+                    <ion-icon name="mail-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                    <input
+                      className={styles.ctrlInput}
+                      type="email"
+                      name="email"
+                      autoComplete="email"
+                      placeholder={es ? 'Correo electrónico' : 'Email'}
+                      value={logEmail}
+                      onChange={(e) => setLogEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className={styles.control}>
+                    <ion-icon name="lock-closed-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                    <input
+                      className={styles.ctrlInput}
+                      type={logShow ? 'text' : 'password'}
+                      name="password"
+                      autoComplete="current-password"
+                      placeholder={es ? 'Contraseña' : 'Password'}
+                      value={logPass}
+                      onChange={(e) => setLogPass(e.target.value)}
+                      required
+                    />
+                    <button type="button" className={styles.ctrlEye} onClick={() => setLogShow((v) => !v)} aria-label="Ver contraseña">
+                      <ion-icon name={logShow ? 'eye-off-outline' : 'eye-outline'} suppressHydrationWarning></ion-icon>
+                    </button>
+                  </div>
 
-            <div className={styles.divider}>
-              <span>{es ? 'o continúa con' : 'or continue with'}</span>
-            </div>
-            <div className={styles.googleWrap}>
-              <button
-                className={styles.googleBtn}
-                type="button"
-                onClick={() => {
-                  if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
-                    setLogMsg(es ? 'Google no configurado (falta NEXT_PUBLIC_GOOGLE_CLIENT_ID).' : 'Google not configured.');
-                  }
-                }}
-              >
-                <GoogleIcon />
-                <span>{es ? 'Continuar con Google' : 'Continue with Google'}</span>
-              </button>
-              <div id="g_id_login" className={styles.gsiMount} aria-hidden="true" />
-            </div>
+                  {logMsg && <p className={styles.msgError}>{logMsg}</p>}
+                  {pendingEmail && logMsg && (
+                    <button type="button" className={styles.linkBtn} onClick={resendVerification}>
+                      {es ? 'Reenviar correo de verificación' : 'Resend verification email'}
+                    </button>
+                  )}
 
-            <div className={styles.badges}>
-              {verifiedBadge('shield-checkmark-outline', es ? 'Mayor 18' : '18+', true)}
-              {verifiedBadge('lock-closed-outline', es ? 'Seguridad' : 'Security', false)}
-            </div>
-          </div>
+                  <button className={styles.cta} type="submit" disabled={logBusy}>
+                    {logBusy ? (es ? 'Ingresando…' : 'Signing in…') : (es ? 'Iniciar sesión' : 'Sign in')}
+                  </button>
+                </form>
 
-          {/* Crear cuenta */}
-          <div className={`${styles.authCard} ${authTab !== 'register' ? styles.authCardHidden : ''}`}>
-            <h2 className={styles.authTitle}>{es ? 'Crear cuenta' : 'Create account'}</h2>
-            <p className={styles.authSub}>{es ? 'Únete a la comunidad' : 'Join the community'}</p>
-
-            <form className={styles.form} onSubmit={doRegister}>
-              <div className={styles.control}>
-                <ion-icon name="at-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
-                <input
-                  className={styles.ctrlInput}
-                  type="text"
-                  name="username"
-                  autoComplete="username"
-                  maxLength={30}
-                  placeholder={es ? 'Nombre de usuario (ej: juan_pe)' : 'Username (e.g. juan_pe)'}
-                  value={regUsuario}
-                  onChange={(e) => { setRegUsuario(e.target.value.replace(/\s/g, '')); setUCheck({ state: 'idle', msg: '' }); }}
-                  required
-                />
-              </div>
-              {availIcon(uCheck) && (
-                <p className={availCls(uCheck)}>
-                  <ion-icon name={availIcon(uCheck)} className={uCheck.state === 'checking' ? styles.spin : ''} suppressHydrationWarning></ion-icon>
-                  {uCheck.msg || (es ? 'Verificando…' : 'Checking…')}
-                </p>
-              )}
-              <div className={styles.control}>
-                <ion-icon name="mail-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
-                <input
-                  className={styles.ctrlInput}
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  placeholder={es ? 'Correo electrónico' : 'Email'}
-                  value={regEmail}
-                  onChange={(e) => { setRegEmail(e.target.value); setECheck({ state: 'idle', msg: '' }); }}
-                  required
-                />
-              </div>
-              {availIcon(eCheck) && (
-                <p className={availCls(eCheck)}>
-                  <ion-icon name={availIcon(eCheck)} className={eCheck.state === 'checking' ? styles.spin : ''} suppressHydrationWarning></ion-icon>
-                  {eCheck.msg || (es ? 'Verificando…' : 'Checking…')}
-                </p>
-              )}
-              <div className={styles.control}>
-                <ion-icon name="lock-closed-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
-                <input
-                  className={styles.ctrlInput}
-                  type={regShow ? 'text' : 'password'}
-                  name="password"
-                  autoComplete="new-password"
-                  minLength={6}
-                  placeholder={es ? 'Contraseña (mín. 6)' : 'Password (min 6)'}
-                  value={regPass}
-                  onChange={(e) => setRegPass(e.target.value)}
-                  required
-                />
-                <button type="button" className={styles.ctrlEye} onClick={() => setRegShow((v) => !v)} aria-label="Ver contraseña">
-                  <ion-icon name={regShow ? 'eye-off-outline' : 'eye-outline'} suppressHydrationWarning></ion-icon>
-                </button>
+                <div className={styles.divider}>
+                  <span>{es ? 'o continúa con' : 'or continue with'}</span>
+                </div>
+                <div className={styles.googleWrap}>
+                  <button
+                    className={styles.googleBtn}
+                    type="button"
+                    onClick={() => {
+                      if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+                        setLogMsg(es ? 'Google no configurado (falta NEXT_PUBLIC_GOOGLE_CLIENT_ID).' : 'Google not configured.');
+                      }
+                    }}
+                  >
+                    <GoogleIcon />
+                    <span>{es ? 'Continuar con Google' : 'Continue with Google'}</span>
+                  </button>
+                  <div id="g_id_login" className={styles.gsiMount} aria-hidden="true" />
+                </div>
               </div>
 
-              {regMsg && <p className={styles.msgError}>{regMsg}</p>}
+              {/* Crear cuenta */}
+              <div className={`${styles.authPanel} ${authTab !== 'register' ? styles.authPanelHidden : ''}`}>
+                <h3 className={styles.authTitle}>{es ? 'Crear cuenta' : 'Create account'}</h3>
+                <p className={styles.authSub}>{es ? 'Únete a la comunidad' : 'Join the community'}</p>
 
-              <button className={styles.cta} type="submit" disabled={regBusy}>
-                {regBusy ? (es ? 'Creando…' : 'Creating…') : (es ? 'Crear cuenta' : 'Create account')}
-              </button>
-            </form>
+                <form className={styles.form} onSubmit={doRegister}>
+                  <div className={styles.control}>
+                    <ion-icon name="at-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                    <input
+                      className={styles.ctrlInput}
+                      type="text"
+                      name="username"
+                      autoComplete="username"
+                      maxLength={30}
+                      placeholder={es ? 'Nombre de usuario (ej: juan_pe)' : 'Username (e.g. juan_pe)'}
+                      value={regUsuario}
+                      onChange={(e) => { setRegUsuario(e.target.value.replace(/\s/g, '')); setUCheck({ state: 'idle', msg: '' }); }}
+                      required
+                    />
+                  </div>
+                  {availIcon(uCheck) && (
+                    <p className={availCls(uCheck)}>
+                      <ion-icon name={availIcon(uCheck)} className={uCheck.state === 'checking' ? styles.spin : ''} suppressHydrationWarning></ion-icon>
+                      {uCheck.msg || (es ? 'Verificando…' : 'Checking…')}
+                    </p>
+                  )}
+                  <div className={styles.control}>
+                    <ion-icon name="mail-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                    <input
+                      className={styles.ctrlInput}
+                      type="email"
+                      name="email"
+                      autoComplete="email"
+                      placeholder={es ? 'Correo electrónico' : 'Email'}
+                      value={regEmail}
+                      onChange={(e) => { setRegEmail(e.target.value); setECheck({ state: 'idle', msg: '' }); }}
+                      required
+                    />
+                  </div>
+                  {availIcon(eCheck) && (
+                    <p className={availCls(eCheck)}>
+                      <ion-icon name={availIcon(eCheck)} className={eCheck.state === 'checking' ? styles.spin : ''} suppressHydrationWarning></ion-icon>
+                      {eCheck.msg || (es ? 'Verificando…' : 'Checking…')}
+                    </p>
+                  )}
+                  <div className={styles.control}>
+                    <ion-icon name="lock-closed-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                    <input
+                      className={styles.ctrlInput}
+                      type={regShow ? 'text' : 'password'}
+                      name="password"
+                      autoComplete="new-password"
+                      minLength={6}
+                      placeholder={es ? 'Contraseña (mín. 6)' : 'Password (min 6)'}
+                      value={regPass}
+                      onChange={(e) => setRegPass(e.target.value)}
+                      required
+                    />
+                    <button type="button" className={styles.ctrlEye} onClick={() => setRegShow((v) => !v)} aria-label="Ver contraseña">
+                      <ion-icon name={regShow ? 'eye-off-outline' : 'eye-outline'} suppressHydrationWarning></ion-icon>
+                    </button>
+                  </div>
 
-            <div className={styles.divider}>
-              <span>{es ? 'o continúa con' : 'or continue with'}</span>
-            </div>
-            <div className={styles.googleWrap}>
-              <button
-                className={styles.googleBtn}
-                type="button"
-                onClick={() => {
-                  if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
-                    setRegMsg(es ? 'Google no configurado (falta NEXT_PUBLIC_GOOGLE_CLIENT_ID).' : 'Google not configured.');
-                  }
-                }}
-              >
-                <GoogleIcon />
-                <span>{es ? 'Continuar con Google' : 'Continue with Google'}</span>
-              </button>
-              <div id="g_id_register" className={styles.gsiMount} aria-hidden="true" />
-            </div>
+                  {regMsg && <p className={styles.msgError}>{regMsg}</p>}
 
-            <div className={styles.badges}>
-              {verifiedBadge('shield-checkmark-outline', es ? 'Mayor 18' : '18+', true)}
-              {verifiedBadge('lock-closed-outline', es ? 'Seguridad' : 'Security', false)}
+                  <button className={styles.cta} type="submit" disabled={regBusy}>
+                    {regBusy ? (es ? 'Creando…' : 'Creating…') : (es ? 'Crear cuenta' : 'Create account')}
+                  </button>
+                </form>
+
+                <div className={styles.divider}>
+                  <span>{es ? 'o continúa con' : 'or continue with'}</span>
+                </div>
+                <div className={styles.googleWrap}>
+                  <button
+                    className={styles.googleBtn}
+                    type="button"
+                    onClick={() => {
+                      if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+                        setRegMsg(es ? 'Google no configurado (falta NEXT_PUBLIC_GOOGLE_CLIENT_ID).' : 'Google not configured.');
+                      }
+                    }}
+                  >
+                    <GoogleIcon />
+                    <span>{es ? 'Continuar con Google' : 'Continue with Google'}</span>
+                  </button>
+                  <div id="g_id_register" className={styles.gsiMount} aria-hidden="true" />
+                </div>
+              </div>
             </div>
-          </div>
           </div>
         </section>
       )}
 
+      {/* Modal de verificacion de codigo (centrado, flotante). */}
       {pendingEmail && !authed && (
-        <div className={styles.pendingBox}>
-          <ion-icon name="mail-unread-outline" suppressHydrationWarning></ion-icon>
-          <div className={styles.pendingMain}>
-            <strong>{es ? 'Revisa tu correo' : 'Check your email'}</strong>
-            <p>
+        <div
+          className={styles.codeOverlay}
+          onClick={(e) => { if (e.target === e.currentTarget) cancelarCodigo(); }}
+        >
+          <div className={styles.codeCard} role="dialog" aria-modal="true" aria-label={es ? 'Verificar código' : 'Verify code'}>
+            <button
+              type="button"
+              className={styles.codeClose}
+              onClick={cancelarCodigo}
+              aria-label={es ? 'Cerrar' : 'Close'}
+            >
+              <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
+            </button>
+
+            <span className={styles.codeIcon}>
+              <ion-icon name="mail-unread-outline" suppressHydrationWarning></ion-icon>
+            </span>
+            <strong className={styles.codeTitle}>{es ? 'Revisa tu correo' : 'Check your email'}</strong>
+            <p className={styles.codeText}>
               {es
                 ? `Enviamos un código de 6 dígitos a ${pendingEmail}.`
                 : `We sent a 6-digit code to ${pendingEmail}.`}
             </p>
+
             <form className={styles.codeRow} onSubmit={doVerifyCode}>
               <input
                 className={styles.codeInput}
@@ -830,6 +1009,7 @@ export default function PerfilClient() {
                 placeholder="000000"
                 value={codeVal}
                 onChange={(e) => setCodeVal(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                autoFocus
               />
               <button className={styles.primaryBtn} type="submit" disabled={codeBusy || codeVal.length !== 6}>
                 <ion-icon name={codeBusy ? 'sync-outline' : 'checkmark-done-outline'} suppressHydrationWarning></ion-icon>
@@ -837,10 +1017,17 @@ export default function PerfilClient() {
               </button>
             </form>
             {codeMsg && <p className={styles.msgError}>{codeMsg}</p>}
+
+            <div className={styles.codeActions}>
+              <button type="button" className={styles.linkBtn} onClick={resendVerification}>
+                {es ? 'Reenviar código' : 'Resend code'}
+              </button>
+              <button type="button" className={styles.codeBack} onClick={cancelarCodigo}>
+                <ion-icon name="arrow-undo-outline" suppressHydrationWarning></ion-icon>
+                {es ? 'Volver y editar' : 'Back to edit'}
+              </button>
+            </div>
           </div>
-          <button type="button" className={styles.linkBtn} onClick={resendVerification}>
-            {es ? 'Reenviar código' : 'Resend code'}
-          </button>
         </div>
       )}
 
@@ -863,6 +1050,7 @@ export default function PerfilClient() {
         authed ? (
         <div className={styles.panels}>
           <form
+            id="perfil-form"
             className={styles.card}
             onSubmit={saveProfile}
             onDragOver={(e) => e.preventDefault()}
@@ -913,63 +1101,10 @@ export default function PerfilClient() {
                   type="email"
                   maxLength={150}
                   placeholder="tucorreo@ejemplo.com"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </label>
-            )}
-
-            <div className={styles.field}>
-              <span className={styles.label}>{es ? 'Foto de perfil' : 'Profile photo'}</span>
-
-              <div
-                className={`${styles.avatarDrop} ${avatarDrag ? styles.avatarDropActive : ''}`}
-                role="button"
-                tabIndex={0}
-                onClick={() => avatarInputRef.current?.click()}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); avatarInputRef.current?.click(); } }}
-                onDragOver={(e) => { e.preventDefault(); setAvatarDrag(true); }}
-                onDragEnter={(e) => { e.preventDefault(); setAvatarDrag(true); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setAvatarDrag(false); }}
-                onDrop={onDropAvatar}
-              >
-                {avatarSrc ? (
-                  <img className={styles.avatarDropImg} src={avatarSrc} alt="foto de perfil" />
-                ) : (
-                  <>
-                    <ion-icon name="cloud-upload-outline" className={styles.avatarDropIcon} suppressHydrationWarning></ion-icon>
-                    <strong className={styles.avatarDropTitle}>
-                      {es ? 'Arrastra tu foto aquí' : 'Drag your photo here'}
-                    </strong>
-                    <span className={styles.avatarDropText}>
-                      {es ? 'o haz clic para elegir · JPG/PNG · máx 5 MB' : 'or click to choose · JPG/PNG · max 5 MB'}
-                    </span>
-                  </>
-                )}
-
-                <span className={styles.avatarDropOverlay}>
-                  {avatarSrc
-                    ? (es ? 'Cambiar foto' : 'Change photo')
-                    : avatarDrag
-                      ? (es ? 'Suelta la imagen' : 'Drop the image')
-                      : (es ? 'Elegir imagen' : 'Choose image')}
-                </span>
-
-                {avatarBusy && (
-                  <span className={styles.avatarDropBusy}>
-                    <ion-icon name="sync-outline" suppressHydrationWarning></ion-icon>
-                    {es ? 'Subiendo…' : 'Uploading…'}
-                  </span>
-                )}
-              </div>
-
-              <span className={styles.avatarHint}>
-                {es ? 'La imagen se recorta cuadrada automáticamente (como Facebook).' : 'The image is cropped square automatically (like Facebook).'}
-              </span>
-            </div>
-
-            {saveMsg && (
-              <p className={saveMsg.includes('✓') ? styles.okMsg : styles.msgError}>{saveMsg}</p>
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </label>
             )}
 
             <button className={styles.primaryBtn} type="submit" disabled={saving}>

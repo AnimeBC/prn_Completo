@@ -27,9 +27,12 @@ export default function ImageCropModal({
   const [pos, setPos] = useState({ x: 50, y: 50 });
   const [zoom, setZoom] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [moved, setMoved] = useState(false);
   const dragRef = useRef(null);
 
   const ratio = shape === 'banner' ? 16 / 5 : 1;
+  const outW = outputSize;
+  const outH = shape === 'banner' ? Math.round(outputSize / ratio) : outputSize;
 
   useEffect(() => {
     if (!open || !file) { setSrc(''); return; }
@@ -37,6 +40,7 @@ export default function ImageCropModal({
     setSrc(url);
     setPos({ x: 50, y: 50 });
     setZoom(1);
+    setMoved(false);
     setNat({ w: 0, h: 0 });
     return () => URL.revokeObjectURL(url);
   }, [open, file]);
@@ -75,6 +79,7 @@ export default function ImageCropModal({
 
   function startDrag(e) {
     e.preventDefault();
+    setMoved(true);
     dragRef.current = { x: e.clientX, y: e.clientY, px: pos.x, py: pos.y };
     try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* noop */ }
   }
@@ -116,11 +121,22 @@ export default function ImageCropModal({
 
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true" onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}>
-      <div className={styles.card}>
-        <h3 className={styles.title}>{title}</h3>
-        <p className={styles.sub}>{subtitle}</p>
+      <div className={`${styles.card} ${shape === 'banner' ? styles.wide : ''}`}>
+        <div className={styles.header}>
+          <span className={styles.headerIcon}>
+            <ion-icon name={shape === 'banner' ? 'image-outline' : 'person-circle-outline'} suppressHydrationWarning></ion-icon>
+          </span>
+          <div className={styles.headerText}>
+            <h3 className={styles.title}>{title}</h3>
+            <p className={styles.sub}>{subtitle}</p>
+          </div>
+        </div>
 
         <div className={styles.stage}>
+          <span className={styles.sizeChip}>
+            <ion-icon name="crop-outline" suppressHydrationWarning></ion-icon>
+            {shape === 'banner' ? '16:5' : '1:1'} · {outW}×{outH}
+          </span>
           <div
             ref={frameRef}
             className={`${styles.frame} ${shape === 'circle' ? styles.circle : ''}`}
@@ -145,11 +161,25 @@ export default function ImageCropModal({
                 }}
               />
             )}
+            {nat.w > 0 && !moved && (
+              <span className={styles.dragHint}>
+                <ion-icon name="hand-left-outline" suppressHydrationWarning></ion-icon>
+                {shape === 'banner' ? 'Arrastra para recortar' : 'Arrastra para mover'}
+              </span>
+            )}
+            <span className={styles.corners} aria-hidden="true" />
           </div>
         </div>
 
         <div className={styles.zoomRow}>
-          <ion-icon name="remove-outline" suppressHydrationWarning></ion-icon>
+          <button
+            type="button"
+            className={styles.zoomBtn}
+            onClick={() => setZoom((z) => Math.max(1, Number((z - 0.1).toFixed(2))))}
+            aria-label="Alejar"
+          >
+            <ion-icon name="remove-outline" suppressHydrationWarning></ion-icon>
+          </button>
           <input
             className={styles.zoom}
             type="range"
@@ -160,16 +190,24 @@ export default function ImageCropModal({
             onChange={(e) => setZoom(parseFloat(e.target.value))}
             aria-label="Zoom"
           />
-          <ion-icon name="add-outline" suppressHydrationWarning></ion-icon>
+          <button
+            type="button"
+            className={styles.zoomBtn}
+            onClick={() => setZoom((z) => Math.min(3, Number((z + 0.1).toFixed(2))))}
+            aria-label="Acercar"
+          >
+            <ion-icon name="add-outline" suppressHydrationWarning></ion-icon>
+          </button>
         </div>
 
         <div className={styles.actions}>
           <button type="button" className={styles.cancel} onClick={onCancel}>
+            <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
             Cancelar
           </button>
           <button type="button" className={styles.save} onClick={handleSave} disabled={busy || !nat.w}>
-            <ion-icon name={busy ? 'sync-outline' : 'checkmark-outline'} className={busy ? styles.spin : ''} suppressHydrationWarning></ion-icon>
-            {busy ? 'Guardando…' : 'Aplicar'}
+            <ion-icon name={busy ? 'sync-outline' : 'checkmark-done-outline'} className={busy ? styles.spin : ''} suppressHydrationWarning></ion-icon>
+            {busy ? 'Aplicando…' : 'Aplicar'}
           </button>
         </div>
       </div>

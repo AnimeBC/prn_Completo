@@ -296,12 +296,24 @@ r.post('/grupo/:comunidadId/iniciar', async (req, res, next) => {
       return res.status(403).json({ error: 'Solo miembros pueden iniciar la llamada' });
     }
 
-    // Cierra salas anteriores del grupo y avisa (para cerrar modales viejos).
+    // Solo UNA llamada por grupo a la vez: si la activa es de OTRO, rechaza
+    // (para unirse hay el endpoint /unirse). Si es mia, se reinicia.
+    const act = await query(
+      `SELECT * FROM llamada_grupo_salas
+        WHERE comunidad_id = $1 AND estado IN ('sonando', 'activa')
+        ORDER BY created_at DESC LIMIT 1`,
+      [comunidadId]
+    );
+    if (act.rows[0] && String(act.rows[0].iniciador_key) !== String(user.user_key)) {
+      if (process.env.DEBUG_CALLS) console.log('[calls] iniciar rechazado: llamada de otro', act.rows[0].call_id);
+      return res.status(409).json({ error: 'Ya hay una llamada en curso en este grupo' });
+    }
+    // Cierra solo salas previas mias (reinicio) y avisa (cierra modales viejos).
     const cerradas = await query(
       `UPDATE llamada_grupo_salas SET estado = 'finalizada', updated_at = NOW()
-        WHERE comunidad_id = $1 AND estado IN ('sonando', 'activa')
+        WHERE comunidad_id = $1 AND estado IN ('sonando', 'activa') AND iniciador_key = $2
         RETURNING call_id`,
-      [comunidadId]
+      [comunidadId, user.user_key]
     );
     for (const row of cerradas.rows) {
       await publishEvent('call_grupo_end', { conv: comunidadId, callId: row.call_id, de: user.user_key });

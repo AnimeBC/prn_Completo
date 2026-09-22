@@ -133,6 +133,9 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   const [recPaused, setRecPaused] = useState(false);
   const [recSeg, setRecSeg] = useState(0);
   const [salaActiva, setSalaActiva] = useState(null);
+  // No se puede iniciar otra llamada si ya estoy en una, o si el grupo ya
+  // tiene una en curso (la existente debe unirse, no duplicarse).
+  const llamadaEnCurso = enCualquierLlamada || (tipo === 'grupo' && !!salaActiva);
   const bodyRef = useRef(null);
   const winRef = useRef(null);
   const inputRef = useRef(null);
@@ -609,6 +612,14 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   }
 
   function llamar(tipoLlamada) {
+    if (enCualquierLlamada) {
+      avisar(es ? 'Ya estás en una llamada' : 'You are already in a call');
+      return;
+    }
+    if (tipo === 'grupo' && salaActiva) {
+      avisar(es ? 'Ya hay una llamada en curso en este grupo. Únete a ella.' : 'There is already a call in progress in this group.');
+      return;
+    }
     if (tipo === 'dm' && otroKey) {
       iniciarLlamada(otroKey, tipoLlamada, { nombre: titulo, avatar });
       return;
@@ -744,12 +755,12 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
               </button>
             )}
             {tipo === 'dm' && (
-              <button type="button" className={styles.iconBtn} onClick={() => llamar('audio')} disabled={enCualquierLlamada} title={es ? 'Llamada de voz' : 'Voice call'}>
+              <button type="button" className={styles.iconBtn} onClick={() => llamar('audio')} disabled={llamadaEnCurso} title={es ? 'Llamada de voz' : 'Voice call'}>
                 <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
             {tipo === 'dm' && (
-              <button type="button" className={styles.iconBtn} onClick={() => llamar('video')} disabled={enCualquierLlamada} title={es ? 'Videollamada' : 'Video call'}>
+              <button type="button" className={styles.iconBtn} onClick={() => llamar('video')} disabled={llamadaEnCurso} title={es ? 'Videollamada' : 'Video call'}>
                 <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
@@ -758,13 +769,13 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                 <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
-            {tipo === 'grupo' && !enCualquierLlamada && (
-              <button type="button" className={styles.iconBtn} onClick={() => llamar('audio')} title={es ? 'Llamada de grupo' : 'Group call'}>
+            {tipo === 'grupo' && (
+              <button type="button" className={styles.iconBtn} onClick={() => llamar('audio')} disabled={llamadaEnCurso} title={es ? 'Llamada de grupo' : 'Group call'}>
                 <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
-            {tipo === 'grupo' && !enCualquierLlamada && (
-              <button type="button" className={styles.iconBtn} onClick={() => llamar('video')} title={es ? 'Videollamada de grupo' : 'Group video call'}>
+            {tipo === 'grupo' && (
+              <button type="button" className={styles.iconBtn} onClick={() => llamar('video')} disabled={llamadaEnCurso} title={es ? 'Videollamada de grupo' : 'Group video call'}>
                 <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
@@ -809,13 +820,13 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                     </button>
                   )}
                   {tipo === 'dm' && (
-                    <button type="button" role="menuitem" disabled={enCualquierLlamada} onClick={() => { setHeadMenuOpen(false); llamar('audio'); }}>
+                    <button type="button" role="menuitem" disabled={llamadaEnCurso} onClick={() => { setHeadMenuOpen(false); llamar('audio'); }}>
                       <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Llamada de voz' : 'Voice call'}
                     </button>
                   )}
                   {tipo === 'dm' && (
-                    <button type="button" role="menuitem" disabled={enCualquierLlamada} onClick={() => { setHeadMenuOpen(false); llamar('video'); }}>
+                    <button type="button" role="menuitem" disabled={llamadaEnCurso} onClick={() => { setHeadMenuOpen(false); llamar('video'); }}>
                       <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Videollamada' : 'Video call'}
                     </button>
@@ -826,14 +837,14 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                       {es ? 'Información' : 'Info'}
                     </button>
                   )}
-                  {tipo === 'grupo' && !enCualquierLlamada && (
-                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); llamar('audio'); }}>
+                  {tipo === 'grupo' && (
+                    <button type="button" role="menuitem" disabled={llamadaEnCurso} onClick={() => { setHeadMenuOpen(false); llamar('audio'); }}>
                       <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Llamada de grupo' : 'Group call'}
                     </button>
                   )}
-                  {tipo === 'grupo' && !enCualquierLlamada && (
-                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); llamar('video'); }}>
+                  {tipo === 'grupo' && (
+                    <button type="button" role="menuitem" disabled={llamadaEnCurso} onClick={() => { setHeadMenuOpen(false); llamar('video'); }}>
                       <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Videollamada de grupo' : 'Group video call'}
                     </button>
