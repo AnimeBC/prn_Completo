@@ -194,9 +194,9 @@ function mensajeMedia(e) {
   return 'No se pudo acceder a la cámara/micrófono';
 }
 
-// Tile de video grupal: muestra el video del peer o, si no tiene camara/video,
-// su avatar sobre un fondo. Detecta cambios de tracks para reaccionar al instante.
-function VideoTile({ stream, info }) {
+// Tile de video grupal (estilo Meet/Teams): video o avatar, nombre SIEMPRE
+// visible y boton para fijar/quitar fijado (pantalla completa). Sin arrastre.
+function VideoTile({ stream, info, onPin, pinned }) {
   const videoRef = useRef(null);
   const [hayVideo, setHayVideo] = useState(false);
 
@@ -204,7 +204,7 @@ function VideoTile({ stream, info }) {
     const el = videoRef.current;
     if (!stream) { setHayVideo(false); return undefined; }
     if (el && el.srcObject !== stream) el.srcObject = stream;
-    const tiene = () => stream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled);
+    const tiene = () => stream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled && !t.muted);
     const upd = () => setHayVideo(tiene());
     upd();
     stream.addEventListener?.('addtrack', upd);
@@ -220,7 +220,14 @@ function VideoTile({ stream, info }) {
   const inicial = String(info?.nombre || '?').charAt(0).toUpperCase();
   const mostrarVideo = hayVideo && info?.camOn !== false;
   return (
-    <div className={styles.tile}>
+    <div
+      className={`${styles.tile} ${pinned ? styles.tilePinned : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onPin?.()}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPin?.(); } }}
+      title={pinned ? 'Quitar de pantalla completa' : 'Ver en pantalla completa'}
+    >
       <video
         ref={videoRef}
         className={styles.tileVideo}
@@ -234,9 +241,22 @@ function VideoTile({ stream, info }) {
           <span className={styles.tileAvatar}>
             {info?.avatar ? <img src={mediaUrl(info.avatar)} alt="" /> : inicial}
           </span>
-          <span className={styles.tileNombre}>{info?.nombre || ''}</span>
         </div>
       )}
+      <div className={styles.tileChip}>
+        <span className={styles.tileChipNombre}>{info?.nombre || ''}</span>
+        <span className={styles.tileChipAcc}>
+          <button
+            type="button"
+            className={styles.tileChipBtn}
+            onClick={(e) => { e.stopPropagation(); onPin?.(); }}
+            title={pinned ? 'Quitar de pantalla completa' : 'Ver en pantalla completa'}
+            aria-label={pinned ? 'Quitar de pantalla completa' : 'Ver en pantalla completa'}
+          >
+            <ion-icon name={pinned ? 'contract-outline' : 'expand-outline'} suppressHydrationWarning></ion-icon>
+          </button>
+        </span>
+      </div>
     </div>
   );
 }
@@ -475,6 +495,8 @@ export function CallProvider({ children }) {
   const [remoteVideoOn, setRemoteVideoOn] = useState(false);
   // Si mi PC no tiene camara: se muestra mi foto de perfil en vez del video local.
   const [localVideoOn, setLocalVideoOn] = useState(false);
+  // Participante fijado en pantalla completa (vista tipo Teams/Meet); null = rejilla.
+  const [pinnedKey, setPinnedKey] = useState(null);
   // Ventana de llamada minimizada (para poder navegar por la app).
   const [minimizado, setMinimizado] = useState(false);
   const micOnRef = useRef(true);
@@ -907,6 +929,8 @@ export function CallProvider({ children }) {
     }
     delete pendingSalaIceRef.current[peerKey];
     setRemotos((prev) => { const n = { ...prev }; delete n[peerKey]; return n; });
+    // Si el fijado se va, volvemos a la rejilla.
+    setPinnedKey((k) => (k === peerKey ? null : k));
   }
 
   async function flushSalaIce(peerKey, pc) {
@@ -993,6 +1017,7 @@ export function CallProvider({ children }) {
     setSala(null);
     setLocalStream(null);
     setRemotos({});
+    setPinnedKey(null);
     setMicOn(true);
     setCamOn(true);
     setMinimizado(false);
@@ -1336,14 +1361,41 @@ export function CallProvider({ children }) {
         <div className={styles.audiosOcultos} aria-hidden="true">
           {grid.map((r) => (r.stream ? <RemoteAudio key={r.info?.userKey} stream={r.stream} /> : null))}
         </div>
-        {esVideo ? (
-          <div className={styles.gridVideo}>
-            {grid.map((r) => (
-              <VideoTile key={r.info?.userKey} stream={r.stream} info={r.info} />
-            ))}
-            {!grid.length && <div className={styles.audioCall}><strong className={styles.inName}>{titulo}</strong></div>}
-          </div>
-        ) : (
+        {esVideo ? (() => {
+          // Rejilla tipo Meet: yo mismo + los demas, con chip de nombre y pin.
+          const selfEntry = {
+            info: { userKey: userKey || 'me', nombre: user?.nombre || user?.usuario || 'Tú', avatar: user?.avatar || null },
+            stream: localStream,
+          };
+          const todos = [selfEntry, ...grid];
+          const fijado = pinnedKey ? todos.find((t) => t.info.userKey === pinnedKey) : null;
+          const pinDe = (k) => () => togglePin(k);
+          if (fijado) {
+            // Vista orador (Teams): el fijado en grande + tira con el resto.
+            const resto = todos.filter((t) => t.info.userKey !== pinnedKey);
+            return (
+              <div className={styles.speakerView}>
+                <div className={styles.speakerMain}>
+                  <VideoTile stream={fijado.stream} info={fijado.info} pinned onPin={pinDe(pinnedKey)} />
+                </div>
+                {resto.length > 0 && (
+                  <div className={styles.speakerStrip}>
+                    {resto.map((t) => (
+                      <VideoTile key={t.info.userKey} stream={t.stream} info={t.info} onPin={pinDe(t.info.userKey)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
+          return (
+            <div className={styles.gridVideo}>
+              {todos.map((t) => (
+                <VideoTile key={t.info.userKey} stream={t.stream} info={t.info} onPin={pinDe(t.info.userKey)} />
+              ))}
+            </div>
+          );
+        })() : (
           <div className={styles.audioCall}>
             <div className={styles.gridAudio}>
               {grid.map((r) => (
@@ -1365,8 +1417,6 @@ export function CallProvider({ children }) {
           onMin={toggleMin}
           onClose={salirGrupo}
         />
-
-        {esVideo && <LocalBox stream={localStream} videoOn={localVideoOn} user={user} userKey={userKey} />}
 
         <div className={styles.controls}>
           <button type="button" className={`${styles.rnd} ${micOn ? styles.rndDim : styles.rndRed}`} onClick={toggleMic} title={micOn ? 'Silenciar' : 'Activar micrófono'}>
@@ -1477,6 +1527,11 @@ export function CallProvider({ children }) {
     dlog('reafirmarSenders', { pcs: pcs.length });
   }, []);
   reafirmarSendersRef.current = reafirmarSenders;
+
+  function togglePin(key) {
+    setPinnedKey((prev) => (prev && prev !== key ? key : null));
+    dlog('togglePin', key);
+  }
 
   function toggleMin() {
     // Si ya esta achicado (PiP o ventana flotante), restaura a la app.
