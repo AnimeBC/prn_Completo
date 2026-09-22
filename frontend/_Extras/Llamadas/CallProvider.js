@@ -279,6 +279,25 @@ function LocalVideo({ stream, className }) {
   return <video ref={ref} className={className} autoPlay playsInline muted />;
 }
 
+// Recuadro "mi cara" en la videollamada: si hay camara, video local; si no
+// (PC sin webcam o camara apagada), muestra la foto de perfil y el nombre.
+function LocalBox({ stream, videoOn, user, userKey }) {
+  if (videoOn && stream) return <LocalVideo stream={stream} className={styles.localVideo} />;
+  const nombre = user?.nombre || user?.usuario || '';
+  return (
+    <div className={styles.localVideo}>
+      <div className={styles.localFallback}>
+        {user?.avatar ? (
+          <img className={styles.localFallbackImg} src={mediaUrl(user.avatar)} alt="" />
+        ) : (
+          <span className={styles.localFallbackImg}>{String(nombre || userKey || '?').trim().charAt(0).toUpperCase()}</span>
+        )}
+        <span className={styles.localFallbackName}>{nombre || userKey || ''}</span>
+      </div>
+    </div>
+  );
+}
+
 // Video remoto (1:1 y grupal). Asigna srcObject al montar y reintenta play().
 // Si el navegador bloquea el autoplay con audio, primero reproduce en silencio
 // (asi el video se ve) y reintenta con audio al primer toque del usuario.
@@ -397,7 +416,7 @@ function fmtDur(seg) {
  * se hace la señalización (offer/answer/ICE) por Redis -> SSE.
  */
 export function CallProvider({ children }) {
-  const { userKey } = useAuth();
+  const { user, userKey } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [call, setCall] = useState(null);
   const [localStream, setLocalStream] = useState(null);
@@ -408,6 +427,8 @@ export function CallProvider({ children }) {
   const [tick, setTick] = useState(0);
   const [error, setError] = useState('');
   const [remoteVideoOn, setRemoteVideoOn] = useState(false);
+  // Si mi PC no tiene camara: se muestra mi foto de perfil en vez del video local.
+  const [localVideoOn, setLocalVideoOn] = useState(false);
   // Ventana de llamada minimizada (para poder navegar por la app).
   const [minimizado, setMinimizado] = useState(false);
   const micOnRef = useRef(true);
@@ -480,10 +501,10 @@ export function CallProvider({ children }) {
     return () => stopRing();
   }, [call, call?.estado, sala, sala?.entrante]);
 
-  // Detecta si el peer remoto (1:1) tiene camara activa.
+  // Detecta si el peer remoto (1:1) tiene camara activa (track real, no muted).
   useEffect(() => {
     if (!remoteStream) { setRemoteVideoOn(false); return undefined; }
-    const tiene = () => remoteStream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled);
+    const tiene = () => remoteStream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled && !t.muted);
     const upd = () => setRemoteVideoOn(tiene());
     upd();
     remoteStream.addEventListener?.('addtrack', upd);
@@ -495,6 +516,23 @@ export function CallProvider({ children }) {
       clearInterval(iv);
     };
   }, [remoteStream]);
+
+  // Detecta si MI camara existe y esta activa; si no (PC sin webcam),
+  // la UI muestra mi foto de perfil en el recuadro local.
+  useEffect(() => {
+    if (!localStream) { setLocalVideoOn(false); return undefined; }
+    const tiene = () => localStream.getVideoTracks().some((t) => t.readyState === 'live' && t.enabled && !t.muted);
+    const upd = () => setLocalVideoOn(tiene());
+    upd();
+    localStream.addEventListener?.('addtrack', upd);
+    localStream.addEventListener?.('removetrack', upd);
+    const iv = setInterval(upd, 1500);
+    return () => {
+      localStream.removeEventListener?.('addtrack', upd);
+      localStream.removeEventListener?.('removetrack', upd);
+      clearInterval(iv);
+    };
+  }, [localStream]);
 
   // Adjunta los streams a los <video>.
   useEffect(() => {
@@ -597,15 +635,21 @@ export function CallProvider({ children }) {
       return aplicarGateRuido(raw);
     } catch (e) {
       dlog('getUserMedia ERROR', e?.name, e?.message);
-      // Si pedia video y fallo, intenta al menos audio (deja seguir la llamada).
+      // Si pedia video y fallo (PC sin webcam, permiso...), intenta al menos
+      // audio con la misma calidad: el micro debe seguir funcionando.
       if (quiereVideo) {
         try {
-          const soloAudio = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          const soloAudio = await navigator.mediaDevices.getUserMedia({ audio: constraints.audio, video: false });
+          dlog('fallback solo-audio OK', soloAudio.getTracks().map((t) => t.kind));
           setError(esCamara(e)
-            ? 'No se pudo usar la cámara; se continuó solo con audio'
+            ? 'No hay cámara; se inició solo con audio (tu micrófono funciona)'
             : 'No se pudo acceder a la cámara');
           return aplicarGateRuido(soloAudio);
-        } catch { /* cae al mensaje general */ }
+        } catch (e2) {
+          dlog('fallback solo-audio ERROR', e2?.name, e2?.message);
+          setError(mensajeMedia(e2));
+          return null;
+        }
       }
       setError(mensajeMedia(e));
       return null;
@@ -1172,7 +1216,7 @@ export function CallProvider({ children }) {
         />
 
         {call.tipo === 'video' && (
-          <LocalVideo stream={localStream} className={styles.localVideo} />
+          <LocalBox stream={localStream} videoOn={localVideoOn} user={user} userKey={userKey} />
         )}
 
         <div className={styles.controls}>
@@ -1262,7 +1306,7 @@ export function CallProvider({ children }) {
           onClose={salirGrupo}
         />
 
-        {esVideo && <LocalVideo stream={localStream} className={styles.localVideo} />}
+        {esVideo && <LocalBox stream={localStream} videoOn={localVideoOn} user={user} userKey={userKey} />}
 
         <div className={styles.controls}>
           <button type="button" className={`${styles.rnd} ${micOn ? styles.rndDim : styles.rndRed}`} onClick={toggleMic} title={micOn ? 'Silenciar' : 'Activar micrófono'}>

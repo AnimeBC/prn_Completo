@@ -57,6 +57,9 @@
 .overlayMin .remoteVideo { position: absolute; inset: 0; border-radius: 0; }
 .overlayMin .videoFallback { position: absolute; inset: 0; }
 .overlayMin .localVideo { width: 54px; height: 72px; top: 42px; right: 8px; }
+.overlayMin .localFallback { gap: 3px; }
+.overlayMin .localFallbackImg { width: 30px; height: 30px; font-size: 14px; }
+.overlayMin .localFallbackName { font-size: 9px; }
 /* Controles en flujo normal, anclados abajo, encima de todo. */
 .overlayMin .controls {
   position: relative;
@@ -264,6 +267,45 @@
   border: 2px solid rgba(255, 255, 255, 0.25);
   background: #111;
   z-index: 2;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Sin camara: foto de perfil + nombre en el recuadro local. */
+.localFallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: linear-gradient(160deg, #2a2a2e, #17171a);
+}
+.localFallbackImg {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #3a3a40;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+}
+.localFallbackImg img { width: 100%; height: 100%; object-fit: cover; }
+.localFallbackName {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11.5px;
+  font-weight: 600;
+  max-width: 92%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  padding: 0 6px;
 }
 
 .topBar {
