@@ -100,19 +100,26 @@ r.get('/', async (req, res, next) => {
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 200));
     const offset = (page - 1) * limit;
 
-    const where = [papelera ? 'activo = FALSE' : 'activo = TRUE'];
+    const where = [papelera ? 'p.activo = FALSE' : 'p.activo = TRUE'];
     const params = [];
     if (q) {
       params.push(`%${q}%`);
-      where.push(`(COALESCE(titulo_es, titulo) ILIKE $${params.length}
-                OR COALESCE(titulo_en, titulo) ILIKE $${params.length}
-                OR uploader ILIKE $${params.length})`);
+      where.push(`(COALESCE(p.titulo_es, p.titulo) ILIKE $${params.length}
+                OR COALESCE(p.titulo_en, p.titulo) ILIKE $${params.length}
+                OR p.uploader ILIKE $${params.length})`);
     }
-    const base = `FROM packs WHERE ${where.join(' AND ')}`;
+    const base = `FROM packs p WHERE ${where.join(' AND ')}`;
 
     const countRes = await query(`SELECT COUNT(*)::int AS total ${base}`, params);
     const { rows } = await query(
-      `SELECT * ${base} ORDER BY id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      `SELECT p.*,
+              COALESCE(u.avatar, c.avatar) AS canal_avatar,
+              c.slug AS canal_slug
+         FROM packs p
+         LEFT JOIN channels c ON c.nombre = p.uploader
+         LEFT JOIN users u ON u.user_key = c.user_key
+        WHERE ${where.join(' AND ')}
+        ORDER BY p.id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, limit, offset]
     );
 

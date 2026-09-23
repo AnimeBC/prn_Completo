@@ -9,23 +9,26 @@
 @media (max-width: 768px) {
   .spacer {
     display: block;
-    height: calc(60px + env(safe-area-inset-bottom, 0px));
+    height: calc(58px + env(safe-area-inset-bottom, 0px));
   }
 
+  /* Barra inferior PEGADA al borde, a todo el ancho (app movil nativa).
+     Color del sistema via variables: negro en oscuro, blanco en claro.
+     El backdrop de filtros (z 9700) pasa por encima y la difumina. */
   .nav {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 300;
+    z-index: 9600;
     display: flex;
     align-items: stretch;
-    height: calc(60px + env(safe-area-inset-bottom, 0px));
+    height: calc(58px + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    background-color: var(--bg-card, #18191A);
-    border-top: 1px solid var(--border, #242526);
-    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
     box-sizing: border-box;
+    background-color: var(--bg-card, #0D0D0F);
+    border-top: 1px solid var(--border, #27272A);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
   }
 
   .item {
@@ -35,7 +38,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: 3px;
     border: none;
     background: transparent;
     color: var(--text-secondary, #B0B3B8);
@@ -43,23 +46,48 @@
     font-family: inherit;
     padding: 0;
     -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease, color 0.15s ease;
   }
 
-  /* Separadores delgados entre items. */
-  .item + .item::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 24%;
-    bottom: 24%;
-    width: 1px;
-    background-color: var(--border, #242526);
+  .item:active {
+    transform: scale(0.92);
   }
 
   .iconWrap {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 46px;
+    height: 26px;
+    border-radius: 999px;
+    transition: background-color 0.18s ease;
+  }
+
+  /* Badge de no leidos sobre el icono de CHATS. */
+  .badge {
+    position: absolute;
+    top: -7px;
+    right: -13px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background-color: var(--primary, #F20D16);
+    border: 2px solid var(--bg-card, #0D0D0F);
+    color: #FFFFFF;
+    font-size: 10px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    animation: badgePop 0.25s cubic-bezier(0.2, 1.4, 0.4, 1);
+  }
+
+  @keyframes badgePop {
+    from { transform: scale(0); }
+    to { transform: scale(1); }
   }
 
   .icon {
@@ -67,50 +95,67 @@
     color: inherit;
   }
 
+  /* Etiqueta siempre visible (patron app: icono + texto). */
   .label {
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 600;
     color: inherit;
     white-space: nowrap;
+    max-width: 96%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
+  /* Activo: rojo + pildora tras el icono (Android 12 / Instagram). */
   .itemActive {
     color: var(--primary, #F20D16);
   }
 
-  /* Item central (En Vivo): elevado y resaltado. */
+  .itemActive .iconWrap {
+    background-color: rgba(242, 13, 22, 0.16);
+  }
+
+  .itemActive .label {
+    font-weight: 800;
+  }
+
+  /* Item central (Comunidad): boton ELEVADO con cristal y rojo fuerte.
+     Va despues de .itemActive para que su degradado siempre gane. */
   .itemCenter {
     color: var(--primary, #F20D16);
   }
 
-  .itemCenter::before,
-  .itemCenter + .item::before {
-    display: none;
-  }
-
   .itemCenter .iconWrap {
-    width: 44px;
-    height: 44px;
-    margin-top: -22px;
+    width: 46px;
+    height: 46px;
+    margin-top: -26px;
     border-radius: 50%;
-    background: linear-gradient(145deg, #FF2A33, #C40A11);
-    border: 3px solid var(--bg-card, #18191A);
-    box-shadow: 0 8px 18px rgba(242, 13, 22, 0.5);
+    background: linear-gradient(150deg, rgba(255, 42, 51, 0.88), rgba(170, 8, 15, 0.78));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 3px solid var(--bg-card, #0D0D0F);
+    box-shadow:
+      0 10px 26px rgba(242, 13, 22, 0.55),
+      0 0 0 5px rgba(242, 13, 22, 0.16);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
 
   .itemCenter .icon {
-    color: #fff;
+    color: #FFFFFF;
+    font-size: 22px;
   }
 
   .itemCenter .label {
     color: var(--primary, #F20D16);
     font-weight: 800;
-    margin-top: 2px;
+    margin-top: 1px;
   }
 
+  .itemCenter:hover .iconWrap,
   .itemCenter:active .iconWrap {
-    transform: scale(0.94);
-    box-shadow: 0 4px 10px rgba(242, 13, 22, 0.45);
+    transform: scale(0.95);
+    box-shadow:
+      0 6px 16px rgba(242, 13, 22, 0.5),
+      0 0 0 5px rgba(242, 13, 22, 0.28);
   }
 }

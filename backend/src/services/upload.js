@@ -30,11 +30,27 @@ for (const d of Object.values(DIRS)) fs.mkdirSync(d, { recursive: true });
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, DIRS.tmp),
   filename: (req, file, cb) => {
-    const ext = (path.extname(file.originalname) || '').toLowerCase();
+    // Si el archivo viene sin nombre/extensión (arrastrados desde otras apps),
+    // se infiere la extensión desde el mimetype para no guardarlo "a medias".
+    let ext = (path.extname(file.originalname) || '').toLowerCase();
+    if (!ext) ext = extFromMime(file.mimetype);
     const rand = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     cb(null, `${file.fieldname}-${rand}${ext}`);
   },
 });
+
+/** Extensión por defecto a partir del mimetype. */
+function extFromMime(mime = '') {
+  const m = {
+    'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/avif': '.avif',
+    'image/gif': '.gif', 'image/heic': '.heic', 'image/heif': '.heif',
+    'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/webm': '.webm',
+    'video/x-matroska': '.mkv', 'video/mp2t': '.ts', 'video/x-msvideo': '.avi',
+    'audio/webm': '.webm', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg',
+    'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/mp4': '.m4a', 'audio/x-m4a': '.m4a',
+  };
+  return m[String(mime || '').toLowerCase()] || '';
+}
 
 const videoMime = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/mp2t', 'video/x-msvideo'];
 const imageMime = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg', 'image/avif'];
@@ -239,15 +255,18 @@ export function removeMedia(publicPath) {
 // controla en las rutas según users.subida_mb (200 MB por defecto).
 const MAX_COMMUNITY_MB = Number(process.env.MAX_COMMUNITY_MB || 20480);
 
-/** Multer para la comunidad: hasta 6 archivos (video / imagen / audio), 500 MB. */
+/** Multer para la comunidad: hasta 12 archivos (video / imagen / audio).
+ *  Los posts limitan a 6 con array('media', 6); los mensajes de chat pueden
+ *  mandar álbumes de hasta 10 archivos en un solo mensaje. */
 export const communityUpload = multer({
   storage,
-  limits: { fileSize: MAX_COMMUNITY_MB * 1024 * 1024, files: 6 },
+  limits: { fileSize: MAX_COMMUNITY_MB * 1024 * 1024, files: 12 },
   fileFilter(req, file, cb) {
     const bad = (msg) => { const e = new Error(msg); e.status = 400; return cb(e); };
     const name = file.originalname || '';
     const okVideo = videoMime.includes(file.mimetype) || /\.(mp4|mov|webm|mkv|avi)$/i.test(name);
-    const okImage = imageMime.includes(file.mimetype) || /\.(gif|png|jpe?g|webp|avif)$/i.test(name);
+    const okImage = imageMime.includes(file.mimetype) || file.mimetype === 'image/gif'
+      || /\.(gif|png|jpe?g|webp|avif)$/i.test(name);
     const okAudio = /^audio\//.test(file.mimetype) || /\.(mp3|wav|ogg|m4a|aac)$/i.test(name);
     if (!okVideo && !okImage && !okAudio) return bad('Formato no permitido (video, foto o audio)');
     cb(null, true);

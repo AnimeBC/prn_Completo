@@ -9,6 +9,7 @@ import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
 import { videoUrl } from '@/_Extras/Datos/urls.js';
+import { canalUrl } from '@/_Extras/Canales/canal.js';
 
 function parseViews(text) {
   const m = String(text).match(/([\d,.]+)\s*K?/i);
@@ -32,7 +33,8 @@ function InFeedAd() {
 
 export default function TendenciasClient() {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const es = locale !== 'en';
   const { videos } = useContenido();
   const [isMobile, setIsMobile] = useState(false);
   const [page, setPage] = useState(1);
@@ -90,13 +92,27 @@ export default function TendenciasClient() {
         </Preview>
         <div className={styles.info}>
           <h3 className={styles.cardTitle}>{video.title}</h3>
-          <p className={styles.metaLine}>
+          <button
+            type="button"
+            className={styles.byRow}
+            onClick={(e) => { e.stopPropagation(); router.push(video.channelSlug ? `/canal/${video.channelSlug}` : canalUrl(video.channel)); }}
+            aria-label={`${es ? 'Ver canal' : 'View channel'}: ${video.channel}`}
+          >
+            {video.channelAvatar
+              ? <img className={styles.avatar} src={video.channelAvatar} alt="" loading="lazy" />
+              : <span className={styles.avatar} aria-hidden="true">{(video.channel || '?').trim().charAt(0).toUpperCase()}</span>}
             <span className={styles.creator}>{video.channel}</span>
             <ion-icon name="checkmark-circle" className={styles.verified} suppressHydrationWarning></ion-icon>
-            <span className={styles.dot}>•</span>
-            <span>{video.views}</span>
-            <span className={styles.dot}>•</span>
-            <span>{video.time}</span>
+          </button>
+          <p className={styles.metaLine}>
+            <span className={styles.metaItem}>
+              <ion-icon name="eye-outline" className={styles.metaIcon} suppressHydrationWarning></ion-icon>
+              {video.views}
+            </span>
+            <span className={styles.metaItem}>
+              <ion-icon name="time-outline" className={styles.metaIcon} suppressHydrationWarning></ion-icon>
+              {video.time}
+            </span>
           </p>
         </div>
       </article>
@@ -115,15 +131,13 @@ export default function TendenciasClient() {
 
   return (
     <main className={styles.main}>
-      <div className={styles.headRow}>
-        <div>
-          <h1 className={styles.title}>{t('nav.tendencias')}</h1>
-          <p className={styles.count}>{list.length} {t('secciones.videos')} • {t('secciones.tendenciasDesc') || 'Lo más visto de la plataforma'}</p>
-        </div>
-      </div>
-
       <div className={styles.layout2col}>
         <div className={styles.feed}>
+          <div className={styles.headRow}>
+            <h1 className={styles.title}>{t('nav.tendencias')}</h1>
+            <p className={styles.count}>{list.length} {t('secciones.videos')} • {t('secciones.tendenciasDesc') || 'Lo más visto de la plataforma'}</p>
+          </div>
+
           <div className={styles.grid}>
             {groups}
           </div>

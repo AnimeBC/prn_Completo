@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import styles from './chatFlotante.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { comunidadMedia, apiComunidad } from '@/_Extras/Comunidad/api.js';
+import { canalUrl } from '@/_Extras/Canales/canal.js';
 import { useCall } from '@/_Extras/Llamadas/CallProvider.js';
 import Premium from '@/_Pages/main/Chat/componentes/premium';
 import Restringido from '@/_Pages/main/Chat/componentes/restringido';
@@ -12,6 +13,52 @@ import Reproductor from '@/_Pages/main/Videos/componentes/reproductor';
 import AudioMsg from '@/_Pages/main/Chat/componentes/audioMsg';
 
 const EMOJIS = ['👍', '🔥', '😂', '😮', '😢', '❤️'];
+
+// Extension por mimetype: los archivos arrastrados a veces vienen sin nombre
+// y el backend necesita la extension para guardarlos correctamente.
+const MIME_EXT = {
+  'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/avif': '.avif',
+  'image/gif': '.gif', 'image/heic': '.heic', 'image/heif': '.heif',
+  'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/webm': '.webm',
+  'video/x-matroska': '.mkv', 'video/mp2t': '.ts', 'video/x-msvideo': '.avi',
+  'audio/webm': '.webm', 'audio/mpeg': '.mp3', 'audio/ogg': '.ogg',
+  'audio/wav': '.wav', 'audio/x-wav': '.wav', 'audio/mp4': '.m4a', 'audio/x-m4a': '.m4a',
+};
+
+/** media del mensaje: string (1 archivo) o JSON array (album varios). */
+function parseMedia(raw) {
+  if (!raw) return [];
+  if (typeof raw === 'string' && raw.startsWith('[')) {
+    try {
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [raw];
+    } catch { return [raw]; }
+  }
+  return [raw];
+}
+
+/** Carpeta/extension del archivo -> tipo de medio (foto | video | audio). */
+function kindDeArchivo(p) {
+  if (/\/audio\//.test(p) || /\.(mp3|wav|ogg|m4a|aac)$/i.test(p)) return 'audio';
+  if (/\.(mp4|mov|webm|mkv|avi|ts)$/i.test(p) || /\/video\//.test(p)) return 'video';
+  return 'foto';
+}
+
+/** Asegura que el archivo tenga nombre y extension antes de enviarlo. */
+function normalizarArchivo(f) {
+  if (!f) return null;
+  const mime = String(f.type || '').toLowerCase();
+  const name = String(f.name || '').trim();
+  const tieneExt = /\.[a-z0-9]{2,6}$/i.test(name);
+  const esAceptado = mime.startsWith('image/') || mime.startsWith('video/') || mime.startsWith('audio/')
+    || /\.(png|jpe?g|gif|webp|avif|heic|mp4|mov|webm|mkv|avi|mp3|wav|ogg|m4a|aac)$/i.test(name);
+  if (!esAceptado) return null;
+  if (name && tieneExt) return f;
+  const ext = MIME_EXT[mime] || '';
+  if (!ext && !name) return null;
+  const base = name.replace(/\.[a-z0-9]*$/i, '') || `archivo-${Date.now()}`;
+  return new File([f], `${base}${ext}`, { type: f.type || '' });
+}
 
 // Los mensajes solo se pueden editar/eliminar dentro de estas horas.
 const EDITAR_HORAS = 24;
@@ -153,6 +200,35 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   const recRef = useRef(null);
   const chunksRef = useRef([]);
   const recTimerRef = useRef(null);
+  // Arrastrar y soltar archivos sobre la ventana del chat.
+  const [dragOver, setDragOver] = useState(false);
+  // Visor de album: { items: [], idx, cap, autor } — recorrer el grupo completo.
+  const [albumVis, setAlbumVis] = useState(null);
+  // Archivos en cola: se ven sobre el input hasta que se envíen (Enter o botón).
+  const [pendientes, setPendientes] = useState([]);
+  // Si hay varios y no caben, se ocultan tras un "+N" (clic para desplegar).
+  const [pendExpandido, setPendExpandido] = useState(false);
+
+  // Al responder un mensaje, deja el input listo para escribir de frente.
+  useEffect(() => {
+    if (respondiendo) inputRef.current?.focus();
+  }, [respondiendo]);
+
+  // Visor de album: flechas del teclado y Escape.
+  useEffect(() => {
+    if (!albumVis) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') setAlbumVis(null);
+      if (e.key === 'ArrowRight') {
+        setAlbumVis((a) => (a ? { ...a, idx: (a.idx + 1) % a.items.length } : a));
+      }
+      if (e.key === 'ArrowLeft') {
+        setAlbumVis((a) => (a ? { ...a, idx: (a.idx - 1 + a.items.length) % a.items.length } : a));
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [albumVis]);
 
   const cargar = useCallback(async () => {
     if (!userKey) return;
@@ -369,28 +445,38 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
       .catch(() => {});
   }, [userKey]);
 
-  /** Envía un mensaje/archivo/sticker a grupo o DM. */
-  async function enviarPayload({ texto = '', tipoMsg = null, file = null }) {
+  /** Envía un mensaje con N archivos (álbum) o solo texto — UNA sola petición. */
+  async function enviarPayload({ texto = '', tipoMsg = null, file = null, files = null }) {
     if (sending) return false;
-    if (!texto && !file) return false;
+    const lista = files && files.length ? files : (file ? [file] : []);
+    if (!texto && lista.length === 0) return false;
     // Excede el límite de la cuenta -> modal de restringido (no se envía).
-    if (file && limiteMb > 0 && file.size > limiteMb * 1024 * 1024) {
+    if (lista.length && limiteMb > 0 && lista.some((f) => f.size > limiteMb * 1024 * 1024)) {
       setRestringidoOpen(true);
       return false;
     }
     setSending(true); setMsg('');
-    const tempId = file ? `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` : null;
-    if (file) setSubiendo({ id: tempId, nombre: file.name || 'archivo', pct: 0 });
+    const tempId = lista.length ? `up-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` : null;
+    if (lista.length) {
+      setSubiendo({
+        id: tempId,
+        nombre: lista.length > 1
+          ? `${lista.length} ${es ? 'archivos' : 'files'}`
+          : (lista[0].name || (es ? 'archivo' : 'file')),
+        pct: 0,
+      });
+    }
     try {
       const fd = new FormData();
       fd.append('userKey', userKey);
       if (texto) fd.append('texto', texto);
       if (tipoMsg) fd.append('tipo', tipoMsg);
       if (respondiendo) fd.append('reply_to', String(respondiendo.id));
-      if (file) fd.append('media', file);
+      // Todos los archivos van JUNTOS en el mismo multipart (album).
+      for (const f of lista) fd.append('media', f);
 
       let r;
-      if (file) {
+      if (lista.length) {
         const onProg = (pct) => setSubiendo((s) => (s && s.id === tempId ? { ...s, pct } : s));
         r = tipo === 'grupo'
           ? await apiComunidad.enviarMensajeXHR(grupoId, fd, onProg)
@@ -410,6 +496,10 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
       if (respondiendo) { nuevo.reply_usuario = respondiendo.usuario; nuevo.reply_texto = respondiendo.texto || ''; }
       setMensajes((cur) => [...cur, nuevo]);
       setRespondiendo(null);
+      // Mi mensaje: baja al final aunque estuviera leyendo mensajes viejos.
+      atBottomRef.current = true;
+      setAtBottom(true);
+      requestAnimationFrame(() => irAlFinal());
       return true;
     } finally {
       setSending(false);
@@ -419,9 +509,17 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
 
   async function enviar() {
     const texto = borrador.trim();
-    if (!texto) return;
-    const ok = await enviarPayload({ texto });
-    if (ok) { setBorrador(''); setPickerOpen(false); }
+    const lista = pendientes.map((p) => p.file);
+    if (!texto && lista.length === 0) return;
+    // Texto + todos los archivos en UNA sola peticion (album + caption atomicos).
+    const ok = await enviarPayload({ texto, files: lista });
+    if (ok) {
+      setBorrador('');
+      pendientes.forEach((p) => { if (p.url) URL.revokeObjectURL(p.url); });
+      setPendientes([]);
+      setPendExpandido(false);
+      setPickerOpen(false);
+    }
   }
 
   async function enviarLike() {
@@ -437,13 +535,66 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
     }
   }
 
-  async function onArchivo(e) {
-    const files = Array.from(e.target.files || []).slice(0, 3);
-    e.target.value = '';
+  /** Pone archivos en cola (vista previa sobre el input) hasta enviarlos. Sin límite de cantidad. */
+  function stageArchivos(files) {
+    if (!files.length) return;
+    const listos = [];
     for (const f of files) {
-      // eslint-disable-next-line no-await-in-loop
-      await enviarPayload({ file: f });
+      if (limiteMb > 0 && f.size > limiteMb * 1024 * 1024) { setRestringidoOpen(true); return; }
+      const nf = normalizarArchivo(f);
+      if (nf) listos.push(nf);
     }
+    if (!listos.length) { setMsg(es ? 'Archivo no permitido: usa foto, video o audio.' : 'Not allowed: use photo, video or audio.'); return; }
+    const nuevos = listos.map((f) => ({
+      id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      file: f,
+      // Foto y video llevan preview real (imagen o primer frame del video).
+      url: (f.type.startsWith('image/') || f.type.startsWith('video/')) ? URL.createObjectURL(f) : '',
+    }));
+    setPendientes((prev) => [...prev, ...nuevos]);
+    if (pendientes.length + nuevos.length > 3) setPendExpandido(false);
+  }
+
+  function quitarPendiente(p) {
+    if (p.url) URL.revokeObjectURL(p.url);
+    setPendientes((prev) => {
+      const cur = prev.filter((x) => x.id !== p.id);
+      if (cur.length <= 3) setPendExpandido(false);
+      return cur;
+    });
+  }
+
+  function onArchivo(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    stageArchivos(files);
+  }
+
+  /* ---- Arrastrar y soltar: mismo camino que los botones de subir ---- */
+  function onDragOverChat(e) {
+    const types = Array.from(e.dataTransfer?.types || []);
+    if (!types.includes('Files')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
+    setDragOver(true);
+  }
+
+  function onDragLeaveChat(e) {
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    setDragOver(false);
+  }
+
+  function onDropChat(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    const arr = Array.from(e.dataTransfer?.files || []);
+    if (!arr.length) {
+      setMsg(es ? 'Arrastra una foto, video o audio.' : 'Drag a photo, video or audio.');
+      return;
+    }
+    stageArchivos(arr);
   }
 
   function fmtSeg(s) {
@@ -717,7 +868,19 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
       onTouchStart={onActivar || undefined}
       onFocusCapture={onActivar || undefined}
       onClick={enfocarDesdeClick}
+      onDragOver={onDragOverChat}
+      onDragLeave={onDragLeaveChat}
+      onDrop={onDropChat}
     >
+      {dragOver && (
+        <div className={styles.dragLayer} aria-hidden="true">
+          <div className={styles.dragCard}>
+            <ion-icon name="cloud-upload-outline" suppressHydrationWarning></ion-icon>
+            <span>{es ? 'Suelta para adjuntar' : 'Drop to attach'}</span>
+            <small>{es ? 'Foto, video o audio' : 'Photo, video or audio'}</small>
+          </div>
+        </div>
+      )}
       <div className={styles.head}>
         {inline && onBack && (
           <button type="button" className={styles.backBtn} onClick={onBack} aria-label={es ? 'Volver' : 'Back'}>
@@ -962,7 +1125,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           }
           const mio = String(m.user_key) === String(userKey);
           const esMedia = (m.media && (m.tipo === 'foto' || m.tipo === 'video' || m.tipo === 'audio'))
-            || m.tipo === 'sticker' || m.tipo === 'gif';
+            || m.tipo === 'album' || m.tipo === 'sticker' || m.tipo === 'gif';
           const leido = mio && (m.leido || (m.leidos > 0));
           const enEdicion = editando && String(editando.id) === String(m.id);
           return (
@@ -982,8 +1145,24 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                   </button>
                 </div>
               )}
-              <div className={`${styles.bubble} ${mio ? styles.bubbleMine : ''} ${esMedia && !m.eliminado ? styles.bubbleMedia : ''} ${m.eliminado ? styles.bubbleDeleted : ''}`}>
-                {!mio && tipo === 'grupo' && !m.eliminado && <span className={styles.user}>{m.usuario}</span>}
+              {!mio && !m.eliminado && (
+                <button
+                  type="button"
+                  className={styles.msgAvatar}
+                  title={es ? 'Ver perfil' : 'View profile'}
+                  onClick={() => router.push(canalUrl(m.usuario))}
+                >
+                  {m.avatar
+                    ? <img src={comunidadMedia(m.avatar)} alt="" loading="lazy" />
+                    : <span>{String(m.usuario || 'U').trim().slice(0, 1).toUpperCase()}</span>}
+                </button>
+              )}
+              <div className={`${styles.bubble} ${mio ? styles.bubbleMine : ''} ${esMedia && !m.eliminado ? styles.bubbleMedia : ''} ${esMedia && !m.eliminado && m.texto ? styles.bubbleWithCaption : ''} ${m.eliminado ? styles.bubbleDeleted : ''}`}>
+                {!mio && tipo === 'grupo' && !m.eliminado && (
+                  <button type="button" className={styles.user} onClick={() => router.push(canalUrl(m.usuario))}>
+                    {m.usuario}
+                  </button>
+                )}
 
                 {m.eliminado ? (
                   <span className={styles.deletedText}>
@@ -1016,6 +1195,43 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                         <span>{(m.reply_texto || (es ? 'archivo' : 'file')).slice(0, 70)}</span>
                       </div>
                     )}
+                    {m.tipo === 'album' && (() => {
+                      const items = parseMedia(m.media);
+                      const visibles = items.slice(0, 4);
+                      return (
+                        <div className={styles.albumGrid} data-n={items.length}>
+                          {visibles.map((p, i) => {
+                            const k = kindDeArchivo(p);
+                            return (
+                              <button
+                                type="button"
+                                key={`${p}-${i}`}
+                                className={styles.albumCell}
+                                title={es ? 'Ver' : 'View'}
+                                onClick={() => setAlbumVis({ items, idx: i, cap: m.texto || '', autor: m.usuario || '' })}
+                              >
+                                {k === 'foto'
+                                  ? <img src={comunidadMedia(p)} alt="" loading="lazy" />
+                                  : <video src={comunidadMedia(p)} preload="metadata" muted playsInline />}
+                                {k === 'video' && (
+                                  <span className={styles.albumPlay}>
+                                    <ion-icon name="play" suppressHydrationWarning></ion-icon>
+                                  </span>
+                                )}
+                                {k === 'audio' && (
+                                  <span className={styles.albumPlay}>
+                                    <ion-icon name="musical-notes-outline" suppressHydrationWarning></ion-icon>
+                                  </span>
+                                )}
+                                {i === 3 && items.length > 4 && (
+                                  <span className={styles.albumMore}>+{items.length - 4}</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                     {m.media && m.tipo === 'foto' && (
                       <img
                         className={`${styles.media} ${styles.mediaZoom}`}
@@ -1268,6 +1484,38 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           </button>
         </div>
       ) : (
+        <>
+          {pendientes.length > 0 && (
+            <div className={styles.pendRow}>
+              {(pendExpandido || pendientes.length <= 3 ? pendientes : pendientes.slice(0, 3)).map((p) => (
+                <div key={p.id} className={styles.pendChip}>
+                  {p.url && p.file.type.startsWith('image/') ? (
+                    <img className={styles.pendThumb} src={p.url} alt="" />
+                  ) : p.url && p.file.type.startsWith('video/') ? (
+                    <video className={styles.pendThumb} src={p.url} preload="metadata" muted playsInline />
+                  ) : (
+                    <span className={styles.pendIcon}>
+                      <ion-icon name="mic-outline" suppressHydrationWarning></ion-icon>
+                    </span>
+                  )}
+                  <span className={styles.pendName}>{p.file.name}</span>
+                  <button type="button" className={styles.pendX} onClick={() => quitarPendiente(p)} aria-label={es ? 'Quitar' : 'Remove'}>
+                    <ion-icon name="close" suppressHydrationWarning></ion-icon>
+                  </button>
+                </div>
+              ))}
+              {pendientes.length > 3 && (
+                <button
+                  type="button"
+                  className={`${styles.pendChip} ${styles.pendMore}`}
+                  onClick={() => setPendExpandido((v) => !v)}
+                >
+                  <ion-icon name={pendExpandido ? 'chevron-up-outline' : 'add-outline'} suppressHydrationWarning></ion-icon>
+                  {pendExpandido ? (es ? 'Ver menos' : 'Less') : `+${pendientes.length - 3}`}
+                </button>
+              )}
+            </div>
+          )}
         <div className={`${styles.foot} ${conNuevos ? styles.footUnread : ''}`}>
           <button
             type="button"
@@ -1298,9 +1546,9 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           >
             <ion-icon name="happy-outline" suppressHydrationWarning></ion-icon>
           </button>
-          {borrador.trim() ? (
+          {borrador.trim() || pendientes.length > 0 ? (
             <button type="button" className={styles.send} onClick={enviar} disabled={sending} title={es ? 'Enviar' : 'Send'}>
-              <ion-icon name={sending ? 'sync-outline' : 'paper-plane-outline'} suppressHydrationWarning></ion-icon>
+              <ion-icon name={sending ? 'sync-outline' : 'paper-plane-outline'} className={sending ? styles.spin : ''} suppressHydrationWarning></ion-icon>
             </button>
           ) : (
             <button type="button" className={styles.send} onClick={enviarLike} disabled={sending} title={es ? 'Enviar' : 'Send'}>
@@ -1309,6 +1557,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           )}
           <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" hidden multiple onChange={onArchivo} />
         </div>
+        </>
       )}
 
       {ajustesOpen && (
@@ -1421,6 +1670,52 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           <img className={styles.imgFullImg} src={imgFull} alt="" />
         </div>
       )}
+
+      {albumVis && (() => {
+        const src = comunidadMedia(albumVis.items[albumVis.idx] || '');
+        const k = kindDeArchivo(albumVis.items[albumVis.idx] || '');
+        const hayVarios = albumVis.items.length > 1;
+        return (
+          <div className={styles.albumFull} onClick={(e) => { if (e.target === e.currentTarget) setAlbumVis(null); }}>
+            <button type="button" className={styles.albumClose} onClick={() => setAlbumVis(null)} aria-label={es ? 'Cerrar' : 'Close'}>
+              <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
+            </button>
+            {hayVarios && (
+              <>
+                <button
+                  type="button"
+                  className={`${styles.albumNav} ${styles.albumNavL}`}
+                  onClick={() => setAlbumVis((a) => ({ ...a, idx: (a.idx - 1 + a.items.length) % a.items.length }))}
+                  aria-label={es ? 'Anterior' : 'Previous'}
+                >
+                  <ion-icon name="chevron-back-outline" suppressHydrationWarning></ion-icon>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.albumNav} ${styles.albumNavR}`}
+                  onClick={() => setAlbumVis((a) => ({ ...a, idx: (a.idx + 1) % a.items.length }))}
+                  aria-label={es ? 'Siguiente' : 'Next'}
+                >
+                  <ion-icon name="chevron-forward-outline" suppressHydrationWarning></ion-icon>
+                </button>
+                <span className={styles.albumCount}>{albumVis.idx + 1} / {albumVis.items.length}</span>
+              </>
+            )}
+            <div className={styles.albumStage}>
+              {k === 'video' && (
+                <video key={src} className={styles.albumMedia} src={src} controls autoPlay playsInline />
+              )}
+              {k === 'audio' && (
+                <audio key={src} className={styles.albumAudio} src={src} controls autoPlay />
+              )}
+              {k === 'foto' && (
+                <img className={styles.albumMedia} src={src} alt="" />
+              )}
+            </div>
+            {albumVis.cap && <div className={styles.albumCap}>{albumVis.cap}</div>}
+          </div>
+        );
+      })()}
 
       {confirmDelete && (
         <div className={styles.delOverlay} onClick={(e) => { if (e.target === e.currentTarget) setConfirmDelete(null); }}>

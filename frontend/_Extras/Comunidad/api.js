@@ -197,6 +197,16 @@ export const apiComunidad = {
   // Amistades
   amistad: (userKey, me) => req(`/api/comunidad/amistad/${encodeURIComponent(userKey)}?me=${encodeURIComponent(me || '')}`),
   amistadAccion: (userKey, me, accion) => req(`/api/comunidad/amistad/${encodeURIComponent(userKey)}`, jsonPost({ userKey: me, accion })),
+  /** Lista de amigos (amistades aceptadas) con buscador y paginado.
+   *  filtro: todos | favoritos | pendientes | sugerencias */
+  amigos: (userKey = '', opts = {}) => {
+    const p = new URLSearchParams({ userKey });
+    if (opts.q) p.set('q', opts.q);
+    if (opts.page) p.set('page', String(opts.page));
+    if (opts.limit) p.set('limit', String(opts.limit));
+    if (opts.filtro) p.set('filtro', opts.filtro);
+    return req(`/api/comunidad/amigos?${p.toString()}`);
+  },
 
   // Presencia
   presencia: () => req('/api/comunidad/presencia'),

@@ -1,0 +1,311 @@
+.main {
+  flex: 1;
+  min-width: 0;
+  height: calc(100vh - 80px);
+  box-sizing: border-box;
+  padding: 20px;
+  color: var(--text-primary, #FFFFFF);
+  font-family: system-ui, -apple-system, sans-serif;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ===== Encabezado: titulo + pestañas (PC: en fila; movil: apilado) ===== */
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--text-primary, #FFFFFF);
+}
+
+.count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary, #A1A1AA);
+  margin-right: auto;
+}
+
+/* ===== Navegacion de pestañas (a la derecha del titulo en PC) ===== */
+.tabsBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  border-bottom: 1px solid var(--border, #27272A);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabsBar::-webkit-scrollbar { display: none; }
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #A1A1AA);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  padding: 10px 14px;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.tab ion-icon { font-size: 17px; }
+.tab:hover { color: var(--text-primary, #E4E6EB); }
+
+.tabOn {
+  color: var(--primary, #F20D16);
+  border-bottom-color: var(--primary, #F20D16);
+}
+
+/* ===== Buscador ===== */
+.buscadorBox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-surface, #18181B);
+  border: 1px solid var(--border, #27272A);
+  border-radius: 24px;
+  padding: 11px 16px;
+  margin-bottom: 12px;
+}
+
+.buscadorBox:focus-within { border-color: var(--primary, #F20D16); }
+.buscadorIcon { font-size: 18px; color: var(--text-secondary, #A1A1AA); flex-shrink: 0; }
+
+.buscadorInput {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary, #FFFFFF);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.buscadorClear {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  flex-shrink: 0;
+  padding: 2px;
+}
+.buscadorClear:hover { color: var(--primary, #F20D16); }
+
+/* ===== Filtros ===== */
+.filtros {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border, #27272A);
+  background: var(--bg-surface, #18181B);
+  color: var(--text-secondary, #A1A1AA);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.chip ion-icon { font-size: 14px; }
+.chip:hover { border-color: var(--primary, #F20D16); color: var(--text-primary, #E4E6EB); }
+.chipOn {
+  background: rgba(242, 13, 22, 0.15);
+  border-color: var(--primary, #F20D16);
+  color: var(--primary, #F20D16);
+}
+
+/* ===== Lista con scroll ===== */
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+.scrollArea::-webkit-scrollbar { width: 6px; }
+.scrollArea::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 999px; }
+
+.msg { color: #22C55E; font-size: 13px; font-weight: 700; margin: 0 0 12px; }
+.empty { font-size: 13px; color: var(--text-secondary, #A1A1AA); padding: 24px 0; }
+.mas { text-align: center; font-size: 12.5px; color: var(--text-secondary, #A1A1AA); padding: 14px 0; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+/* ===== Tarjeta de amigo ===== */
+.friendCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 12px;
+  background: var(--bg-surface, #141417);
+  min-width: 0;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.friendCard:hover { border-color: rgba(242, 13, 22, 0.5); background: var(--bg-card, #18181B); }
+
+.friendAvatar {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: visible;
+  border: none;
+  padding: 0;
+  background: var(--bg-surface, #27272A);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 20px;
+  font-weight: 900;
+}
+.friendAvatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.friendAvatar > span { line-height: 1; }
+
+.onlineDot {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #22C55E;
+  border: 2.5px solid var(--bg-surface, #141417);
+}
+
+.friendInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.friendName {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.friendName:hover { color: var(--primary, #F20D16); }
+
+.star { font-size: 14px; color: #F5B301; flex-shrink: 0; }
+
+.friendState {
+  font-size: 11.5px;
+  color: var(--text-secondary, #71717A);
+}
+.stateOn { color: #22C55E; font-weight: 700; }
+
+.friendMeta {
+  font-size: 11.5px;
+  color: var(--text-secondary, #71717A);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.friendActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.faBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border, #27272A);
+  background: var(--bg-card, #121215);
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.faBtn:hover { color: var(--primary, #F20D16); border-color: var(--primary, #F20D16); }
+.faStar { color: #F5B301; border-color: rgba(245, 179, 1, 0.5); }
+.faOk { color: #22C55E; border-color: rgba(34, 197, 94, 0.5); }
+.faOk:hover { color: #16A34A; border-color: #16A34A; }
+
+/* Light theme */
+[data-theme="light"] .title,
+[data-theme="light"] .friendName { color: #09090B; }
+[data-theme="light"] .friendCard { background: #F4F4F5; border-color: #E4E4E7; }
+[data-theme="light"] .buscadorBox { background: #FFFFFF; border-color: #E4E4E7; }
+[data-theme="light"] .chip { background: #FFFFFF; border-color: #E4E4E7; }
+
+@media (max-width: 768px) {
+  .main { padding: 12px; height: auto; }
+  .title { font-size: 20px; }
+
+  /* Movil: titulo arriba y pestañas debajo, a todo el ancho. */
+  .head {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .count { margin-right: 0; }
+  .tabsBar {
+    margin-left: 0;
+    width: 100%;
+    order: 3;
+    margin-top: 4px;
+  }
+  .tab { padding: 9px 11px; font-size: 12.5px; }
+  .grid { grid-template-columns: 1fr; }
+  .friendCard { padding: 10px; gap: 10px; }
+  .friendAvatar { width: 46px; height: 46px; }
+  .faBtn { width: 34px; height: 34px; font-size: 16px; }
+}

@@ -2,7 +2,8 @@
   "nav": {
     "inicio": "Home",
     "reels": "Reels",
-    "enVivo": "Live",
+    "enVivo": "Match with someone",
+    "enVivoShort": "Match",
     "recienSubidos": "New uploads",
     "tendencias": "Trending",
     "fetiches": "Fetishes",
@@ -18,7 +19,7 @@
     "tusGuardados": "Your Library",
     "todosVideos": "All videos",
     "sugerido": "SUGGESTED",
-    "enVivoTag": "LIVE"
+    "enVivoTag": "SOON"
   },
   "header": {
     "buscar": "Search videos, categories, models, packs...",
@@ -60,6 +61,7 @@
     "verTodo": "View all",
     "otros": "Others",
     "borrar": "Clear filters",
+    "cerrar": "Close",
     "resultados": "Results"
   },
   "secciones": {

@@ -130,7 +130,7 @@
   font-family: inherit; font-weight: 800; font-size: 13.5px; cursor: pointer;
 }
 .ajustesReset { border: 1px solid var(--border, #27272A); background: transparent; color: var(--text-primary, #E4E6EB); }
-.ajustesSave { border: none; background: #0084FF; color: #fff; }
+.ajustesSave { border: none; background: #0A84FF; color: #fff; }
 
 /* Cuando hay tema, la ventana completa usa el diseño */
 .winThemed .head { background: transparent !important; border-bottom-color: rgba(255, 255, 255, 0.18); }
@@ -144,11 +144,11 @@
 .winThemed .iconBtn:hover { background: rgba(255, 255, 255, 0.18); }
 .winThemed .msgAction { color: rgba(255, 255, 255, 0.9); }
 .winThemed .msgAction:hover { color: #fff; }
-.winThemed .bubble { background: rgba(0, 0, 0, 0.45); color: #fff; }
-.winThemed .bubbleMine { background: rgba(0, 132, 255, 0.85); color: #fff; }
+.winThemed .bubble { background: #3A3A3C; color: #FFFFFF; }
+.winThemed .bubbleMine { background: #0A84FF; color: #FFFFFF; }
 .winThemed .user { color: #fff; }
 .winThemed .text { color: #fff; }
-.winThemed .time { color: rgba(255, 255, 255, 0.8); }
+.winThemed .time { color: #8E8E93; }
 .winThemed .checks { color: rgba(255, 255, 255, 0.85); }
 .winThemed .checksOn { color: #7cc4ff; }
 .winThemed .visto { color: #cfe7ff; }
@@ -229,7 +229,7 @@
   font-size: 13px;
   outline: none;
 }
-.ajustesInput:focus { border-color: #0084FF; }
+.ajustesInput:focus { border-color: #0A84FF; }
 
 .sendEmoji { font-size: 20px; line-height: 1; }
 .previewMsgs { display: flex; flex-direction: column; gap: 5px; margin-top: auto; }
@@ -241,7 +241,7 @@
   max-width: 80%;
 }
 .previewIn { align-self: flex-start; background: rgba(255, 255, 255, 0.22); color: #fff; border-bottom-left-radius: 4px; }
-.previewOut { align-self: flex-end; background: #0084FF; color: #fff; border-bottom-right-radius: 4px; }
+.previewOut { align-self: flex-end; background: #0A84FF; color: #fff; border-bottom-right-radius: 4px; }
 
 .head {
   display: flex;
@@ -444,18 +444,56 @@
   flex-direction: column;
   gap: 2px;
   max-width: 84%;
-  background: var(--bg-surface, #3A3B3C);
-  color: var(--text-primary, #E4E6EB);
+  background: #3A3A3C;
+  color: #FFFFFF;
   border-radius: 14px 14px 14px 4px;
   padding: 7px 10px;
 }
-.bubbleMine { background: #0084FF; color: #fff; border-radius: 14px 14px 4px 14px; }
+.bubbleMine { background: #0A84FF; color: #FFFFFF; border-radius: 14px 14px 4px 14px; }
+
+/* Mis mensajes: hora, checks y "visto" estilo Facebook (legibles sobre el azul). */
+.bubbleMine .time { color: rgba(255, 255, 255, 0.8); font-size: 11px; font-weight: 500; }
+.bubbleMine .checks { color: rgba(255, 255, 255, 0.8); }
+.bubbleMine .checksOn { color: #FFFFFF; }
+.bubbleMine .visto { color: rgba(255, 255, 255, 0.75); }
 
 /* Fotos/videos/audio/sticker/gif: sin fondo de burbuja, así nomás. */
 .bubbleMedia {
   background: transparent !important;
   padding: 0;
   color: var(--text-primary, #E4E6EB);
+}
+
+/* Media CON texto (estilo WhatsApp): la burbuja conserva fondo y padding y
+   el mensaje va incrustado debajo del archivo, dentro de la misma burbuja.
+   Va DESPUÉS de .bubbleMedia para ganarle en orden. */
+.bubbleWithCaption {
+  background: #3A3A3C !important;
+  padding: 6px 6px 8px;
+  color: #FFFFFF;
+}
+.bubbleMine.bubbleWithCaption {
+  background: #0A84FF !important;
+  color: #FFFFFF !important;
+}
+.bubbleWithCaption .media,
+.bubbleWithCaption .playerWrap {
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 0;
+}
+.bubbleWithCaption .text {
+  display: block;
+  padding: 7px 6px 1px;
+  font-size: 13.5px;
+  line-height: 1.35;
+}
+[data-theme="light"] .bubbleWithCaption:not(.bubbleMine) {
+  background: #F4F4F5 !important;
+  color: #09090B;
+}
+[data-theme="light"] .bubbleWithCaption:not(.bubbleMine) .text {
+  color: #09090B;
 }
 
 .playerWrap {
@@ -535,9 +573,22 @@
 .uploadName { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .uploadPct { font-weight: 800; font-size: 11.5px; }
 .uploadBar { height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
-.uploadFill { height: 100%; background: #0084FF; border-radius: 999px; transition: width 0.2s ease; }
+.uploadFill { height: 100%; background: #0A84FF; border-radius: 999px; transition: width 0.2s ease; }
 
-.user { font-size: 11px; font-weight: 800; color: #4599FF; }
+/* Nombre del emisor en grupos: clicable al perfil. */
+.user {
+  font-size: 11px;
+  font-weight: 800;
+  color: #4599FF;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.user:hover { color: var(--primary, #F20D16); text-decoration: underline; }
 
 .quote {
   display: flex;
@@ -594,12 +645,12 @@
   align-items: center;
   gap: 2px;
   font-size: 9.5px;
-  color: var(--text-secondary, #A1A1AA);
+  color: #8E8E93;
 }
 
 /* Checks de leído (doble check azul cuando la otra persona lo vio) */
 .checks { display: inline-flex; vertical-align: middle; margin-left: 4px; font-size: 13px; color: var(--text-secondary, #A1A1AA); }
-.checksOn { color: #0084FF; }
+.checksOn { color: #0A84FF; }
 
 /* Aviso del sistema (cambió diseño/apodos) */
 .sistema {
@@ -670,7 +721,7 @@
   cursor: pointer;
 }
 .editCancel { background: transparent; color: var(--text-secondary, #B0B3B8); }
-.editSave { background: #0084FF; color: #fff; }
+.editSave { background: #0A84FF; color: #fff; }
 
 /* Menú de 3 puntos (editar / eliminar) */
 .menuFloat {
@@ -747,7 +798,7 @@
   text-align: left;
 }
 .delOpt ion-icon { font-size: 18px; }
-.delOpt:hover { border-color: #0084FF; }
+.delOpt:hover { border-color: #0A84FF; }
 .delOptDanger { color: #F87171; }
 .delOptDanger:hover { border-color: #F87171; }
 .delCancel {
@@ -782,7 +833,7 @@
   cursor: pointer;
   font-family: inherit;
 }
-.reactionMine { border-color: #0084FF; background: rgba(0, 132, 255, 0.25); }
+.reactionMine { border-color: #0A84FF; background: rgba(10, 132, 255, 0.25); }
 
 /* Acciones al costado del mensaje: se ven al pasar el mouse (PC). */
 .msgActions {
@@ -807,6 +858,305 @@
   line-height: 1;
 }
 .msgAction:hover { color: var(--primary, #F20D16); }
+
+/* Avatar del emisor en mensajes recibidos: clicable al perfil. */
+.msgAvatar {
+  align-self: flex-end;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  margin-right: 6px;
+  flex-shrink: 0;
+  background: var(--bg-surface, #3A3B3C);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--text-secondary, #B0B3B8);
+  font-size: 12px;
+  font-weight: 800;
+  transition: box-shadow 0.15s ease;
+}
+.msgAvatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.msgAvatar:hover { box-shadow: 0 0 0 2px var(--primary, #F20D16); }
+
+/* Capa al arrastrar un archivo sobre el chat (drop to send). */
+.dragLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 2px dashed var(--primary, #F20D16);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.dragCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+}
+.dragCard ion-icon { font-size: 46px; color: var(--primary, #F20D16); }
+.dragCard small { font-size: 11.5px; font-weight: 600; color: rgba(255, 255, 255, 0.75); }
+
+/* Cola de archivos sobre el input (vista previa hasta enviar).
+   Sin límite: se acoplan en varias filas; pasan de 3, va un "+N". */
+.pendRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+.pendChip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 210px;
+  padding: 6px 8px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 10px;
+  background: var(--bg-surface, #3A3B3C);
+  flex-shrink: 0;
+}
+.pendThumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #000;
+  pointer-events: none;
+}
+.pendIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 132, 255, 0.16);
+  color: #0A84FF;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.pendName {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-primary, #E4E6EB);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.pendX {
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.pendX:hover { background: var(--primary, #F20D16); }
+
+/* Chip "+N" cuando hay más previews de las que caben. */
+.pendMore {
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #0A84FF;
+  font-size: 12px;
+  font-weight: 800;
+  border-color: rgba(10, 132, 255, 0.45);
+  background: rgba(10, 132, 255, 0.12);
+  padding: 6px 12px;
+}
+.pendMore ion-icon { font-size: 14px; }
+.pendMore:hover { border-color: #0A84FF; }
+
+.winThemed .pendRow { background: transparent; }
+.winThemed .pendName { color: #fff; }
+[data-theme="light"] .pendChip { background: #F4F4F5; border-color: #E4E4E7; }
+[data-theme="light"] .pendName { color: #09090B; }
+[data-theme="light"] .pendX { background: rgba(0, 0, 0, 0.12); color: #09090B; }
+
+/* ===== Album (varios archivos en un mensaje, estilo WhatsApp/Telegram) ===== */
+.albumGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  width: 258px;
+  max-width: 100%;
+  margin-top: 3px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.albumGrid[data-n="1"] {
+  grid-template-columns: 1fr;
+  width: 230px;
+}
+.albumGrid[data-n="1"] .albumCell { aspect-ratio: 4 / 3; }
+/* 3 archivos: el primero grande a la izquierda, dos apiladas a la derecha. */
+.albumGrid[data-n="3"] .albumCell:first-child {
+  grid-row: span 2;
+  aspect-ratio: auto;
+  height: 100%;
+}
+.albumCell {
+  position: relative;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: #000;
+  aspect-ratio: 1;
+  cursor: pointer;
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+.albumCell img,
+.albumCell video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.albumPlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 24px;
+  background: rgba(0, 0, 0, 0.28);
+}
+.albumMore {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  color: #FFFFFF;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+/* Visor del album: pantalla completa, recorre todo el grupo. */
+.albumFull {
+  position: fixed;
+  inset: 0;
+  z-index: 9900;
+  background: rgba(0, 0, 0, 0.94);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.albumClose {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #FFFFFF;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+}
+.albumClose:hover { background: var(--primary, #F20D16); }
+.albumNav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #FFFFFF;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  transition: background 0.15s ease;
+}
+.albumNav:hover { background: var(--primary, #F20D16); }
+.albumNavL { left: 14px; }
+.albumNavR { right: 14px; }
+.albumCount {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.55);
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  z-index: 2;
+}
+.albumStage {
+  max-width: min(96vw, 920px);
+  max-height: 78vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.albumMedia {
+  max-width: min(96vw, 920px);
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.albumAudio { width: min(88vw, 420px); }
+.albumCap {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(90vw, 640px);
+  color: #FFFFFF;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 8px 14px;
+  border-radius: 10px;
+}
 .action { border: none; background: transparent; color: inherit; font-size: 14px; cursor: pointer; padding: 0 2px; opacity: .75; }
 .action:hover { opacity: 1; }
 
@@ -889,7 +1239,7 @@
 .send {
   width: 36px; height: 36px;
   border: none; border-radius: 50%;
-  background: #0084FF; color: #fff; font-size: 18px;
+  background: #0A84FF; color: #fff; font-size: 18px;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
@@ -912,7 +1262,7 @@
   padding: 0;
 }
 .tool:hover { background: rgba(255, 255, 255, 0.1); }
-.toolOn { color: #0084FF; background: rgba(0, 132, 255, 0.15); }
+.toolOn { color: #0A84FF; background: rgba(10, 132, 255, 0.15); }
 .toolRec { color: #F87171; }
 .toolGif { font-size: 9px; font-weight: 800; letter-spacing: .3px; }
 .toolGif span { padding: 2px 3px; border: 1.5px solid currentColor; border-radius: 5px; }
@@ -972,7 +1322,7 @@
 }
 .pickerTab ion-icon { font-size: 15px; }
 .pickerTab:hover { background: rgba(255, 255, 255, 0.08); }
-.pickerTabActive { background: rgba(0, 132, 255, 0.18); color: #4599FF; }
+.pickerTabActive { background: rgba(10, 132, 255, 0.18); color: #4599FF; }
 .pickerGrid {
   display: grid;
   grid-template-columns: repeat(8, 1fr);

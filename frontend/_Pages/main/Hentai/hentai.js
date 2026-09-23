@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import styles from './hentai.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
@@ -8,19 +9,33 @@ import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
+import { canalUrl } from '@/_Extras/Canales/canal.js';
 
 const PER_PAGE = 16;
-const DROP_ORDEN = [
+const OPT_ORDEN = [
   { value: 'recientes', label: 'filtros.recientes' },
   { value: 'vistos', label: 'filtros.vistos' },
   { value: 'largos', label: 'filtros.largos' },
   { value: 'cortos', label: 'filtros.cortos' },
 ];
-const DROP_DURACION = [
+const OPT_DURACION = [
   { value: 'todas', label: 'filtros.todas' },
   { value: 'cortos', label: 'filtros.cortoLen' },
   { value: 'largos', label: 'filtros.largoLen' },
 ];
+
+// Filtros del modal propio (solo movil). Esta seccion solo dispone de
+// orden y duracion.
+const SELECT_GROUPS = [
+  { label: ['filtros.ordenarPor', 'filtros.ordenarPor'], opts: OPT_ORDEN },
+  { label: ['filtros.duracion', 'filtros.duracion'], opts: OPT_DURACION },
+];
+
+function dimDe(value) {
+  if (OPT_ORDEN.some((o) => o.value === value)) return 'orden';
+  if (OPT_DURACION.some((o) => o.value === value)) return 'duracion';
+  return null;
+}
 
 function parseViews(text) {
   const m = String(text).match(/([\d,.]+)\s*K?/i);
@@ -48,57 +63,26 @@ function InFeedAd() {
   );
 }
 
-function Drop({ options, value, onChange, extraIcon }) {
-  const [open, setOpen] = useState(false);
-  const { t } = useLanguage();
-  return (
-    <div className={styles.dropWrap}>
-      <button
-        className={`${styles.dropBtn} ${open ? styles.dropOpen : ''}`}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-      >
-        {t(options.find((o) => o.value === value)?.label || value)}
-        <ion-icon name="chevron-down-outline" className={styles.dropChevron} suppressHydrationWarning></ion-icon>
-        {extraIcon && (
-          <ion-icon name="options-outline" className={styles.dropOptions} suppressHydrationWarning></ion-icon>
-        )}
-      </button>
-      {open && (
-        <div className={styles.dropMenu}>
-          {options.map((op) => (
-            <button
-              key={op.value}
-              className={`${styles.dropItem} ${op.value === value ? styles.dropItemActive : ''}`}
-              type="button"
-              onClick={() => {
-                onChange(op.value);
-                setOpen(false);
-              }}
-            >
-              {t(op.label)}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function HentaiList() {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const es = locale !== 'en';
   const { hentai: animes } = useContenido();
   const [page, setPage] = useState(1);
-  const [orden, setOrden] = useState(DROP_ORDEN[0].value);
-  const [duracion, setDuracion] = useState(DROP_DURACION[0].value);
+  const [orden, setOrden] = useState(OPT_ORDEN[0]);
+  const [duracion, setDuracion] = useState(OPT_DURACION[0]);
+  const [filtroOpen, setFiltroOpen] = useState(false); // modal propio de filtros (solo movil)
   const [query, setQuery] = useState('');
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
     setIsMobile(mq.matches);
-    const onChange = (e) => setIsMobile(e.matches);
+    const onChange = (e) => {
+      setIsMobile(e.matches);
+      // Al pasar a PC (donde van los selects) se cierra el modal y su scroll-lock.
+      if (!e.matches) setFiltroOpen(false);
+    };
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
@@ -106,17 +90,34 @@ export default function HentaiList() {
   const perRowGroup = isMobile ? 4 : 8;
   const isFiltering =
     query.trim() !== '' ||
-    orden !== DROP_ORDEN[0].value ||
-    duracion !== DROP_DURACION[0].value;
+    orden.value !== OPT_ORDEN[0].value ||
+    duracion.value !== OPT_DURACION[0].value;
+
+  // Cuantos filtros de grupo estan activos (para el contador del trigger).
+  const nFiltros = [
+    orden.value !== OPT_ORDEN[0].value,
+    duracion.value !== OPT_DURACION[0].value,
+  ].filter(Boolean).length;
+
+  // Valor actual de cada dimension (para los checks del modal).
+  const valDeDim = { orden: orden.value, duracion: duracion.value };
+
+  // Bloquea el scroll del fondo con el modal abierto (solo movil).
+  useEffect(() => {
+    if (!filtroOpen || !isMobile) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [filtroOpen, isMobile]);
 
   let filtered = [...animes];
   const q = query.trim().toLowerCase();
   if (q) filtered = filtered.filter((a) => a.title.toLowerCase().includes(q) || a.channel.toLowerCase().includes(q));
-  if (orden === 'vistos') filtered.sort((a, b) => parseViews(b.views) - parseViews(a.views));
-  else if (orden === 'largos') filtered.sort((a, b) => parseDuration(b.duration) - parseDuration(a.duration));
-  else if (orden === 'cortos') filtered.sort((a, b) => parseDuration(a.duration) - parseDuration(b.duration));
-  if (duracion === 'cortos') filtered = filtered.filter((a) => parseDuration(a.duration) < 480);
-  if (duracion === 'largos') filtered = filtered.filter((a) => parseDuration(a.duration) >= 480);
+  if (orden.value === 'vistos') filtered.sort((a, b) => parseViews(b.views) - parseViews(a.views));
+  else if (orden.value === 'largos') filtered.sort((a, b) => parseDuration(b.duration) - parseDuration(a.duration));
+  else if (orden.value === 'cortos') filtered.sort((a, b) => parseDuration(a.duration) - parseDuration(b.duration));
+  if (duracion.value === 'cortos') filtered = filtered.filter((a) => parseDuration(a.duration) < 480);
+  if (duracion.value === 'largos') filtered = filtered.filter((a) => parseDuration(a.duration) >= 480);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const safePage = Math.min(page, totalPages);
@@ -133,8 +134,23 @@ export default function HentaiList() {
 
   function clearFilters() {
     setQuery('');
-    setOrden(DROP_ORDEN[0].value);
-    setDuracion(DROP_DURACION[0].value);
+    setOrden(OPT_ORDEN[0]);
+    setDuracion(OPT_DURACION[0]);
+    setPage(1);
+  }
+
+  // Aplica la opcion elegida en el modal de filtros y lo cierra.
+  function aplicarSelect(v) {
+    setFiltroOpen(false);
+    if (!v) { clearFilters(); return; }
+    const dim = dimDe(v);
+    if (dim === 'orden') {
+      const opt = OPT_ORDEN.find((o) => o.value === v);
+      if (opt) setOrden(opt);
+    } else if (dim === 'duracion') {
+      const opt = OPT_DURACION.find((o) => o.value === v);
+      if (opt) setDuracion(opt);
+    } else return;
     setPage(1);
   }
 
@@ -161,13 +177,27 @@ export default function HentaiList() {
         </Preview>
         <div className={styles.info}>
           <h3 className={styles.cardTitle}>{anime.title}</h3>
-          <p className={styles.metaLine}>
+          <button
+            type="button"
+            className={styles.byRow}
+            onClick={(e) => { e.stopPropagation(); router.push(anime.channelSlug ? `/canal/${anime.channelSlug}` : canalUrl(anime.channel)); }}
+            aria-label={`${es ? 'Ver canal' : 'View channel'}: ${anime.channel}`}
+          >
+            {anime.channelAvatar
+              ? <img className={styles.avatar} src={anime.channelAvatar} alt="" loading="lazy" />
+              : <span className={styles.avatar} aria-hidden="true">{(anime.channel || '?').trim().charAt(0).toUpperCase()}</span>}
             <span className={styles.creator}>{anime.channel}</span>
             <ion-icon name="checkmark-circle" className={styles.verified} suppressHydrationWarning></ion-icon>
-            <span className={styles.dot}>•</span>
-            <span>{anime.views}</span>
-            <span className={styles.dot}>•</span>
-            <span>{anime.time}</span>
+          </button>
+          <p className={styles.metaLine}>
+            <span className={styles.metaItem}>
+              <ion-icon name="eye-outline" className={styles.metaIcon} suppressHydrationWarning></ion-icon>
+              {anime.views}
+            </span>
+            <span className={styles.metaItem}>
+              <ion-icon name="time-outline" className={styles.metaIcon} suppressHydrationWarning></ion-icon>
+              {anime.time}
+            </span>
           </p>
         </div>
       </article>
@@ -191,15 +221,106 @@ export default function HentaiList() {
       <div className={styles.layout2col}>
         <div className={styles.feed}>
           <div className={styles.headRow}>
-            <div>
-              <h1 className={styles.title}>{t('nav.hentai')}</h1>
-              <p className={styles.count}>{filtered.length} {t('secciones.animes')}</p>
-            </div>
+            <h1 className={styles.title}>{t('nav.hentai')}</h1>
             <div className={styles.toolbar}>
-              <Drop options={DROP_ORDEN} value={orden} onChange={(v) => { setOrden(v); setPage(1); }} />
-              <Drop options={DROP_DURACION} value={duracion} onChange={(v) => { setDuracion(v); setPage(1); }} extraIcon />
+              {!isMobile ? (
+                /* PC: selects nativos en flex a la derecha del titulo. */
+                [
+                  { v: orden, s: setOrden, o: OPT_ORDEN, l: 'filtros.ordenarPor' },
+                  { v: duracion, s: setDuracion, o: OPT_DURACION, l: 'filtros.duracion' },
+                ].map((d, i) => (
+                  <select
+                    key={i}
+                    className={`${styles.deskSelect} ${d.v.value !== d.o[0].value ? styles.filterSelectActive : ''}`}
+                    value={d.v.value}
+                    aria-label={t(d.l)}
+                    onChange={(e) => {
+                      const opt = d.o.find((x) => x.value === e.target.value);
+                      if (opt) { d.s(opt); setPage(1); }
+                    }}
+                  >
+                    {d.o.map((op) => (
+                      <option key={op.value} value={op.value}>{t(op.label)}</option>
+                    ))}
+                  </select>
+                ))
+              ) : (
+                /* Movil: un solo trigger que abre el modal propio. */
+                <div className={styles.selectWrap}>
+                  <button
+                    type="button"
+                    className={`${styles.filterBtn} ${nFiltros ? styles.filterSelectActive : ''}`}
+                    onClick={() => setFiltroOpen(true)}
+                    aria-haspopup="dialog"
+                    aria-label={t('filtros.filtros')}
+                  >
+                    <ion-icon name="options-outline" className={styles.filterBtnIcon} suppressHydrationWarning></ion-icon>
+                    <span className={styles.filterBtnLabel}>
+                      {t('filtros.filtros')}{nFiltros > 0 ? ` (${nFiltros})` : ''}
+                    </span>
+                    <ion-icon name="chevron-down-outline" className={styles.selectChevron} suppressHydrationWarning></ion-icon>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Modal propio de filtros (solo movil; portal a body). */}
+          {isMobile && filtroOpen && createPortal(
+            <div
+              className={styles.filtroOverlay}
+              onClick={(e) => { if (e.target === e.currentTarget) setFiltroOpen(false); }}
+            >
+              <div className={styles.filtroCard} role="dialog" aria-modal="true" aria-label={t('filtros.filtros')}>
+                <span className={styles.filtroHandle} aria-hidden="true" />
+                <div className={styles.filtroHead}>
+                  <span className={styles.filtroHeadIcon}>
+                    <ion-icon name="options-outline" suppressHydrationWarning></ion-icon>
+                  </span>
+                  <strong className={styles.filtroTitle}>{t('filtros.filtros')}</strong>
+                  <button
+                    type="button"
+                    className={styles.filtroClose}
+                    onClick={() => setFiltroOpen(false)}
+                    aria-label={t('filtros.cerrar')}
+                  >
+                    <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
+                  </button>
+                </div>
+
+                {nFiltros > 0 && (
+                  <button type="button" className={styles.filtroClear} onClick={() => aplicarSelect('')}>
+                    <ion-icon name="close-circle-outline" suppressHydrationWarning></ion-icon>
+                    {t('filtros.borrar')} ({nFiltros})
+                  </button>
+                )}
+
+                <div className={styles.filtroList}>
+                  {SELECT_GROUPS.map((g) => (
+                    <div key={g.label[0]} className={styles.filtroGroup}>
+                      <span className={styles.filtroGroupLabel}>{t(g.label[0])}</span>
+                      {g.opts.map((op) => {
+                        const dim = dimDe(op.value);
+                        const activa = valDeDim[dim] === op.value;
+                        return (
+                          <button
+                            key={op.value}
+                            type="button"
+                            className={`${styles.filtroOpt} ${activa ? styles.filtroOptActive : ''}`}
+                            onClick={() => aplicarSelect(op.value)}
+                          >
+                            <span>{t(op.label)}</span>
+                            <ion-icon name="checkmark-circle" className={styles.filtroOptCheck} suppressHydrationWarning></ion-icon>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
 
           <div className={styles.searchRow}>
             <div className={styles.searchBox}>

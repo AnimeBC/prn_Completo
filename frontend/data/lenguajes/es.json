@@ -2,7 +2,8 @@
   "nav": {
     "inicio": "Inicio",
     "reels": "Reels",
-    "enVivo": "En Vivo",
+    "enVivo": "Match con alguien",
+    "enVivoShort": "Match",
     "recienSubidos": "Recién subidos",
     "tendencias": "Tendencias",
     "fetiches": "Fetiches",
@@ -18,7 +19,7 @@
     "tusGuardados": "Tus Guardados",
     "todosVideos": "Todos los videos",
     "sugerido": "SUGERIDO",
-    "enVivoTag": "EN VIVO"
+    "enVivoTag": "PRONTO"
   },
   "header": {
     "buscar": "Buscar videos, categorías, modelos, packs...",
@@ -60,6 +61,7 @@
     "verTodo": "Ver todo",
     "otros": "Otros",
     "borrar": "Borrar filtros",
+    "cerrar": "Cerrar",
     "resultados": "Resultados"
   },
   "secciones": {

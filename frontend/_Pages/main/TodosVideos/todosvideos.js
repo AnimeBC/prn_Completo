@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useState, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import styles from './todosvideos.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
@@ -9,10 +10,38 @@ import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
 import Preview from '@/_Pages/main/Home/componentes/preview';
 import { videoUrl } from '@/_Extras/Datos/urls.js';
+import { canalUrl } from '@/_Extras/Canales/canal.js';
 
 const PER_PAGE = 16;
-const DROP_ORDEN = ['Más recientes', 'Más vistos', 'Más largos', 'Más cortos'];
-const DROP_DURACION = ['Todas', 'Cortos (menos de 8 min)', 'Largos (8 min o más)'];
+// Valores unicos entre grupos: cada value indica su dimension.
+const OPT_ORDEN = [
+  { value: 'recientes', es: 'Más recientes', en: 'Newest' },
+  { value: 'vistos', es: 'Más vistos', en: 'Most viewed' },
+  { value: 'largos', es: 'Más largos', en: 'Longest' },
+  { value: 'cortos', es: 'Más cortos', en: 'Shortest' },
+];
+const OPT_DURACION = [
+  { value: 'todas', es: 'Todas', en: 'All' },
+  { value: 'cortos', es: 'Cortos (menos de 8 min)', en: 'Short (under 8 min)' },
+  { value: 'largos', es: 'Largos (8 min o más)', en: 'Long (8 min or more)' },
+];
+
+// Filtros del modal propio (solo movil). Esta seccion solo dispone de
+// orden y duracion.
+const SELECT_GROUPS = [
+  { label: ['Ordenar por', 'Sort by'], opts: OPT_ORDEN },
+  { label: ['Duración', 'Duration'], opts: OPT_DURACION },
+];
+
+function dimDe(value) {
+  if (OPT_ORDEN.some((o) => o.value === value)) return 'orden';
+  if (OPT_DURACION.some((o) => o.value === value)) return 'duracion';
+  return null;
+}
+
+function optTexto(opt, es) {
+  return es ? opt.es : opt.en;
+}
 
 function parseViews(text) {
   const m = String(text).match(/([\d,.]+)\s*K?/i);
@@ -40,49 +69,15 @@ function InFeedAd() {
   );
 }
 
-function Drop({ options, value, onChange, extraIcon }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className={styles.dropWrap}>
-      <button
-        className={`${styles.dropBtn} ${open ? styles.dropOpen : ''}`}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-      >
-        {value}
-        <ion-icon name="chevron-down-outline" className={styles.dropChevron} suppressHydrationWarning></ion-icon>
-        {extraIcon && (
-          <ion-icon name="options-outline" className={styles.dropOptions} suppressHydrationWarning></ion-icon>
-        )}
-      </button>
-      {open && (
-        <div className={styles.dropMenu}>
-          {options.map((op) => (
-            <button
-              key={op}
-              className={`${styles.dropItem} ${op === value ? styles.dropItemActive : ''}`}
-              type="button"
-              onClick={() => {
-                onChange(op);
-                setOpen(false);
-              }}
-            >
-              {op}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function TodosVideosClient() {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const es = locale !== 'en';
   const { videos } = useContenido();
   const [page, setPage] = useState(1);
-  const [orden, setOrden] = useState(DROP_ORDEN[0]);
-  const [duracion, setDuracion] = useState(DROP_DURACION[0]);
+  const [orden, setOrden] = useState(OPT_ORDEN[0]);
+  const [duracion, setDuracion] = useState(OPT_DURACION[0]);
+  const [filtroOpen, setFiltroOpen] = useState(false); // modal propio de filtros (solo movil)
   const [query, setQuery] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const didInitRef = useRef(false);
@@ -95,9 +90,9 @@ export default function TodosVideosClient() {
     const q = p.get('q');
     if (q) setQuery(q);
     const o = p.get('orden');
-    if (o && DROP_ORDEN.includes(o)) setOrden(o);
+    if (o && OPT_ORDEN.some((x) => x.value === o)) setOrden(OPT_ORDEN.find((x) => x.value === o));
     const d = p.get('duracion');
-    if (d && DROP_DURACION.includes(d)) setDuracion(d);
+    if (d && OPT_DURACION.some((x) => x.value === d)) setDuracion(OPT_DURACION.find((x) => x.value === d));
     const pg = Number(p.get('page'));
     if (Number.isInteger(pg) && pg >= 1) setPage(pg);
     prevQsRef.current = window.location.search.slice(1);
@@ -110,8 +105,8 @@ export default function TodosVideosClient() {
     const t = setTimeout(() => {
       const p = new URLSearchParams();
       if (query.trim()) p.set('q', query.trim());
-      if (orden !== DROP_ORDEN[0]) p.set('orden', orden);
-      if (duracion !== DROP_DURACION[0]) p.set('duracion', duracion);
+      if (orden.value !== OPT_ORDEN[0].value) p.set('orden', orden.value);
+      if (duracion.value !== OPT_DURACION[0].value) p.set('duracion', duracion.value);
       if (page > 1) p.set('page', String(page));
       const qs = p.toString();
       if (qs === prevQsRef.current) return;
@@ -124,7 +119,11 @@ export default function TodosVideosClient() {
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
     setIsMobile(mq.matches);
-    const onChange = (e) => setIsMobile(e.matches);
+    const onChange = (e) => {
+      setIsMobile(e.matches);
+      // Al pasar a PC (donde van los selects) se cierra el modal y su scroll-lock.
+      if (!e.matches) setFiltroOpen(false);
+    };
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
@@ -132,20 +131,37 @@ export default function TodosVideosClient() {
   const perRowGroup = isMobile ? 4 : 8;
   const isFiltering =
     query.trim() !== '' ||
-    orden !== DROP_ORDEN[0] ||
-    duracion !== DROP_DURACION[0];
+    orden.value !== OPT_ORDEN[0].value ||
+    duracion.value !== OPT_DURACION[0].value;
+
+  // Cuantos filtros de grupo estan activos (para el contador del trigger).
+  const nFiltros = [
+    orden.value !== OPT_ORDEN[0].value,
+    duracion.value !== OPT_DURACION[0].value,
+  ].filter(Boolean).length;
+
+  // Valor actual de cada dimension (para los checks del modal).
+  const valDeDim = { orden: orden.value, duracion: duracion.value };
+
+  // Bloquea el scroll del fondo con el modal abierto (solo movil).
+  useEffect(() => {
+    if (!filtroOpen || !isMobile) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [filtroOpen, isMobile]);
 
   const filtered = useMemo(() => {
     let f = [...videos];
     const q = query.trim().toLowerCase();
     if (q) f = f.filter((v) => v.title.toLowerCase().includes(q) || v.channel.toLowerCase().includes(q));
-    if (orden === 'Más recientes') f.sort((a, b) => Number(b.id) - Number(a.id));
-    else if (orden === 'Más vistos') f.sort((a, b) => parseViews(b.views) - parseViews(a.views));
-    else if (orden === 'Más largos') f.sort((a, b) => parseDuration(b.duration) - parseDuration(a.duration));
-    else if (orden === 'Más cortos') f.sort((a, b) => parseDuration(a.duration) - parseDuration(b.duration));
+    if (orden.value === 'recientes') f.sort((a, b) => Number(b.id) - Number(a.id));
+    else if (orden.value === 'vistos') f.sort((a, b) => parseViews(b.views) - parseViews(a.views));
+    else if (orden.value === 'largos') f.sort((a, b) => parseDuration(b.duration) - parseDuration(a.duration));
+    else if (orden.value === 'cortos') f.sort((a, b) => parseDuration(a.duration) - parseDuration(b.duration));
     else f.sort((a, b) => Number(b.id) - Number(a.id));
-    if (duracion === 'Cortos (menos de 8 min)') f = f.filter((v) => parseDuration(v.duration) < 480);
-    if (duracion === 'Largos (8 min o más)') f = f.filter((v) => parseDuration(v.duration) >= 480);
+    if (duracion.value === 'cortos') f = f.filter((v) => parseDuration(v.duration) < 480);
+    if (duracion.value === 'largos') f = f.filter((v) => parseDuration(v.duration) >= 480);
     return f;
   }, [videos, query, orden, duracion]);
 
@@ -164,8 +180,23 @@ export default function TodosVideosClient() {
 
   function clearFilters() {
     setQuery('');
-    setOrden(DROP_ORDEN[0]);
-    setDuracion(DROP_DURACION[0]);
+    setOrden(OPT_ORDEN[0]);
+    setDuracion(OPT_DURACION[0]);
+    setPage(1);
+  }
+
+  // Aplica la opcion elegida en el modal de filtros y lo cierra.
+  function aplicarSelect(v) {
+    setFiltroOpen(false);
+    if (!v) { clearFilters(); return; }
+    const dim = dimDe(v);
+    if (dim === 'orden') {
+      const opt = OPT_ORDEN.find((o) => o.value === v);
+      if (opt) setOrden(opt);
+    } else if (dim === 'duracion') {
+      const opt = OPT_DURACION.find((o) => o.value === v);
+      if (opt) setDuracion(opt);
+    } else return;
     setPage(1);
   }
 
@@ -189,13 +220,27 @@ export default function TodosVideosClient() {
         </Preview>
         <div className={styles.info}>
           <h3 className={styles.cardTitle}>{video.title}</h3>
-          <p className={styles.metaLine}>
+          <button
+            type="button"
+            className={styles.byRow}
+            onClick={(e) => { e.stopPropagation(); router.push(video.channelSlug ? `/canal/${video.channelSlug}` : canalUrl(video.channel)); }}
+            aria-label={`${es ? 'Ver canal' : 'View channel'}: ${video.channel}`}
+          >
+            {video.channelAvatar
+              ? <img className={styles.avatar} src={video.channelAvatar} alt="" loading="lazy" />
+              : <span className={styles.avatar} aria-hidden="true">{(video.channel || '?').trim().charAt(0).toUpperCase()}</span>}
             <span className={styles.creator}>{video.channel}</span>
             <ion-icon name="checkmark-circle" className={styles.verified} suppressHydrationWarning></ion-icon>
-            <span className={styles.dot}>•</span>
-            <span>{video.views}</span>
-            <span className={styles.dot}>•</span>
-            <span>{video.time}</span>
+          </button>
+          <p className={styles.metaLine}>
+            <span className={styles.metaItem}>
+              <ion-icon name="eye-outline" className={styles.metaIcon} suppressHydrationWarning></ion-icon>
+              {video.views}
+            </span>
+            <span className={styles.metaItem}>
+              <ion-icon name="time-outline" className={styles.metaIcon} suppressHydrationWarning></ion-icon>
+              {video.time}
+            </span>
           </p>
         </div>
       </article>
@@ -219,15 +264,106 @@ export default function TodosVideosClient() {
       <div className={styles.layout2col}>
         <div className={styles.feed}>
           <div className={styles.headRow}>
-            <div>
-              <h1 className={styles.title}>{t('nav.todosVideos')}</h1>
-              <p className={styles.count}>{filtered.length} {t('secciones.videos')} • {t('secciones.todosVideosDesc') || 'Todo lo que subimos, sin categorías'}</p>
-            </div>
+            <h1 className={styles.title}>{t('nav.todosVideos')}</h1>
             <div className={styles.toolbar}>
-              <Drop options={DROP_ORDEN} value={orden} onChange={(v) => { setOrden(v); setPage(1); }} />
-              <Drop options={DROP_DURACION} value={duracion} onChange={(v) => { setDuracion(v); setPage(1); }} extraIcon />
+              {!isMobile ? (
+                /* PC: selects nativos en flex a la derecha del titulo. */
+                [
+                  { v: orden, s: setOrden, o: OPT_ORDEN, l: ['Ordenar por', 'Sort by'] },
+                  { v: duracion, s: setDuracion, o: OPT_DURACION, l: ['Duración', 'Duration'] },
+                ].map((d, i) => (
+                  <select
+                    key={i}
+                    className={`${styles.deskSelect} ${d.v.value !== d.o[0].value ? styles.filterSelectActive : ''}`}
+                    value={d.v.value}
+                    aria-label={es ? d.l[0] : d.l[1]}
+                    onChange={(e) => {
+                      const opt = d.o.find((x) => x.value === e.target.value);
+                      if (opt) { d.s(opt); setPage(1); }
+                    }}
+                  >
+                    {d.o.map((op) => (
+                      <option key={op.value} value={op.value}>{optTexto(op, es)}</option>
+                    ))}
+                  </select>
+                ))
+              ) : (
+                /* Movil: un solo trigger que abre el modal propio. */
+                <div className={styles.selectWrap}>
+                  <button
+                    type="button"
+                    className={`${styles.filterBtn} ${nFiltros ? styles.filterSelectActive : ''}`}
+                    onClick={() => setFiltroOpen(true)}
+                    aria-haspopup="dialog"
+                    aria-label={es ? 'Filtros' : 'Filters'}
+                  >
+                    <ion-icon name="options-outline" className={styles.filterBtnIcon} suppressHydrationWarning></ion-icon>
+                    <span className={styles.filterBtnLabel}>
+                      {es ? 'Filtros' : 'Filters'}{nFiltros > 0 ? ` (${nFiltros})` : ''}
+                    </span>
+                    <ion-icon name="chevron-down-outline" className={styles.selectChevron} suppressHydrationWarning></ion-icon>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Modal propio de filtros (solo movil; portal a body). */}
+          {isMobile && filtroOpen && createPortal(
+            <div
+              className={styles.filtroOverlay}
+              onClick={(e) => { if (e.target === e.currentTarget) setFiltroOpen(false); }}
+            >
+              <div className={styles.filtroCard} role="dialog" aria-modal="true" aria-label={es ? 'Filtros' : 'Filters'}>
+                <span className={styles.filtroHandle} aria-hidden="true" />
+                <div className={styles.filtroHead}>
+                  <span className={styles.filtroHeadIcon}>
+                    <ion-icon name="options-outline" suppressHydrationWarning></ion-icon>
+                  </span>
+                  <strong className={styles.filtroTitle}>{es ? 'Filtros' : 'Filters'}</strong>
+                  <button
+                    type="button"
+                    className={styles.filtroClose}
+                    onClick={() => setFiltroOpen(false)}
+                    aria-label={es ? 'Cerrar' : 'Close'}
+                  >
+                    <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
+                  </button>
+                </div>
+
+                {nFiltros > 0 && (
+                  <button type="button" className={styles.filtroClear} onClick={() => aplicarSelect('')}>
+                    <ion-icon name="close-circle-outline" suppressHydrationWarning></ion-icon>
+                    {es ? 'Borrar filtros' : 'Clear filters'} ({nFiltros})
+                  </button>
+                )}
+
+                <div className={styles.filtroList}>
+                  {SELECT_GROUPS.map((g) => (
+                    <div key={g.label[0]} className={styles.filtroGroup}>
+                      <span className={styles.filtroGroupLabel}>{es ? g.label[0] : g.label[1]}</span>
+                      {g.opts.map((op) => {
+                        const dim = dimDe(op.value);
+                        const activa = valDeDim[dim] === op.value;
+                        return (
+                          <button
+                            key={op.value}
+                            type="button"
+                            className={`${styles.filtroOpt} ${activa ? styles.filtroOptActive : ''}`}
+                            onClick={() => aplicarSelect(op.value)}
+                          >
+                            <span>{optTexto(op, es)}</span>
+                            <ion-icon name="checkmark-circle" className={styles.filtroOptCheck} suppressHydrationWarning></ion-icon>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
 
           <div className={styles.searchRow}>
             <div className={styles.searchBox}>

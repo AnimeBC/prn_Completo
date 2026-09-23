@@ -258,7 +258,23 @@ export default function Header() {
         <div className={styles.actionsContainer}>
           <Notificaciones />
 
-          <Mensajes />
+          {/* Movil: los Chats viven en la navegacion inferior; el hueco del
+              messenger se usa para "Conoce Gente" (Omegle) con texto claro. */}
+          {isMobile ? (
+            <button
+              type="button"
+              className={styles.meetBtn}
+              onClick={openMaint}
+              aria-label={`${t('nav.enVivo')} · ${es ? 'pronto' : 'soon'}`}
+              title={`${t('nav.enVivo')} · ${es ? 'pronto' : 'soon'}`}
+            >
+              <ion-icon name="dice-outline" suppressHydrationWarning></ion-icon>
+              {/* Pildora corta (1 palabra): el nombre completo vive en el lateral. */}
+              <span className={styles.meetBtnLabel}>{t('nav.enVivoShort') || t('nav.enVivo')}</span>
+            </button>
+          ) : (
+            <Mensajes />
+          )}
 
           <div className={styles.divider}></div>
 

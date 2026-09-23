@@ -42,22 +42,17 @@
 
 .headRow {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
 }
 
 .title {
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 800;
+  letter-spacing: -0.3px;
   color: var(--text-primary, #FFFFFF);
-  margin: 0 0 4px;
-}
-
-.subtitle {
-  font-size: 13px;
-  color: var(--text-secondary, #71717A);
   margin: 0;
 }
 
@@ -124,83 +119,362 @@
   margin: 0;
 }
 
+/* Select unico de filtros (a la derecha del titulo). */
 .toolbar {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.dropWrap {
+.selectWrap {
   position: relative;
-}
-
-.dropBtn {
-  background-color: var(--bg-card, #121215);
-  border: 1px solid var(--border, #27272A);
-  border-radius: 6px;
-  padding: 6px 12px;
-  color: var(--text-secondary, #A1A1AA);
-  font-size: 12px;
-  font-weight: 600;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-family: system-ui, -apple-system, sans-serif;
-  transition: border-color 0.2s ease, color 0.2s ease;
+  max-width: 100%;
 }
 
-.dropBtn:hover,
-.dropOpen {
-  border-color: var(--primary, #F20D16);
-  color: var(--text-primary, #FFFFFF);
-}
-
-.dropChevron {
-  font-size: 12px;
-}
-
-.dropOptions {
-  font-size: 14px;
-  margin-left: 2px;
-}
-
-.dropMenu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 20;
-  min-width: 170px;
-  background-color: var(--bg-card, #0D0D0F);
+/* Trigger del modal de filtros (mismo look que el select, pero es un boton). */
+.filterBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
   border: 1px solid var(--border, #27272A);
-  border-radius: 8px;
-  padding: 6px;
+  border-radius: 999px;
+  background-color: var(--bg-card, #121215);
+  color: var(--text-primary, #FFFFFF);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: system-ui, -apple-system, sans-serif;
+  cursor: pointer;
+  max-width: 100%;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.filterBtn:hover {
+  border-color: rgba(242, 13, 22, 0.6);
+}
+
+.filterBtn:focus-visible {
+  outline: none;
+  border-color: var(--primary, #F20D16);
+  box-shadow: 0 0 0 3px rgba(242, 13, 22, 0.18);
+}
+
+.filterBtnIcon {
+  font-size: 16px;
+}
+
+.filterBtnLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Filtro aplicado: el trigger se tiñe de rojo (feedback inmediato). */
+.filterSelectActive {
+  border-color: var(--primary, #F20D16);
+  background-color: rgba(242, 13, 22, 0.1);
+  color: var(--primary, #F20D16);
+}
+
+.filterSelectActive .selectChevron,
+.filterSelectActive .filterBtnIcon {
+  color: var(--primary, #F20D16);
+}
+
+.selectChevron {
+  font-size: 15px;
+  color: var(--text-secondary, #71717A);
+  transition: color 0.2s ease;
+}
+
+.filterBtn:hover .selectChevron {
+  color: var(--primary, #F20D16);
+}
+
+/* ===== Selects nativos en PC (a la derecha del titulo, en flex) ===== */
+.deskSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 38px;
+  padding: 0 34px 0 16px;
+  border: 1px solid var(--border, #27272A);
+  border-radius: 999px;
+  background-color: var(--bg-card, #121215);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%2371717A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  color: var(--text-primary, #FFFFFF);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: system-ui, -apple-system, sans-serif;
+  cursor: pointer;
+  max-width: 100%;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.deskSelect:hover {
+  border-color: rgba(242, 13, 22, 0.6);
+}
+
+.deskSelect:focus {
+  outline: none;
+  border-color: var(--primary, #F20D16);
+  box-shadow: 0 0 0 3px rgba(242, 13, 22, 0.18);
+}
+
+.deskSelect option {
+  background-color: var(--bg-card, #121215);
+  color: var(--text-primary, #FFFFFF);
+  font-weight: 600;
+}
+
+.deskSelect optgroup {
+  background-color: var(--bg-surface, #0D0D0F);
+  color: var(--primary, #F20D16);
+  font-style: normal;
+  font-weight: 800;
+}
+
+[data-theme="light"] .deskSelect {
+  background-color: #FFFFFF;
+  border-color: #E4E4E7;
+  color: #09090B;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%2371717A' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+[data-theme="light"] .deskSelect:hover {
+  border-color: rgba(242, 13, 22, 0.6);
+}
+
+[data-theme="light"] .deskSelect:focus {
+  border-color: var(--primary, #F20D16);
+  box-shadow: 0 0 0 3px rgba(242, 13, 22, 0.16);
+}
+
+[data-theme="light"] .deskSelect option {
+  background-color: #FFFFFF;
+  color: #09090B;
+}
+
+[data-theme="light"] .deskSelect optgroup {
+  background-color: #F4F4F5;
+  color: var(--primary, #F20D16);
+}
+
+/* ===== Modal propio de filtros (bottom sheet en movil, centrado en PC) ===== */
+/* Backdrop a pantalla completa PERO terminando encima de la navegacion
+   inferior (58px + safe-area): la barra se ve siempre, sin taparla. */
+/* Backdrop a PANTALLA COMPLETA: cubre TODO, navegacion inferior incluida
+   (por eso va por ENCIMA del z-index de la nav), con blur + oscurecido.
+   La hoja descansa justo sobre la franja de la nav. */
+.filtroOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9700;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: filtroFade 0.16s ease;
+}
+
+@keyframes filtroFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes filtroUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.filtroCard {
+  width: 100%;
+  max-width: 520px;
+  max-height: 78vh;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  background-color: var(--bg-card, #0D0D0F);
+  border: 1px solid var(--border, #27272A);
+  border-bottom: none;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.5);
+  animation: filtroUp 0.22s cubic-bezier(0.2, 1, 0.3, 1);
+  overflow: hidden;
 }
 
-.dropItem {
-  background: none;
+.filtroHandle {
+  width: 42px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--border, #3F3F46);
+  margin: 10px auto 2px;
+  flex-shrink: 0;
+}
+
+.filtroHead {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--border, #27272A);
+}
+
+.filtroHeadIcon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--primary, #F20D16), #8f0a10);
+  color: #fff;
+  font-size: 20px;
+  box-shadow: 0 6px 16px rgba(242, 13, 22, 0.4);
+}
+
+.filtroTitle {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+}
+
+.filtroClose {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
-  border-radius: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.filtroClose:hover {
+  background: var(--primary, #F20D16);
+  color: #fff;
+}
+
+.filtroClear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 12px 16px 0;
+  height: 38px;
+  border: 1px solid rgba(242, 13, 22, 0.55);
+  border-radius: 999px;
+  background: rgba(242, 13, 22, 0.1);
+  color: var(--primary, #F20D16);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.filtroClear:hover {
+  background: rgba(242, 13, 22, 0.18);
+}
+
+.filtroList {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.filtroGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.filtroGroupLabel {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--primary, #F20D16);
+  padding: 0 6px;
+}
+
+.filtroOpt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: var(--bg-surface, #18181B);
   color: var(--text-primary, #FFFFFF);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  padding: 8px 10px;
+  font-family: inherit;
   text-align: left;
   cursor: pointer;
-  font-family: system-ui, -apple-system, sans-serif;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
-.dropItem:hover {
-  background-color: var(--bg-surface, #1A1A1E);
+.filtroOpt:hover {
+  border-color: rgba(242, 13, 22, 0.5);
 }
 
-.dropItemActive {
+.filtroOptActive {
+  border-color: var(--primary, #F20D16);
+  background: rgba(242, 13, 22, 0.12);
   color: var(--primary, #F20D16);
-  font-weight: 800;
+}
+
+.filtroOptCheck {
+  font-size: 19px;
+  color: var(--primary, #F20D16);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.filtroOptActive .filtroOptCheck {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* PC: el modal se centra como card (no bottom sheet). */
+@media (min-width: 769px) {
+  .filtroOverlay {
+    align-items: center;
+  }
+
+  .filtroCard {
+    border-bottom: 1px solid var(--border, #27272A);
+    border-radius: 22px;
+    max-height: 78vh;
+    animation: filtroFade 0.18s ease;
+  }
+
+  .filtroHandle {
+    display: none;
+  }
 }
 
 .empty {
@@ -376,7 +650,8 @@
   padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  min-width: 0;
 }
 
 .titleRow {
@@ -387,12 +662,14 @@
 }
 
 .cardTitle {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 800;
   margin: 0;
-  white-space: nowrap;
+  line-height: 1.28;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .lockIcon {
@@ -407,14 +684,88 @@
   margin: 0;
 }
 
-.uploader {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--primary, #F20D16);
+/* Fila del autor: avatar + nombre, en una sola linea y clicable al canal. */
+.byRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  align-self: flex-start;
+  padding: 0;
   margin: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.18s ease;
+}
+
+/* Foto de perfil del que publico (circulo chico, inline). */
+.avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-surface, #27272A);
+  border: 1px solid var(--border, #3F3F46);
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  overflow: hidden;
+}
+
+.creator {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #A1A1AA);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  transition: color 0.18s ease;
+}
+
+.byRow:hover .creator,
+.byRow:focus-visible .creator {
+  color: var(--primary, #F20D16);
+  text-decoration: underline;
+}
+
+.byRow:focus-visible {
+  outline: none;
+}
+
+/* Fila de estadisticas: vistas a la izquierda, descargas a la derecha. */
+.metaLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-secondary, #71717A);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.metaIcon {
+  font-size: 12px;
+  color: var(--text-secondary, #71717A);
+  flex-shrink: 0;
 }
 
 .downloads {
@@ -606,15 +957,44 @@
   color: #09090B;
 }
 
-[data-theme="light"] .dropBtn,
-[data-theme="light"] .dropMenu {
+[data-theme="light"] .filterBtn {
   background-color: #FFFFFF;
   border-color: #E4E4E7;
   color: #09090B;
 }
 
-[data-theme="light"] .dropItem {
+[data-theme="light"] .filterBtn:hover {
+  border-color: rgba(242, 13, 22, 0.6);
+}
+
+[data-theme="light"] .filterBtn:focus-visible {
+  border-color: var(--primary, #F20D16);
+  box-shadow: 0 0 0 3px rgba(242, 13, 22, 0.16);
+}
+
+[data-theme="light"] .filterSelectActive {
+  border-color: var(--primary, #F20D16);
+  background-color: rgba(242, 13, 22, 0.08);
+  color: var(--primary, #F20D16);
+}
+
+[data-theme="light"] .filtroCard {
+  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .filtroOpt {
+  background-color: #F4F4F5;
   color: #09090B;
+}
+
+[data-theme="light"] .filtroOptActive {
+  background-color: rgba(242, 13, 22, 0.1);
+  color: var(--primary, #F20D16);
+}
+
+[data-theme="light"] .filtroClose {
+  background: rgba(0, 0, 0, 0.06);
+  color: #71717A;
 }
 
 /* Responsive */
@@ -645,19 +1025,36 @@
   }
 
   .title {
-    font-size: 20px;
+    font-size: 17px;
+  }
+
+  /* Titulo a la izquierda + select de filtros a su derecha (una sola linea). */
+  .headRow {
+    gap: 8px;
+    flex-wrap: nowrap;
+    align-items: center;
   }
 
   .toolbar {
-    width: 100%;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 4px;
-    scrollbar-width: none;
+    flex: 1;
+    justify-content: flex-end;
+    min-width: 0;
   }
 
-  .toolbar::-webkit-scrollbar {
-    display: none;
+  .selectWrap {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .filterBtn {
+    height: 36px;
+    font-size: 12.5px;
+    padding: 0 12px;
+    gap: 6px;
+  }
+
+  .filtroCard {
+    max-height: 78vh;
   }
 
   .grid {

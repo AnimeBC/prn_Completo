@@ -146,8 +146,12 @@ r.get('/', async (req, res, next) => {
               CASE WHEN ff.duracion IS NOT NULL AND ff.duracion <> '' AND ff.duracion <> '00:00'
                    THEN ff.duracion ELSE h.duracion END AS duracion,
               ff.thumb AS fuente_thumb,
-              ff.src   AS fuente_src
+              ff.src   AS fuente_src,
+              COALESCE(u.avatar, ch.avatar) AS canal_avatar,
+              ch.slug AS canal_slug
          FROM hentai h
+         LEFT JOIN channels ch ON ch.nombre = h.canal
+         LEFT JOIN users u ON u.user_key = ch.user_key
          LEFT JOIN LATERAL (
            SELECT f.duracion, f.thumb, f.src
              FROM hentai_capitulos c

@@ -278,8 +278,8 @@ const Reproductor = forwardRef(function Reproductor({
             </div>
             <div className={styles.controlsRight}>
               <button className={styles.speedBtn} type="button" aria-label="Velocidad" onClick={cycleSpeed}>{speed}x</button>
-              <button className={`${styles.ctrlBtn} ${qualityOpen ? styles.ctrlActive : ''}`} type="button" aria-label="Calidad del video" onClick={() => setQualityOpen((p) => !p)}>
-                <ion-icon name="expand-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+              <button className={`${styles.ctrlBtn} ${qualityOpen ? styles.ctrlActive : ''}`} type="button" aria-label="Calidad del video" aria-haspopup="menu" aria-expanded={qualityOpen} onClick={() => setQualityOpen((p) => !p)}>
+                <ion-icon name="settings-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
               {!compact && (
                 <button className={styles.ctrlBtn} type="button" aria-label="Mini reproductor" onClick={togglePip}>

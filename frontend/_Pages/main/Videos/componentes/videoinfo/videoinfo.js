@@ -42,9 +42,9 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
   const router = useRouter();
   const { videos } = useContenido();
   const INFO = Object.fromEntries(
-    videos.map((v) => [v.id, { title: v.title, views: v.viewsFull, date: v.date, channel: v.channel, since: v.since, tags: v.tags, desc: v.desc }])
+    videos.map((v) => [v.id, { title: v.title, views: v.viewsFull, date: v.date, channel: v.channel, channelAvatar: v.channelAvatar, channelSlug: v.channelSlug, since: v.since, tags: v.tags, desc: v.desc }])
   );
-  const info = INFO[videoId] || infoProp || { title: `Video #${videoId ?? ''}`, views: '0 vistas', date: 'recent', channel: 'administrador pikante.pe', since: '', tags: [], desc: '' };
+  const info = INFO[videoId] || infoProp || { title: `Video #${videoId ?? ''}`, views: '0 vistas', date: 'recent', channel: 'administrador pikante.pe', channelAvatar: '', channelSlug: '', since: '', tags: [], desc: '' };
 
   const [expanded, setExpanded] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -56,17 +56,19 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
   const { authed } = useAuth();
   const [channelAvatar, setChannelAvatar] = useState('');
 
-  // Foto del canal (perfil público) para mostrarla junto al nombre
+  // Foto del canal: se usa la que ya trae el contenido (una sola query del
+  // backend); si no viene, se consulta el perfil publico del canal.
   useEffect(() => {
+    if (info.channelAvatar) { setChannelAvatar(info.channelAvatar); return undefined; }
     const name = info.channel;
-    if (!name) return;
+    if (!name) return undefined;
     let alive = true;
-    fetch(`${API_URL}/api/channels/${encodeURIComponent(channelSlug(name))}`)
+    fetch(`${API_URL}/api/channels/${encodeURIComponent(info.channelSlug || channelSlug(name))}`)
       .then((r) => r.json().catch(() => ({})))
       .then((j) => { if (alive && j?.channel) setChannelAvatar(j.channel.avatar || ''); })
       .catch(() => {});
     return () => { alive = false; };
-  }, [info.channel]);
+  }, [info.channel, info.channelAvatar, info.channelSlug]);
 
   useEffect(() => {
     let alive = true;

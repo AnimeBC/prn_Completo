@@ -334,18 +334,21 @@
   font-size: 12.5px;
 }
 
-/* Estadisticas como pilulas (estilo meta del canal). */
+/* Estadisticas como pilulas (estilo meta del canal).
+   Hermana del bloque de texto: se alinea con el inicio del texto
+   (62px = padding de .headInfo bajo la portada) y queda a su derecha. */
 .statsRow {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 62px;
 }
 
 .statPill {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   padding: 7px 14px;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -353,6 +356,17 @@
   color: var(--text-secondary);
   font-size: 13px;
   white-space: nowrap;
+}
+
+/* PC: icono+numero juntos y etiqueta al lado (pildora horizontal). */
+.statPillTop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statPillLabel {
+  font-weight: 600;
 }
 
 .statPill ion-icon {
@@ -1819,20 +1833,29 @@
     font-size: 11.5px;
   }
 
+  /* Cabecera en movil: foto + stats arriba; el texto (info) a TODO el
+     ancho de la pantalla debajo, sin desperdiciar espacio. */
   .head {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "photo stats"
+      "info info";
+    column-gap: 12px;
+    row-gap: 8px;
+    align-items: start;
     margin-top: -44px;
     padding: 0;
   }
 
   .headInfo {
+    grid-area: info;
     padding-top: 0;
     width: 100%;
   }
 
   .avatarWrap {
+    grid-area: photo;
     width: 92px;
     height: 92px;
   }
@@ -1845,8 +1868,52 @@
     font-size: 19px;
   }
 
+  /* Estadisticas estilo Instagram/TikTok: 4 columnas, numero + etiqueta
+     micro apilados, sin borde ni fondo (ocupan la celda entera). */
   .statsRow {
-    gap: 6px;
+    grid-area: stats;
+    gap: 2px;
+    /* la portada invade 44px: arrancan justo bajo su borde */
+    margin-top: 48px;
+    align-content: flex-start;
+  }
+
+  .statPill {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1px;
+    padding: 4px 2px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    font-size: 13px;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .statPillTop {
+    gap: 4px;
+  }
+
+  .statPillTop ion-icon {
+    font-size: 13px;
+  }
+
+  .statPillTop b {
+    font-size: 15px;
+  }
+
+  .statPillLabel {
+    font-size: 9.5px;
+    font-weight: 600;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: -0.2px;
   }
 
   .statPill {

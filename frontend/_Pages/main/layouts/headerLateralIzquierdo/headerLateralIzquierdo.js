@@ -9,7 +9,7 @@ import { useTheme } from '@/_Extras/CambiodeColor/ThemeProvider.js';
 const sectionPrincipal = [
   { icon: 'home-outline', label: 'nav.inicio', href: '/' },
   { icon: 'play-circle-outline', label: 'nav.reels', href: '/reels', variant: 'reels', tagKey: 'nav.sugerido' },
-  { icon: 'radio-outline', label: 'nav.enVivo', href: '/en-vivo', variant: 'live', tagKey: 'nav.enVivoTag' },
+  { icon: 'dice-outline', label: 'nav.enVivo', href: '/en-vivo', variant: 'live', tagKey: 'nav.enVivoTag' },
   { icon: 'film-outline', label: 'nav.todosVideos', href: '/videos' },
   { icon: 'sparkles-outline', label: 'nav.hentai', href: '/hentai' },
   { icon: 'trending-up-outline', label: 'nav.tendencias', href: '/tendencias' },

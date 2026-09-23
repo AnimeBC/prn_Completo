@@ -8,11 +8,14 @@ const SidebarContext = createContext();
 export function SidebarProvider({ children }) {
   const [isOpen, setIsOpen] = useState(false);
   const [maintOpen, setMaintOpen] = useState(false);
+  // Mensaje opcional del modal (ej: "habilitado mañana miércoles 23").
+  const [maintMsg, setMaintMsg] = useState('');
 
   const toggle = () => setIsOpen(prev => !prev);
   const close = () => setIsOpen(false);
-  const openMaint = () => {
+  const openMaint = (msg = '') => {
     setIsOpen(false);
+    setMaintMsg(typeof msg === 'string' ? msg : '');
     setMaintOpen(true);
   };
   const closeMaint = () => setMaintOpen(false);
@@ -30,7 +33,7 @@ export function SidebarProvider({ children }) {
   }, [isOpen]);
 
   return (
-    <SidebarContext.Provider value={{ isOpen, toggle, close, maintOpen, openMaint, closeMaint }}>
+    <SidebarContext.Provider value={{ isOpen, toggle, close, maintOpen, maintMsg, openMaint, closeMaint }}>
       {children}
       <MantenimientoModal />
     </SidebarContext.Provider>

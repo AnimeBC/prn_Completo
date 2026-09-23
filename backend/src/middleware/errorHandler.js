@@ -9,8 +9,13 @@ export function errorHandler(err, req, res, _next) {
       ? `El archivo es demasiado grande (máximo ${Number(process.env.MAX_VIDEO_MB || 6144)} MB).`
       : err.code === 'LIMIT_FILE_COUNT'
         ? 'Demasiados archivos en la subida.'
-        : `Error al subir archivo: ${err.message}`;
-    return res.status(413).json({ error: msg, code: err.code });
+        : err.code === 'LIMIT_UNEXPECTED_FILE'
+          ? 'Error al subir archivo: se recibió un campo de archivo inesperado (¿backend sin reiniciar?).'
+          : `Error al subir archivo: ${err.message}`;
+    // Solo el tamaño real es 413; los demás errores de subida son 400
+    // (evita confundir "Payload Too Large" con errores de campo/cantidad).
+    const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    return res.status(status).json({ error: msg, code: err.code });
   }
 
   const status = err?.status || 500;

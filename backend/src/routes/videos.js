@@ -183,9 +183,13 @@ r.get('/', async (req, res, next) => {
     const base = `FROM videos v WHERE ${where.join(' AND ')}`;
     const countRes = await query(`SELECT COUNT(*)::int AS total ${base}`, params);
     const { rows } = await query(
-      `SELECT v.*, fc.nombre AS fetiche_categoria
+      `SELECT v.*, fc.nombre AS fetiche_categoria,
+              COALESCE(u.avatar, c.avatar) AS canal_avatar,
+              c.slug AS canal_slug
          FROM videos v
          LEFT JOIN fetiche_categorias fc ON fc.id = v.fetiche_categoria_id
+         LEFT JOIN channels c ON c.nombre = v.canal
+         LEFT JOIN users u ON u.user_key = c.user_key
         WHERE ${where.join(' AND ')}
         ORDER BY v.id DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, l, offset]
@@ -205,9 +209,13 @@ r.get('/:id', async (req, res, next) => {
     const num = Number(param);
     const byId = Number.isInteger(num) && num > 0;
     const { rows } = await query(
-      `SELECT v.*, fc.nombre AS fetiche_categoria
+      `SELECT v.*, fc.nombre AS fetiche_categoria,
+              COALESCE(u.avatar, c.avatar) AS canal_avatar,
+              c.slug AS canal_slug
          FROM videos v
          LEFT JOIN fetiche_categorias fc ON fc.id = v.fetiche_categoria_id
+         LEFT JOIN channels c ON c.nombre = v.canal
+         LEFT JOIN users u ON u.user_key = c.user_key
         WHERE ${byId ? 'v.id = $1' : 'v.slug = $1'}`,
       [byId ? num : param]
     );

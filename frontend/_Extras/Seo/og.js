@@ -13,10 +13,12 @@ export function absUrl(u) {
   return `${BASE}${String(u).startsWith('/') ? '' : '/'}${u}`;
 }
 
-/** Imagen para Open Graph con dimensiones/alt (máxima compatibilidad). */
+/** Imagen para Open Graph. NO declara width/height: los scrapers leen las
+ *  medidas reales del archivo (declarar 1200x630 mintiendo —el logo mide
+ *  2172x724— hace que algunas plataformas rechacen la imagen). */
 export function ogImage(url, alt = 'pikante pe') {
   const u = absUrl(url) || DEFAULT_IMG;
-  return [{ url: u, secureUrl: u, width: 1200, height: 630, alt }];
+  return [{ url: u, secureUrl: u, alt }];
 }
 
 /** Bloque openGraph estándar del sitio. */

@@ -214,23 +214,29 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  /* Igual que el header top (top: 56) pero ahora tambien respeta la
+     navegacion inferior: el cajon TERMINA encima de la barra (bottom).
+     Sin unidades vh: evita el bug de viewports dinamicos en iOS/Android
+     y el contenido NUNCA puede scrollear por debajo de la nav. */
   .sidebar {
     position: fixed;
     top: 56px;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+    /* SIN altura fija: si tambien hay height (regla base), el navegador
+       IGNORA bottom (posicion sobrecargada) y la caja se mete bajo la nav. */
+    height: auto;
     left: 0;
     z-index: 100;
     width: 250px;
-    height: calc(100vh - 56px);
     transform: translateX(-100%);
     background-color: var(--bg-surface, #0D0D0F);
     padding: 12px;
-    padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 12px);
+    padding-bottom: 16px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
     border-right: none;
-    border-bottom: 1px solid var(--border, #27272A);
   }
 
   .sidebarOpen {
@@ -241,9 +247,9 @@
     display: block;
     position: fixed;
     top: 56px;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
     left: 0;
-    width: 100%;
-    height: calc(100vh - 56px);
+    right: 0;
     background-color: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);

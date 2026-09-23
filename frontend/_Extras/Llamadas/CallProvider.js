@@ -1685,17 +1685,6 @@ export function CallProvider({ children }) {
       {mounted && toastError && createPortal(toastError, document.body)}
       {mounted && modalAmistad && createPortal(modalAmistad, document.body)}
       {mounted && DEBUG_CALLS && createPortal(<PanelDiagnostico onCerrar={() => { try { window.localStorage.removeItem('pkpDebugCalls'); } catch { /* noop */ } window.location.reload(); }} />, document.body)}
-      {mounted && !DEBUG_CALLS && createPortal(
-        <button
-          type="button"
-          className={styles.diagFab}
-          title="Activar diagnostico de llamadas"
-          onClick={() => { try { window.localStorage.setItem('pkpDebugCalls', '1'); } catch { /* noop */ } window.location.reload(); }}
-        >
-          <ion-icon name="bug-outline" suppressHydrationWarning></ion-icon>
-        </button>,
-        document.body
-      )}
     </CallContext.Provider>
   );
 }

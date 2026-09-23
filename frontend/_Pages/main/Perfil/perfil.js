@@ -724,16 +724,6 @@ export default function PerfilClient() {
               </p>
             )}
 
-            <div className={styles.statsRow}>
-              {statsList.map((s) => (
-                <span key={s.key} className={styles.statPill}>
-                  <ion-icon name={s.icon} suppressHydrationWarning></ion-icon>
-                  <b>{Number(s.value || 0).toLocaleString(es ? 'es-PE' : 'en-US')}</b>
-                  {s.label}
-                </span>
-              ))}
-            </div>
-
             {saveMsg && (
               <div className={styles.actionsRow}>
                 <span className={`${styles.heroMsg} ${saveMsg.includes('✓') ? styles.heroMsgOk : ''}`}>
@@ -741,6 +731,20 @@ export default function PerfilClient() {
                 </span>
               </div>
             )}
+          </div>
+
+          {/* Estadisticas a la DERECHA del bloque de texto (PC) y al lado
+              de la foto en movil (grid areas), nunca debajo. */}
+          <div className={styles.statsRow}>
+            {statsList.map((s) => (
+              <span key={s.key} className={styles.statPill}>
+                <span className={styles.statPillTop}>
+                  <ion-icon name={s.icon} suppressHydrationWarning></ion-icon>
+                  <b>{Number(s.value || 0).toLocaleString(es ? 'es-PE' : 'en-US')}</b>
+                </span>
+                <span className={styles.statPillLabel}>{s.label}</span>
+              </span>
+            ))}
           </div>
         </div>
       </section>

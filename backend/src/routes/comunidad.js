@@ -13,7 +13,7 @@ import { crearNotificacion, notificarDueno, notificarMenciones } from './notific
 const r = Router();
 
 const FILTROS = ['recientes', 'videos', 'fotos', 'populares', 'guardados', 'para-ti'];
-const TIPOS_MSJ = ['texto', 'foto', 'video', 'audio', 'sticker', 'emoji'];
+const TIPOS_MSJ = ['texto', 'foto', 'video', 'audio', 'sticker', 'emoji', 'album'];
 
 // Un mensaje solo puede editarse/eliminarse (para todos) dentro de estas horas.
 const MSJ_EDITABLE_HORAS = 24;
@@ -848,8 +848,8 @@ r.get('/grupos/:id/mensajes', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/comunidad/grupos/:id/mensajes  (multipart: media)
-r.post('/grupos/:id/mensajes', communityUpload.single('media'), async (req, res, next) => {
+// POST /api/comunidad/grupos/:id/mensajes  (multipart: media x N)
+r.post('/grupos/:id/mensajes', communityUpload.array('media', 10), async (req, res, next) => {
   try {
     const id = intOrNull(req.params.id);
     const user = await resolveUser(req.body?.userKey);
@@ -864,13 +864,18 @@ r.post('/grupos/:id/mensajes', communityUpload.single('media'), async (req, res,
       if (!m.rows[0] && !esDueno) return res.status(403).json({ error: 'Debes ser miembro para escribir en este grupo' });
     }
     const texto = String(req.body?.texto || '').trim().slice(0, 2000);
-    if (rechazarLimite(res, req.file ? [req.file] : [], await limiteSubidaMb(user.user_key))) return;
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (rechazarLimite(res, files, await limiteSubidaMb(user.user_key))) return;
     let tipo = TIPOS_MSJ.includes(req.body?.tipo) ? req.body.tipo : 'texto';
     let media = null;
-    if (req.file) {
-      const kind = mediaKind(req.file.mimetype, req.file.originalname);
-      media = saveFile(req.file, user.user_key, `chat/${kind}`);
-      tipo = kind;
+    if (files.length) {
+      const saved = files.map((f) => {
+        const kind = mediaKind(f.mimetype, f.originalname);
+        return { kind, path: saveFile(f, user.user_key, `chat/${kind}`) };
+      });
+      // 1 archivo = string simple (compatibilidad); varios = JSON array (album).
+      media = saved.length === 1 ? saved[0].path : JSON.stringify(saved.map((x) => x.path));
+      tipo = saved.length === 1 ? saved[0].kind : 'album';
     }
     if (!media && !texto) return res.status(400).json({ error: 'Mensaje vacío' });
     const replyTo = intOrNull(req.body?.reply_to);
@@ -1162,22 +1167,27 @@ r.get('/dm/:otroKey/mensajes', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/comunidad/dm/:otroKey/mensajes  (multipart: media)  { userKey, texto, tipo, reply_to }
-r.post('/dm/:otroKey/mensajes', communityUpload.single('media'), async (req, res, next) => {
+// POST /api/comunidad/dm/:otroKey/mensajes  (multipart: media x N)  { userKey, texto, tipo, reply_to }
+r.post('/dm/:otroKey/mensajes', communityUpload.array('media', 10), async (req, res, next) => {
   try {
     const user = await resolveUser(req.body?.userKey);
     if (!user) return res.status(401).json({ error: 'Inicia sesión para escribir' });
     const otro = await resolveUser(req.params.otroKey);
     if (!otro) return res.status(404).json({ error: 'Usuario no encontrado' });
     const texto = String(req.body?.texto || '').trim().slice(0, 2000);
-    if (rechazarLimite(res, req.file ? [req.file] : [], await limiteSubidaMb(user.user_key))) return;
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (rechazarLimite(res, files, await limiteSubidaMb(user.user_key))) return;
 
     let tipo = TIPOS_MSJ.includes(req.body?.tipo) ? req.body.tipo : 'texto';
     let media = null;
-    if (req.file) {
-      const kind = mediaKind(req.file.mimetype, req.file.originalname);
-      media = saveFile(req.file, user.user_key, `dm/${kind}`);
-      tipo = kind;
+    if (files.length) {
+      const saved = files.map((f) => {
+        const kind = mediaKind(f.mimetype, f.originalname);
+        return { kind, path: saveFile(f, user.user_key, `dm/${kind}`) };
+      });
+      // 1 archivo = string simple (compatibilidad); varios = JSON array (album).
+      media = saved.length === 1 ? saved[0].path : JSON.stringify(saved.map((x) => x.path));
+      tipo = saved.length === 1 ? saved[0].kind : 'album';
     }
     if (!media && !texto) return res.status(400).json({ error: 'Mensaje vacío' });
 
@@ -1390,6 +1400,113 @@ r.get('/usuarios', async (req, res, next) => {
       params
     );
     res.json({ data: rows });
+  } catch (e) { next(e); }
+});
+
+// GET /api/comunidad/amigos?userKey=&q=&page=&limit=&filtro=todos|favoritos|pendientes|sugerencias
+// Lista de amistades aceptadas (amigos) o pendientes/sugerencias.
+// Buscador + paginado (scroll infinito).
+r.get('/amigos', async (req, res, next) => {
+  try {
+    const me = String(req.query.userKey || '').trim();
+    if (!me) return res.json({ data: [], total: 0, page: 1, pages: 1 });
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const filtro = ['favoritos', 'pendientes', 'sugerencias'].includes(req.query.filtro) ? req.query.filtro : 'todos';
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(60, Math.max(1, Number(req.query.limit) || 24));
+    const offset = (page - 1) * limit;
+
+    const like = q ? `%${q}%` : null;
+
+    // Todos: cualquier persona verificada de la plataforma (con estado de amistad).
+    if (filtro === 'todos') {
+      const params = [me];
+      if (like) params.push(like);
+      const likeP = like ? `$${params.length}` : 'NULL';
+      const orden = req.query.orden === 'nuevos' ? 'nuevos' : 'alfabetico';
+      const base = `
+         FROM users u
+         LEFT JOIN channels ch ON ch.user_key = u.user_key
+        WHERE u.email_verified = TRUE
+          AND u.user_key <> $1
+          ${like ? `AND (lower(COALESCE(u.usuario,'')) LIKE ${likeP} OR lower(COALESCE(u.nombre,'')) LIKE ${likeP})` : ''}`;
+      const countRes = await query(`SELECT COUNT(*)::int AS total ${base}`, params);
+      const { rows } = await query(
+        `SELECT u.user_key, u.usuario, u.nombre, u.avatar,
+                ch.slug AS canal_slug, ch.pais AS canal_pais, ch.seguidores AS canal_seguidores,
+                (SELECT am.estado FROM amistades am
+                  WHERE (am.a_key = u.user_key AND am.b_key = $1)
+                     OR (am.b_key = u.user_key AND am.a_key = $1)
+                  LIMIT 1) AS amistad_estado,
+                (SELECT am.solicitante FROM amistades am
+                  WHERE (am.a_key = u.user_key AND am.b_key = $1)
+                     OR (am.b_key = u.user_key AND am.a_key = $1)
+                  LIMIT 1) AS amistad_solicitante,
+                FALSE AS favorito
+                ${base}
+          ORDER BY ${orden === 'nuevos' ? 'u.created_at DESC NULLS LAST' : "(u.usuario IS NULL), u.usuario ASC"}
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset]
+      );
+      const total = countRes.rows[0]?.total || 0;
+      return res.json({ data: rows, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
+    }
+
+    // Sugerencias: personas verificadas sin amistad aceptada conmigo.
+    if (filtro === 'sugerencias') {
+      const params = [me];
+      if (like) params.push(like);
+      const likeP = like ? `$${params.length}` : 'NULL';
+      const base = `
+         FROM users u
+         LEFT JOIN channels ch ON ch.user_key = u.user_key
+        WHERE u.email_verified = TRUE
+          AND u.user_key <> $1
+          AND NOT EXISTS (
+            SELECT 1 FROM amistades am
+             WHERE am.estado = 'aceptado'
+               AND ((am.a_key = $1 AND am.b_key = u.user_key) OR (am.b_key = $1 AND am.a_key = u.user_key))
+          )${like ? ` AND (lower(COALESCE(u.usuario,'')) LIKE ${likeP} OR lower(COALESCE(u.nombre,'')) LIKE ${likeP})` : ''}`;
+      const countRes = await query(`SELECT COUNT(*)::int AS total ${base}`, params);
+      const { rows } = await query(
+        `SELECT u.user_key, u.usuario, u.nombre, u.avatar,
+                ch.slug AS canal_slug, ch.pais AS canal_pais, ch.seguidores AS canal_seguidores,
+                FALSE AS favorito
+                ${base}
+          ORDER BY (ch.seguidores IS NULL), ch.seguidores DESC, u.usuario ASC
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset]
+      );
+      const total = countRes.rows[0]?.total || 0;
+      return res.json({ data: rows, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
+    }
+
+    // Pendientes: solicitudes que YO recibí (el otro es el solicitante).
+    const estado = filtro === 'pendientes' ? 'pendiente' : 'aceptado';
+    const params = [me, me];
+    let extra = '';
+    if (like) {
+      params.push(like);
+      extra += ` AND (lower(COALESCE(u.usuario,'')) LIKE $${params.length} OR lower(COALESCE(u.nombre,'')) LIKE $${params.length})`;
+    }
+    if (filtro === 'favoritos') {
+      extra += ' AND ((am.a_key = $1 AND am.favorito_a = TRUE) OR (am.b_key = $1 AND am.favorito_b = TRUE))';
+    }
+    if (filtro === 'pendientes') extra += ' AND am.solicitante <> $1';
+
+    const countRes = await query(`SELECT COUNT(*)::int AS total ${base}`, params);
+    const { rows } = await query(
+      `SELECT u.user_key, u.usuario, u.nombre, u.avatar,
+              ch.slug AS canal_slug, ch.pais AS canal_pais, ch.seguidores AS canal_seguidores,
+              ((am.a_key = $1 AND am.favorito_a = TRUE) OR (am.b_key = $1 AND am.favorito_b = TRUE)) AS favorito
+              ${base}
+        ORDER BY favorito DESC, (u.usuario IS NULL), u.usuario ASC
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
+
+    const total = countRes.rows[0]?.total || 0;
+    res.json({ data: rows, total, page, pages: Math.max(1, Math.ceil(total / limit)) });
   } catch (e) { next(e); }
 });
 

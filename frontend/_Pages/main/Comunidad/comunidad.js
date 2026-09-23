@@ -1,16 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './comunidad.module.css';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import AuthModal from '@/_Pages/main/Auth/AuthModal';
 import { useChatDock } from '@/_Extras/ChatDock/ChatDockProvider.js';
+import { useSidebar } from '@/app/sidebarContext.js';
 
 import { apiComunidad, comunidadMedia, comprimirImagen } from '@/_Extras/Comunidad/api.js';
 import { soloUnoPlay } from '@/_Extras/Media/onlyOne.js';
 import { hace, fecha } from '@/_Extras/Fecha/fecha.js';
+import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
+
+// Anuncios de la comunidad (banners de 728x90 que ya usa el resto del sitio).
+const AD_FEED = { adKey: 'e483940fff110a871ea3ba9b07dd3259', width: 728, height: 90, src: 'https://www.highrevenueformat.com/e483940fff110a871ea3ba9b07dd3259/invoke.js' };
+const AD_SQUARE = { adKey: '3a837969e396afcbcfc39bb7494cfe37', width: 300, height: 250, src: 'https://www.highrevenueformat.com/3a837969e396afcbcfc39bb7494cfe37/invoke.js' };
+const AD_TALL = { adKey: '78e0b2ea56da0940de81bef223de03b3', width: 160, height: 600, src: 'https://www.highrevenueformat.com/78e0b2ea56da0940de81bef223de03b3/invoke.js', marco: true };
 
 function ini(name) {
   return String(name || 'U').trim().slice(0, 1).toUpperCase();
@@ -177,6 +184,7 @@ export default function ComunidadClient() {
   const [presencia, setPresencia] = useState([]);
   const [amigos, setAmigos] = useState([]);
   const { abrir: abrirDock } = useChatDock();
+  const { openMaint } = useSidebar();
 
   const [chats, setChats] = useState([]);
   const [maxWindows, setMaxWindows] = useState(3);
@@ -188,6 +196,8 @@ export default function ComunidadClient() {
   const [grupoImg, setGrupoImg] = useState(null);
   const [onlineQ, setOnlineQ] = useState('');
   const [onlineLimit, setOnlineLimit] = useState(6);
+  // Movil: pestaña de "Grupos / Amigos" debajo de las historias.
+  const [tabTops, setTabTops] = useState('grupos');
   const [buscarQ, setBuscarQ] = useState('');
   const [buscarFiltro, setBuscarFiltro] = useState('todos');
   const [buscarRes, setBuscarRes] = useState({ personas: [], grupos: [], posts: [] });
@@ -983,6 +993,80 @@ export default function ComunidadClient() {
     return arr;
   })();
 
+  /* ---------- render reutilizable (aside PC y bloque movil) ---------- */
+  function renderGrupoCard(g) {
+    return (
+      <div key={g.id} className={styles.groupCard}>
+        <button type="button" className={styles.groupMain} onClick={() => abrirChat(g)}>
+          {g.avatar
+            ? <img className={styles.groupAvatar} src={comunidadMedia(g.avatar)} alt="" />
+            : <span className={styles.groupAvatar}>{ini(g.nombre)}</span>}
+          <span className={styles.groupInfo}>
+            <strong>{g.nombre}</strong>
+            <span className={styles.groupMeta}>
+              <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
+              {Number(g.miembros).toLocaleString(es ? 'es-PE' : 'en-US')} {es ? 'miembros' : 'members'}
+            </span>
+            <span className={styles.groupMeta}>
+              <ion-icon name="radio-button-on" className={styles.onIcon} suppressHydrationWarning></ion-icon>
+              {g.activos || 0} {es ? 'activos' : 'active'}
+              <ion-icon name="folder-outline" suppressHydrationWarning></ion-icon>
+              {g.archivos || 0} {es ? 'archivos' : 'files'}
+            </span>
+            <span className={styles.groupBadges}>
+              <span className={g.privacidad === 'privada' ? styles.groupPriv : styles.groupPub}>
+                {g.privacidad === 'privada' ? (es ? 'Privada' : 'Private') : (es ? 'Pública' : 'Public')}
+              </span>
+              <span className={(g.privacidad === 'privada' || g.modo_union === 'invitacion') ? styles.groupPriv : styles.groupPub}>
+                {(g.privacidad === 'privada' || g.modo_union === 'invitacion') ? (es ? 'Invitación' : 'Invite') : (es ? 'Unirse directo' : 'Open join')}
+              </span>
+              {g.solicitud === 'pendiente' && (
+                <span className={styles.groupPend}>{es ? 'Solicitud pendiente' : 'Pending request'}</span>
+              )}
+              {g.miembro && <span className={styles.groupPub}>{es ? 'Miembro' : 'Member'}</span>}
+            </span>
+          </span>
+        </button>
+        <div className={styles.groupActions}>
+          {g.soy_dueno && (
+            <button type="button" className={styles.iconBtn} onClick={() => verSolicitudes(g)} title={es ? 'Solicitudes' : 'Requests'}>
+              <ion-icon name="mail-unread-outline" suppressHydrationWarning></ion-icon>
+            </button>
+          )}
+          {/* Solo redirige al grupo; unirse/pedir entrar se hace alla. */}
+          <button type="button" className={styles.iconBtn} onClick={() => abrirChat(g)} title={es ? 'Ver grupo' : 'View group'}>
+            <ion-icon name="eye-outline" suppressHydrationWarning></ion-icon>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderAmigoItem(u) {
+    return (
+      <div
+        key={u.user_key}
+        className={styles.onlineItem}
+        role="button"
+        tabIndex={0}
+        onClick={() => abrirAmigo(u)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirAmigo(u); } }}
+        title={es ? 'Enviar mensaje' : 'Send message'}
+      >
+        <span className={styles.avatarSm}>{u.avatar ? <img src={comunidadMedia(u.avatar)} alt="" /> : ini(u.usuario)}</span>
+        <div>
+          <span className={styles.onlineName}>
+            {u.usuario}{String(u.user_key) === String(userKey) ? (es ? ' (Tú)' : ' (You)') : ''}
+          </span>
+          <span className={`${styles.onlineState} ${onlineSet.has(String(u.user_key)) ? '' : styles.onlineStateOff}`}>
+            {onlineSet.has(String(u.user_key)) ? (es ? 'en línea' : 'online') : (es ? 'desconectado' : 'offline')}
+          </span>
+        </div>
+        <ion-icon name="chatbubble-ellipses-outline" className={styles.onlineChatIcon} suppressHydrationWarning></ion-icon>
+      </div>
+    );
+  }
+
   return (
     <main className={styles.main}>
       <div className={styles.grid}>
@@ -1131,6 +1215,65 @@ export default function ComunidadClient() {
 
           {msg && <div className={styles.toast}>{msg}</div>}
 
+          {/* ===== MOVIL: Grupos / Amigos debajo de las historias =====
+              En PC estos bloques viven en la columna derecha. */}
+          <div className={styles.topsMobile}>
+            <div className={styles.topsChips} role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tabTops === 'grupos'}
+                className={`${styles.topsChip} ${tabTops === 'grupos' ? styles.topsChipOn : ''}`}
+                onClick={() => setTabTops('grupos')}
+              >
+                <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
+                {es ? 'Grupos y Comunidades' : 'Groups & Communities'}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tabTops === 'amigos'}
+                className={`${styles.topsChip} ${tabTops === 'amigos' ? styles.topsChipOn : ''}`}
+                onClick={() => setTabTops('amigos')}
+              >
+                <ion-icon name="person-add-outline" suppressHydrationWarning></ion-icon>
+                {es ? `Amigos (${amigos.length})` : `Friends (${amigos.length})`}
+              </button>
+            </div>
+
+            {tabTops === 'grupos' ? (
+              <div className={styles.card}>
+                <div className={styles.groupList}>{gruposDestacados.map(renderGrupoCard)}</div>
+                <a href="/comunidad/grupos" className={styles.verTodas}>
+                  {es ? 'Ver todas las comunidades' : 'See all communities'}
+                  <ion-icon name="arrow-forward-outline" suppressHydrationWarning></ion-icon>
+                </a>
+              </div>
+            ) : (
+              <div className={styles.card}>
+                <input
+                  className={styles.inputSm}
+                  placeholder={es ? 'Buscar amigo para chatear...' : 'Search a friend to chat...'}
+                  value={onlineQ}
+                  onChange={(e) => { setOnlineQ(e.target.value); setOnlineLimit(6); }}
+                />
+                {amigosFiltrados.length === 0 ? (
+                  <p className={styles.emptySm}>
+                    {amigos.length === 0
+                      ? (es ? 'Aún no tienes amigos. Escríbele a alguien para agregarlo.' : 'No friends yet. Message someone to add them.')
+                      : (es ? 'Sin resultados.' : 'No results.')}
+                  </p>
+                ) : (
+                  <div className={styles.onlineList}>{amigosFiltrados.slice(0, 6).map(renderAmigoItem)}</div>
+                )}
+                <a href="/comunidad/amigos" className={styles.verTodas}>
+                  {es ? 'Ver todos los amigos' : 'See all friends'}
+                  <ion-icon name="arrow-forward-outline" suppressHydrationWarning></ion-icon>
+                </a>
+              </div>
+            )}
+          </div>
+
           <p className={styles.sectionLabel}>
             <ion-icon name="sparkles-outline" suppressHydrationWarning></ion-icon>
             {es ? 'Publicaciones para ti' : 'Posts for you'}
@@ -1139,35 +1282,48 @@ export default function ComunidadClient() {
           {cargando ? (
             <p className={styles.empty}>{es ? 'Cargando...' : 'Loading...'}</p>
           ) : feed.length === 0 || feedVacio ? (
-            <div className={styles.feedEmpty}>
-              <ion-icon name="people-circle-outline" className={styles.feedEmptyIcon} suppressHydrationWarning></ion-icon>
-              <p className={styles.feedEmptyText}>
-                {es
-                  ? 'Esta sección está vacía. Únete a grupos o comunidades, o busca cosas que te gusten para ver publicaciones aquí.'
-                  : 'This section is empty. Join groups or communities, or search for things you like to see posts here.'}
-              </p>
-              <button type="button" className={styles.feedEmptyBtn} onClick={() => router.push('/comunidad/grupos')}>
-                <ion-icon name="search-outline" suppressHydrationWarning></ion-icon>
-                {es ? 'Buscar comunidades' : 'Search communities'}
-              </button>
-            </div>
+            <>
+              <div className={styles.feedEmpty}>
+                <ion-icon name="people-circle-outline" className={styles.feedEmptyIcon} suppressHydrationWarning></ion-icon>
+                <p className={styles.feedEmptyText}>
+                  {es
+                    ? 'Esta sección está vacía. Únete a grupos o comunidades, o busca cosas que te gusten para ver publicaciones aquí.'
+                    : 'This section is empty. Join groups or communities, or search for things you like to see posts here.'}
+                </p>
+                <button type="button" className={styles.feedEmptyBtn} onClick={() => router.push('/comunidad/grupos')}>
+                  <ion-icon name="search-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Buscar comunidades' : 'Search communities'}
+                </button>
+              </div>
+              {/* Anuncio bajo el estado vacio del feed. */}
+              <div className={styles.adRow}>
+                <AdBanner {...AD_FEED} />
+              </div>
+            </>
           ) : (
-            feed.map((p) => (
-              <PostCard
-                key={p.id}
-                p={p}
-                es={es}
-                comentariosDe={comentariosDe}
-                comentarios={comentarios}
-                comentarioTexto={comentarioTexto}
-                setComentarioTexto={setComentarioTexto}
-                onLike={alternarLike}
-                onComentarios={abrirComentarios}
-                onCompartir={compartir}
-                onGuardar={alternarGuardar}
-                onReportar={reportar}
-                onComentar={comentar}
-              />
+            feed.map((p, i) => (
+              <Fragment key={p.id}>
+                <PostCard
+                  p={p}
+                  es={es}
+                  comentariosDe={comentariosDe}
+                  comentarios={comentarios}
+                  comentarioTexto={comentarioTexto}
+                  setComentarioTexto={setComentarioTexto}
+                  onLike={alternarLike}
+                  onComentarios={abrirComentarios}
+                  onCompartir={compartir}
+                  onGuardar={alternarGuardar}
+                  onReportar={reportar}
+                  onComentar={comentar}
+                />
+                {/* Un anuncio cada 3 publicaciones. */}
+                {(i + 1) % 3 === 0 && (
+                  <div className={styles.adRow}>
+                    <AdBanner {...AD_FEED} />
+                  </div>
+                )}
+              </Fragment>
             ))
           )}
           </>
@@ -1296,10 +1452,17 @@ export default function ComunidadClient() {
 
         {/* ===== DERECHA: GRUPOS + AMIGOS ===== */}
         <aside className={`${styles.right} ${buscandoActivo ? styles.rightHiddenMobile : ''}`}>
-          <div className={styles.card}>
+          <div className={`${styles.card} ${styles.rightCardPc}`}>
             <div className={styles.blockHead}>
               <span className={styles.blockTitle}>{es ? 'Grupos y Comunidades' : 'Groups & Communities'}</span>
-              <button type="button" className={styles.iconBtn} onClick={() => requireAuth() && setAbrirCrearGrupo((v) => !v)} aria-label="Crear grupo">
+              <button
+                type="button"
+                className={styles.iconBtn}
+                onClick={() => openMaint(es
+                  ? 'En mantenimiento: la creación de comunidades estará habilitada mañana, miércoles 23.'
+                  : 'Under maintenance: community creation will be enabled tomorrow, Wednesday 23.')}
+                aria-label="Crear grupo"
+              >
                 <ion-icon name="add-outline" suppressHydrationWarning></ion-icon>
               </button>
             </div>
@@ -1336,56 +1499,7 @@ export default function ComunidadClient() {
             )}
 
             <div className={styles.groupList}>
-              {gruposDestacados.map((g) => (
-                <div key={g.id} className={styles.groupCard}>
-                  <button type="button" className={styles.groupMain} onClick={() => abrirChat(g)}>
-                    {g.avatar
-                      ? <img className={styles.groupAvatar} src={comunidadMedia(g.avatar)} alt="" />
-                      : <span className={styles.groupAvatar}>{ini(g.nombre)}</span>}
-                    <span className={styles.groupInfo}>
-                      <strong>{g.nombre}</strong>
-                      <span className={styles.groupMeta}>
-                        <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
-                        {Number(g.miembros).toLocaleString(es ? 'es-PE' : 'en-US')} {es ? 'miembros' : 'members'}
-                      </span>
-                      <span className={styles.groupMeta}>
-                        <ion-icon name="radio-button-on" className={styles.onIcon} suppressHydrationWarning></ion-icon>
-                        {g.activos || 0} {es ? 'activos' : 'active'}
-                        <ion-icon name="folder-outline" suppressHydrationWarning></ion-icon>
-                        {g.archivos || 0} {es ? 'archivos' : 'files'}
-                      </span>
-                      <span className={styles.groupBadges}>
-                        <span className={g.privacidad === 'privada' ? styles.groupPriv : styles.groupPub}>
-                          {g.privacidad === 'privada' ? (es ? 'Privada' : 'Private') : (es ? 'Pública' : 'Public')}
-                        </span>
-                        <span className={(g.privacidad === 'privada' || g.modo_union === 'invitacion') ? styles.groupPriv : styles.groupPub}>
-                          {(g.privacidad === 'privada' || g.modo_union === 'invitacion') ? (es ? 'Invitación' : 'Invite') : (es ? 'Unirse directo' : 'Open join')}
-                        </span>
-                        {g.solicitud === 'pendiente' && (
-                          <span className={styles.groupPend}>{es ? 'Solicitud pendiente' : 'Pending request'}</span>
-                        )}
-                        {g.miembro && <span className={styles.groupPub}>{es ? 'Miembro' : 'Member'}</span>}
-                      </span>
-                    </span>
-                  </button>
-                  <div className={styles.groupActions}>
-                    {g.soy_dueno && (
-                      <button type="button" className={styles.iconBtn} onClick={() => verSolicitudes(g)} title={es ? 'Solicitudes' : 'Requests'}>
-                        <ion-icon name="mail-unread-outline" suppressHydrationWarning></ion-icon>
-                      </button>
-                    )}
-                    {/* Solo redirige al grupo; unirse/pedir entrar se hace alla. */}
-                    <button
-                      type="button"
-                      className={styles.iconBtn}
-                      onClick={() => abrirChat(g)}
-                      title={es ? 'Ver grupo' : 'View group'}
-                    >
-                      <ion-icon name="eye-outline" suppressHydrationWarning></ion-icon>
-                    </button>
-                  </div>
-                </div>
-              ))}
+              {gruposDestacados.map(renderGrupoCard)}
             </div>
 
             <a href="/comunidad/grupos" className={styles.verTodas}>
@@ -1394,7 +1508,7 @@ export default function ComunidadClient() {
             </a>
           </div>
 
-          <div className={styles.card}>
+          <div className={`${styles.card} ${styles.rightCardPc}`}>
             <div className={styles.blockHead}>
               <span className={styles.blockTitle}>
                 {es ? `Amigos (${amigos.length})` : `Friends (${amigos.length})`}
@@ -1423,30 +1537,18 @@ export default function ComunidadClient() {
                   }
                 }}
               >
-                {amigosFiltrados.slice(0, onlineLimit).map((u) => (
-                  <div
-                    key={u.user_key}
-                    className={styles.onlineItem}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => abrirAmigo(u)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirAmigo(u); } }}
-                    title={es ? 'Enviar mensaje' : 'Send message'}
-                  >
-                    <span className={styles.avatarSm}>{u.avatar ? <img src={comunidadMedia(u.avatar)} alt="" /> : ini(u.usuario)}</span>
-                    <div>
-                      <span className={styles.onlineName}>
-                        {u.usuario}{String(u.user_key) === String(userKey) ? (es ? ' (Tú)' : ' (You)') : ''}
-                      </span>
-                      <span className={`${styles.onlineState} ${onlineSet.has(String(u.user_key)) ? '' : styles.onlineStateOff}`}>
-                        {onlineSet.has(String(u.user_key)) ? (es ? 'en línea' : 'online') : (es ? 'desconectado' : 'offline')}
-                      </span>
-                    </div>
-                    <ion-icon name="chatbubble-ellipses-outline" className={styles.onlineChatIcon} suppressHydrationWarning></ion-icon>
-                  </div>
-                ))}
+                {amigosFiltrados.slice(0, onlineLimit).map(renderAmigoItem)}
               </div>
             )}
+            <a href="/comunidad/amigos" className={styles.verTodas}>
+              {es ? 'Ver todos los amigos' : 'See all friends'}
+              <ion-icon name="arrow-forward-outline" suppressHydrationWarning></ion-icon>
+            </a>
+          </div>
+
+          {/* Anuncio debajo del bloque de Amigos. */}
+          <div className={styles.adCard}>
+            <AdBanner {...AD_SQUARE} />
           </div>
         </aside>
       </div>

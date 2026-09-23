@@ -1,12 +1,14 @@
 'use client';
 
 import { Fragment, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import styles from './packs.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 import AdNative from '@/_Pages/main/Home/componentes/anuncio/AdNative.js';
+import { canalUrl } from '@/_Extras/Canales/canal.js';
 
 const PER_PAGE = 16;
 
@@ -39,47 +41,34 @@ function findOption(options, value, fallback) {
   return options.find((o) => o.value === value) || fallback;
 }
 
-function Drop({ options, value, onChange, t, extraIcon }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className={styles.dropWrap}>
-      <button
-        className={`${styles.dropBtn} ${open ? styles.dropOpen : ''}`}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-      >
-        {t(value.key)}
-        <ion-icon name="chevron-down-outline" className={styles.dropChevron} suppressHydrationWarning></ion-icon>
-        {extraIcon && (
-          <ion-icon name="options-outline" className={styles.dropOptions} suppressHydrationWarning></ion-icon>
-        )}
-      </button>
-      {open && (
-        <div className={styles.dropMenu}>
-          {options.map((op) => (
-            <button
-              key={op.value}
-              className={`${styles.dropItem} ${op.value === value.value ? styles.dropItemActive : ''}`}
-              type="button"
-              onClick={() => { onChange(op); setOpen(false); }}
-            >
-              {t(op.key)}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+// Todos los filtros en UN solo modal desplegable con grupos (el select nativo
+// del navegador se ve feo en movil). Los values son unicos entre grupos, asi
+// que cada value indica su dimension.
+const SELECT_GROUPS = [
+  { label: ['Descargas', 'Downloads'], opts: OPT_DESCARGAS },
+  { label: ['Popularidad', 'Popularity'], opts: OPT_BUSCADOS },
+  { label: ['Antigüedad', 'Age'], opts: OPT_NUEVOS },
+  { label: ['Categoría', 'Category'], opts: OPT_CATEGORIA },
+];
+
+function dimDe(value) {
+  if (OPT_DESCARGAS.some((o) => o.value === value)) return 'descargas';
+  if (OPT_BUSCADOS.some((o) => o.value === value)) return 'buscados';
+  if (OPT_NUEVOS.some((o) => o.value === value)) return 'novedad';
+  if (OPT_CATEGORIA.some((o) => o.value === value)) return 'categoria';
+  return null;
 }
 
 export default function PacksClient() {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const es = locale !== 'en';
   const { packs } = useContenido();
   const [descargas, setDescargas] = useState(OPT_DESCARGAS[0]);
   const [buscados, setBuscados] = useState(OPT_BUSCADOS[0]);
   const [novedad, setNovedad] = useState(OPT_NUEVOS[0]);
   const [categoria, setCategoria] = useState(OPT_CATEGORIA[0]);
+  const [filtroOpen, setFiltroOpen] = useState(false); // modal propio de filtros (el select nativo es feo en movil)
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [canLeft, setCanLeft] = useState(false);
@@ -130,7 +119,11 @@ export default function PacksClient() {
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
     setIsMobile(mq.matches);
-    const onChange = (e) => setIsMobile(e.matches);
+    const onChange = (e) => {
+      setIsMobile(e.matches);
+      // Al pasar a PC (donde van los selects) se cierra el modal y su scroll-lock.
+      if (!e.matches) setFiltroOpen(false);
+    };
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
@@ -159,6 +152,30 @@ export default function PacksClient() {
     buscados.value !== OPT_BUSCADOS[0].value ||
     novedad.value !== OPT_NUEVOS[0].value ||
     categoria.value !== OPT_CATEGORIA[0].value;
+
+  // Cuantos filtros de grupo hay activos (para el contador del trigger).
+  const nFiltros = [
+    descargas.value !== OPT_DESCARGAS[0].value,
+    buscados.value !== OPT_BUSCADOS[0].value,
+    novedad.value !== OPT_NUEVOS[0].value,
+    categoria.value !== OPT_CATEGORIA[0].value,
+  ].filter(Boolean).length;
+
+  // Valor actual de cada dimension (para los checks del modal).
+  const valDeDim = {
+    descargas: descargas.value,
+    buscados: buscados.value,
+    novedad: novedad.value,
+    categoria: categoria.value,
+  };
+
+  // Bloquea el scroll del fondo con el modal abierto (solo movil).
+  useEffect(() => {
+    if (!filtroOpen || !isMobile) return undefined;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [filtroOpen, isMobile]);
 
   const top10 = [...packs].sort((a, b) => parseNum(b.descargas) - parseNum(a.descargas)).slice(0, 10);
 
@@ -199,6 +216,24 @@ export default function PacksClient() {
     setBuscados(OPT_BUSCADOS[0]);
     setNovedad(OPT_NUEVOS[0]);
     setCategoria(OPT_CATEGORIA[0]);
+    setPage(1);
+  }
+
+  // Aplica la opcion elegida en el modal de filtros y lo cierra.
+  function aplicarSelect(v) {
+    setFiltroOpen(false);
+    if (!v) { clearFilters(); return; }
+    const dim = dimDe(v);
+    const arr = dim === 'descargas' ? OPT_DESCARGAS
+      : dim === 'buscados' ? OPT_BUSCADOS
+        : dim === 'novedad' ? OPT_NUEVOS
+          : OPT_CATEGORIA;
+    const opt = arr.find((o) => o.value === v);
+    if (!opt) return;
+    if (dim === 'descargas') setDescargas(opt);
+    else if (dim === 'buscados') setBuscados(opt);
+    else if (dim === 'novedad') setNovedad(opt);
+    else setCategoria(opt);
     setPage(1);
   }
 
@@ -246,16 +281,28 @@ export default function PacksClient() {
             <h3 className={styles.cardTitle}>{pack.title}</h3>
             <ion-icon name="lock-closed-outline" className={styles.lockIcon} suppressHydrationWarning></ion-icon>
           </div>
-          <span className={styles.uploader}>{pack.uploader}</span>
+          <button
+            type="button"
+            className={styles.byRow}
+            onClick={(e) => { e.stopPropagation(); router.push(pack.channelSlug ? `/canal/${pack.channelSlug}` : canalUrl(pack.uploader)); }}
+            aria-label={`${es ? 'Ver canal' : 'View channel'}: ${pack.uploader}`}
+          >
+            {pack.channelAvatar
+              ? <img className={styles.avatar} src={pack.channelAvatar} alt="" loading="lazy" />
+              : <span className={styles.avatar} aria-hidden="true">{(pack.uploader || '?').trim().charAt(0).toUpperCase()}</span>}
+            <span className={styles.creator}>{pack.uploader}</span>
+          </button>
           <span className={styles.meta}>{pack.fotos} {t('packs.fotos')} + {pack.videos} {t('packs.videos')}</span>
-          <span className={styles.views}>
-            <ion-icon name="eye-outline" className={styles.eyeIcon} suppressHydrationWarning></ion-icon>
-            {pack.views}
-          </span>
-          <span className={styles.downloads}>
-            <ion-icon name="download-outline" className={styles.eyeIcon} suppressHydrationWarning></ion-icon>
-            {pack.descargas}
-          </span>
+          <p className={styles.metaLine}>
+            <span className={styles.metaItem}>
+              <ion-icon name="eye-outline" className={styles.metaIcon} suppressHydrationWarning></ion-icon>
+              {pack.views}
+            </span>
+            <span className={styles.metaItem}>
+              <ion-icon name="download-outline" className={styles.metaIcon} suppressHydrationWarning></ion-icon>
+              {pack.descargas}
+            </span>
+          </p>
         </div>
       </article>
     );
@@ -267,17 +314,108 @@ export default function PacksClient() {
         <div className={styles.feed}>
           <section className={styles.section}>
             <div className={styles.headRow}>
-              <div>
-                <h1 className={styles.title}>{t('packs.titulo')}</h1>
-                <p className={styles.subtitle}>{t('packs.subtitulo')}</p>
-              </div>
+              <h1 className={styles.title}>{t('packs.titulo')}</h1>
               <div className={styles.toolbar}>
-                <Drop options={OPT_DESCARGAS} value={descargas} onChange={(v) => { setDescargas(v); setPage(1); }} t={t} />
-                <Drop options={OPT_BUSCADOS} value={buscados} onChange={(v) => { setBuscados(v); setPage(1); }} t={t} />
-                <Drop options={OPT_NUEVOS} value={novedad} onChange={(v) => { setNovedad(v); setPage(1); }} t={t} />
-                <Drop options={OPT_CATEGORIA} value={categoria} onChange={(v) => { setCategoria(v); setPage(1); }} t={t} extraIcon />
+                {!isMobile ? (
+                  /* PC: 4 selects nativos en flex a la derecha del titulo. */
+                  [
+                    { v: descargas, s: setDescargas, o: OPT_DESCARGAS, l: ['Descargas', 'Downloads'] },
+                    { v: buscados, s: setBuscados, o: OPT_BUSCADOS, l: ['Popularidad', 'Popularity'] },
+                    { v: novedad, s: setNovedad, o: OPT_NUEVOS, l: ['Antigüedad', 'Age'] },
+                    { v: categoria, s: setCategoria, o: OPT_CATEGORIA, l: ['Categoría', 'Category'] },
+                  ].map((d, i) => (
+                    <select
+                      key={i}
+                      className={`${styles.deskSelect} ${d.v.value !== d.o[0].value ? styles.filterSelectActive : ''}`}
+                      value={d.v.value}
+                      aria-label={es ? d.l[0] : d.l[1]}
+                      onChange={(e) => {
+                        const opt = d.o.find((x) => x.value === e.target.value);
+                        if (opt) { d.s(opt); setPage(1); }
+                      }}
+                    >
+                      {d.o.map((op) => (
+                        <option key={op.value} value={op.value}>{t(op.key)}</option>
+                      ))}
+                    </select>
+                  ))
+                ) : (
+                  /* Movil: un solo trigger que abre el modal propio. */
+                  <div className={styles.selectWrap}>
+                    <button
+                      type="button"
+                      className={`${styles.filterBtn} ${nFiltros ? styles.filterSelectActive : ''}`}
+                      onClick={() => setFiltroOpen(true)}
+                      aria-haspopup="dialog"
+                      aria-label={es ? 'Filtros' : 'Filters'}
+                    >
+                      <ion-icon name="options-outline" className={styles.filterBtnIcon} suppressHydrationWarning></ion-icon>
+                      <span className={styles.filterBtnLabel}>
+                        {es ? 'Filtros' : 'Filters'}{nFiltros > 0 ? ` (${nFiltros})` : ''}
+                      </span>
+                      <ion-icon name="chevron-down-outline" className={styles.selectChevron} suppressHydrationWarning></ion-icon>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Modal propio de filtros (solo movil; portal a body). */}
+            {isMobile && filtroOpen && createPortal(
+              <div
+                className={styles.filtroOverlay}
+                onClick={(e) => { if (e.target === e.currentTarget) setFiltroOpen(false); }}
+              >
+                <div className={styles.filtroCard} role="dialog" aria-modal="true" aria-label={es ? 'Filtros' : 'Filters'}>
+                  <span className={styles.filtroHandle} aria-hidden="true" />
+                  <div className={styles.filtroHead}>
+                    <span className={styles.filtroHeadIcon}>
+                      <ion-icon name="options-outline" suppressHydrationWarning></ion-icon>
+                    </span>
+                    <strong className={styles.filtroTitle}>{es ? 'Filtros' : 'Filters'}</strong>
+                    <button
+                      type="button"
+                      className={styles.filtroClose}
+                      onClick={() => setFiltroOpen(false)}
+                      aria-label={es ? 'Cerrar' : 'Close'}
+                    >
+                      <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
+                    </button>
+                  </div>
+
+                  {nFiltros > 0 && (
+                    <button type="button" className={styles.filtroClear} onClick={() => aplicarSelect('')}>
+                      <ion-icon name="close-circle-outline" suppressHydrationWarning></ion-icon>
+                      {es ? 'Borrar filtros' : 'Clear filters'} ({nFiltros})
+                    </button>
+                  )}
+
+                  <div className={styles.filtroList}>
+                    {SELECT_GROUPS.map((g) => (
+                      <div key={g.label[0]} className={styles.filtroGroup}>
+                        <span className={styles.filtroGroupLabel}>{es ? g.label[0] : g.label[1]}</span>
+                        {g.opts.map((op) => {
+                          const dim = dimDe(op.value);
+                          const activa = valDeDim[dim] === op.value;
+                          return (
+                            <button
+                              key={op.value}
+                              type="button"
+                              className={`${styles.filtroOpt} ${activa ? styles.filtroOptActive : ''}`}
+                              onClick={() => aplicarSelect(op.value)}
+                            >
+                              <span>{t(op.key)}</span>
+                              <ion-icon name="checkmark-circle" className={styles.filtroOptCheck} suppressHydrationWarning></ion-icon>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
 
             <div className={styles.searchRow}>
               <div className={styles.searchBox}>

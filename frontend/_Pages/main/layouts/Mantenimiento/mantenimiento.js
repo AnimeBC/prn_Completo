@@ -6,7 +6,7 @@ import { useSidebar } from '@/app/sidebarContext.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 
 export default function MantenimientoModal() {
-  const { maintOpen, closeMaint } = useSidebar();
+  const { maintOpen, maintMsg, closeMaint } = useSidebar();
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function MantenimientoModal() {
         </div>
         <h3 className={styles.title}>{t('mantenimiento.titulo')}</h3>
         <p className={styles.text}>
-          {t('mantenimiento.texto')}
+          {maintMsg || t('mantenimiento.texto')}
         </p>
         <button className={styles.btn} type="button" onClick={closeMaint}>
           {t('mantenimiento.entendido')}

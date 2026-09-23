@@ -42,6 +42,7 @@ export const metadata = {
   },
   icons: {
     icon: [
+      { url: '/favicon.ico', sizes: 'any', type: 'image/x-icon' },
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
       { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
@@ -74,6 +75,24 @@ export default function RootLayout({ children }) {
   return (
     <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
+        {/* Datos estructurados: Organization con logo (aparece en Google) y
+            ubicacion SOLO "Peru" (sin ciudad ni distrito, por privacidad). */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Organization',
+              name: 'pikante pe',
+              url: 'https://pikantepe.com',
+              logo: 'https://pikantepe.com/logo.png',
+              address: {
+                '@type': 'PostalAddress',
+                addressCountry: 'PE',
+              },
+            }),
+          }}
+        />
         {/* Google Tag Manager */}
         <Script
           id="gtm-head"

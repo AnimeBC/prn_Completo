@@ -22,7 +22,7 @@
   height: 32px;
   border: none;
   border-radius: 50%;
-  background: #0084FF;
+  background: #0A84FF;
   color: #fff;
   font-size: 16px;
   cursor: pointer;
@@ -48,7 +48,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  background: #0084FF;
+  background: #0A84FF;
   border-radius: 999px;
 }
 
@@ -60,7 +60,7 @@
   border-radius: 50%;
   background: #fff;
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 2px #0084FF;
+  box-shadow: 0 0 0 2px #0A84FF;
 }
 
 .time {
