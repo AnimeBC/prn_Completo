@@ -68,6 +68,9 @@ export default function PackDetalle({ packId }) {
   const [ratio, setRatio] = useState(16 / 9);
   const [dragging, setDragging] = useState(false);
   const [videoWaiting, setVideoWaiting] = useState(false);
+  // Play central: se muestra hasta la primera reproducción del video actual.
+  const [packStarted, setPackStarted] = useState(false);
+  const videoElRef = useRef(null);
   const viewerRef = useRef(null);
   const dragRef = useRef(null);
   const adRef = useRef(null);
@@ -144,6 +147,7 @@ export default function PackDetalle({ packId }) {
   // Buffering progresivo del video (como en la sección de videos)
   useEffect(() => {
     setVideoWaiting(!!active && active.type === 'video');
+    setPackStarted(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.src]);
 
@@ -342,6 +346,7 @@ export default function PackDetalle({ packId }) {
               <>
                 <video
                   className={styles.photoVideo}
+                  ref={videoElRef}
                   src={active.src}
                   poster={active.thumb || undefined}
                   controls
@@ -353,13 +358,23 @@ export default function PackDetalle({ packId }) {
                   onWaiting={() => setVideoWaiting(true)}
                   onStalled={() => setVideoWaiting(true)}
                   onSeeking={() => setVideoWaiting(true)}
-                  onPlaying={() => setVideoWaiting(false)}
+                  onPlaying={() => { setVideoWaiting(false); setPackStarted(true); }}
                   onCanPlay={() => setVideoWaiting(false)}
                   onLoadedData={() => setVideoWaiting(false)}
                   onError={() => setVideoWaiting(false)}
                   onEnded={() => adRef.current?.request()}
                   onContextMenu={(e) => e.preventDefault()}
                 />
+                {!packStarted && (
+                  <button
+                    type="button"
+                    className={styles.playCenter}
+                    onClick={() => videoElRef.current && videoElRef.current.play()}
+                    aria-label={es ? 'Reproducir' : 'Play'}
+                  >
+                    <ion-icon name="play" suppressHydrationWarning></ion-icon>
+                  </button>
+                )}
                 {videoWaiting && (
                   <div className={styles.videoSpinner} aria-hidden="true">
                     <span className={styles.spinner} />

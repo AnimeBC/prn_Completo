@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import styles from './packs.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
@@ -268,7 +269,16 @@ export default function PacksClient() {
         <div className={styles.thumb}>
           <span className={styles.packBadge}>{t('packs.badge')}</span>
           {pack.thumb
-            ? <img className={styles.thumbImg} src={pack.thumb} alt="" loading="lazy" />
+            ? (
+              <Image
+                className={styles.thumbImg}
+                src={pack.thumb}
+                alt=""
+                fill
+                loading="lazy"
+                sizes="(max-width: 768px) 50vw, (max-width: 1400px) 25vw, 340px"
+              />
+            )
             : (
               <>
                 <ion-icon name="image-outline" className={styles.thumbIcon} suppressHydrationWarning></ion-icon>

@@ -42,6 +42,7 @@ function toInfo(entry) {
     since: entry.since,
     tags: entry.tags,
     desc: entry.desc,
+    thumb: entry.thumb || '',
   };
 }
 

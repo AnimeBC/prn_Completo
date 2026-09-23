@@ -247,7 +247,11 @@ export default function Header() {
           {showResults && renderResults()}
         </div>
 
-        <div className={styles.logoSection} onClick={() => router.push('/')}>
+        <div
+          className={styles.logoSection}
+          onClick={() => router.push('/')}
+          onMouseEnter={() => router.prefetch('/')}
+        >
           <img
             src={isDark ? '/logo.png' : '/logo_oscuro.png'}
             alt="Picante"
@@ -328,19 +332,19 @@ export default function Header() {
 
                 <div className={styles.profileSep} />
 
-                <button className={styles.profileItem} type="button" role="menuitem" onClick={() => { setMenuOpen(false); router.push('/perfil'); }}>
+                <button className={styles.profileItem} type="button" role="menuitem" onMouseEnter={() => router.prefetch('/perfil')} onClick={() => { setMenuOpen(false); router.push('/perfil'); }}>
                   <ion-icon name="person-outline" suppressHydrationWarning></ion-icon>
                   {es ? 'Mi Perfil' : 'My Profile'}
                 </button>
-                <button className={styles.profileItem} type="button" role="menuitem" onClick={() => { setMenuOpen(false); router.push('/favoritos'); }}>
+                <button className={styles.profileItem} type="button" role="menuitem" onMouseEnter={() => router.prefetch('/favoritos')} onClick={() => { setMenuOpen(false); router.push('/favoritos'); }}>
                   <ion-icon name="bookmark-outline" suppressHydrationWarning></ion-icon>
                   {es ? 'Guardados' : 'Saved'}
                 </button>
-                <button className={styles.profileItem} type="button" role="menuitem" onClick={() => { setMenuOpen(false); router.push('/me-gusta'); }}>
+                <button className={styles.profileItem} type="button" role="menuitem" onMouseEnter={() => router.prefetch('/me-gusta')} onClick={() => { setMenuOpen(false); router.push('/me-gusta'); }}>
                   <ion-icon name="thumbs-up-outline" suppressHydrationWarning></ion-icon>
                   {es ? 'Me gusta' : 'Likes'}
                 </button>
-                <button className={styles.profileItem} type="button" role="menuitem" onClick={() => { setMenuOpen(false); router.push('/historial'); }}>
+                <button className={styles.profileItem} type="button" role="menuitem" onMouseEnter={() => router.prefetch('/historial')} onClick={() => { setMenuOpen(false); router.push('/historial'); }}>
                   <ion-icon name="time-outline" suppressHydrationWarning></ion-icon>
                   {es ? 'Historial' : 'History'}
                 </button>

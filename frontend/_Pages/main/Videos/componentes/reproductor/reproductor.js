@@ -19,6 +19,7 @@ function fmt(sec) {
 const Reproductor = forwardRef(function Reproductor({
   src = '/videos/1.mov',
   renditions = [],
+  poster = null,
   theater,
   onToggleTheater,
   compact = false,
@@ -170,6 +171,7 @@ const Reproductor = forwardRef(function Reproductor({
           ref={videoRef}
           className={styles.video}
           src={currentSrc}
+          poster={poster || undefined}
           preload="auto"
           playsInline
           controlsList="nodownload"
@@ -202,10 +204,17 @@ const Reproductor = forwardRef(function Reproductor({
           onError={() => { setVideoError(true); setWaiting(false); }}
           onEnded={() => { if (!compact && ads) adRef.current?.request(); }}
         />
-        {waiting && !videoError && (
+        {/* Spinner solo mientras se reproduce y hay buffering: al abrir,
+            se ve la THUMB (poster) + el botón de play central. */}
+        {waiting && playing && !videoError && (
           <div className={styles.spinnerOverlay} aria-hidden="true">
             <div className={styles.spinner} />
           </div>
+        )}
+        {!playing && !videoError && (
+          <button type="button" className={styles.playCenter} onClick={togglePlay} aria-label="Reproducir">
+            <ion-icon name="play" suppressHydrationWarning></ion-icon>
+          </button>
         )}
         {videoError && (
           <div className={styles.videoError}>

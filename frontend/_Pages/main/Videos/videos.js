@@ -32,7 +32,7 @@ export default function VideosClient({ videoId, src = '/videos/1.mov', info = nu
         {theater ? (
           <>
             <div className={styles.playerFull}>
-              <Reproductor src={src} renditions={renditions} theater={theater} onToggleTheater={() => setTheater((p) => !p)} onPlay={alPrimerPlay} />
+              <Reproductor src={src} renditions={renditions} poster={info?.thumb} theater={theater} onToggleTheater={() => setTheater((p) => !p)} onPlay={alPrimerPlay} />
             </div>
             <div className={styles.leftCol}>
               <VideoInfo videoId={videoId} info={info} src={src} />
@@ -58,7 +58,7 @@ export default function VideosClient({ videoId, src = '/videos/1.mov', info = nu
         ) : (
           <>
             <div className={styles.leftCol}>
-              <Reproductor src={src} renditions={renditions} theater={theater} onToggleTheater={() => setTheater((p) => !p)} onPlay={alPrimerPlay} />
+              <Reproductor src={src} renditions={renditions} poster={info?.thumb} theater={theater} onToggleTheater={() => setTheater((p) => !p)} onPlay={alPrimerPlay} />
               <VideoInfo videoId={videoId} info={info} src={src} />
               <Comentarios videoId={videoId} />
               <AdBanner

@@ -19,7 +19,10 @@ export function sinceOf(dateStr) {
 
 export async function apiGet(path) {
   try {
-    const r = await fetch(`${API}${path}`, { cache: 'no-store' });
+    // Caché del lado de Next (30 s): los detalles/metadata no necesitan ser
+    // frescos al segundo y TODAS las visitas comparten la misma caché
+    // (en vez de pegarle al backend en cada request).
+    const r = await fetch(`${API}${path}`, { next: { revalidate: 30 } });
     if (!r.ok) return null;
     return await r.json();
   } catch {

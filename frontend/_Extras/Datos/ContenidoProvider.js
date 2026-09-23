@@ -197,17 +197,36 @@ export function ContenidoProvider({ children }) {
 
   useEffect(() => {
     load();
+    // Eventos que NO cambian las listas de contenido: se ignoran para no
+    // recargar los 6 listados en TODOS los conectados por cada mensaje,
+    // llamada (tormenta de call_ice) o notificación.
+    const IGNORAR = [
+      'call_',
+      'notificacion',
+      'comunidad_mensaje',
+      'comunidad_dm',
+      'comunidad_reaccion',
+      'amistad',
+      'comment_',
+    ];
+    let t = null;
     const onChange = (e) => {
-      const t = e?.detail?.type || '';
-      if (t === 'video_view' || t === 'hentai_view' || t === 'pack_view') {
+      const tipo = String(e?.detail?.type || '');
+      if (tipo.endsWith('_view')) {
         const p = e?.detail?.payload || {};
-        parchearVistas(t, p.id, Number(p.views));
-        return; // vista: parcha el número y NADA más (sin recargas)
+        parchearVistas(tipo, p.id, Number(p.views));
+        return; // vista: parcha el número y NADA más
       }
-      load();
+      if (IGNORAR.some((pref) => tipo.startsWith(pref))) return;
+      // Contenido nuevo/editado: recarga, con debounce para las ráfagas.
+      clearTimeout(t);
+      t = setTimeout(load, 600);
     };
     window.addEventListener('pikantepe:change', onChange);
-    return () => window.removeEventListener('pikantepe:change', onChange);
+    return () => {
+      window.removeEventListener('pikantepe:change', onChange);
+      clearTimeout(t);
+    };
   }, [load]);
 
   return <ContenidoContext.Provider value={data}>{children}</ContenidoContext.Provider>;

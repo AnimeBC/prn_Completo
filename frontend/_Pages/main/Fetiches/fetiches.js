@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import styles from './fetiches.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
@@ -276,6 +277,7 @@ export default function FetichesClient() {
         role="link"
         tabIndex={0}
         onClick={() => go(video)}
+        onMouseEnter={() => router.prefetch(videoUrl(video))}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -295,7 +297,7 @@ export default function FetichesClient() {
             aria-label={`${es ? 'Ver canal' : 'View channel'}: ${video.channel}`}
           >
             {video.channelAvatar
-              ? <img className={styles.avatar} src={video.channelAvatar} alt="" loading="lazy" />
+              ? <Image className={styles.avatar} src={video.channelAvatar} alt="" width={22} height={22} loading="lazy" />
               : <span className={styles.avatar} aria-hidden="true">{(video.channel || '?').trim().charAt(0).toUpperCase()}</span>}
             <span className={styles.creator}>{video.channel}</span>
             <ion-icon name="checkmark-circle" className={styles.verified} suppressHydrationWarning></ion-icon>

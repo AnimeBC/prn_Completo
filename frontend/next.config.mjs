@@ -10,6 +10,33 @@ const nextConfig = {
     'localhost',
     '127.0.0.1',
   ],
+
+  // React Compiler (estable en Next 16): memoiza solo, menos re-renders en los
+  // grids grandes. Requiere: npm i -D babel-plugin-react-compiler
+  reactCompiler: true,
+
+  experimental: {
+    // Cachea segmentos dinámicos en el cliente (default: 0s = sin caché).
+    // Volver atrás/adelante y re-visitas del sidebar salen de caché.
+    staleTimes: {
+      dynamic: 30,
+      static: 300,
+    },
+  },
+
+  images: {
+    // Miniaturas y avatares viven en el backend (Express en la misma máquina).
+    remotePatterns: [
+      { protocol: 'http', hostname: 'localhost', port: '3001' },
+      { protocol: 'http', hostname: '127.0.0.1', port: '3001' },
+      { protocol: 'http', hostname: 'pikantepe.com', port: '3001' },
+      { protocol: 'https', hostname: 'pikantepe.com' },
+    ],
+    // Next 16 bloquea las IPs locales por defecto; el backend corre en
+    // localhost:3001 (dev y VPS) — sin esto el optimizer da 400.
+    dangerouslyAllowLocalIP: true,
+  },
+
   async headers() {
     return [
       {

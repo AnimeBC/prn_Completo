@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { query } from '../db/pool.js';
-import { publishEvent, cacheDel, rateLimit } from '../db/redis.js';
+import { publishEvent, cacheDel, rateLimit, cacheGet, cacheSet } from '../db/redis.js';
 import { env } from '../config/env.js';
 import { authRequired } from '../middleware/auth.js';
 import { slugify } from '../utils/slug.js';
@@ -94,6 +94,13 @@ async function finishPackVideo({ mediaId, origPath, destDir }) {
 // ============================================================
 r.get('/', async (req, res, next) => {
   try {
+    // Caché 30s por querystring (home y /packs la piden en cada visita).
+    // La vista de papelera del admin no se cachea.
+    const ck = `cache:packs:${req.originalUrl}`;
+    if (req.query.papelera !== 'true') {
+      const hit = await cacheGet(ck);
+      if (hit) return res.json(hit);
+    }
     const q = String(req.query.q || '').trim();
     const papelera = req.query.papelera === 'true';
     const page = Math.max(1, Number(req.query.page) || 1);
@@ -126,7 +133,9 @@ r.get('/', async (req, res, next) => {
     const base2 = env.frontendUrl.replace(/\/+$/, '');
     const data = rows.map((row) => ({ ...row, download: autoDownload(row, base2) }));
 
-    res.json({ data, total: countRes.rows[0].total, page, limit });
+    const payload = { data, total: countRes.rows[0].total, page, limit };
+    if (!papelera) await cacheSet(ck, payload, 30);
+    res.json(payload);
   } catch (e) { next(e); }
 });
 

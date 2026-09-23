@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import styles from './fila.module.css';
 import { useContenido } from '@/_Extras/Datos/ContenidoProvider.js';
@@ -63,10 +64,10 @@ export default function Fila({ title, href = null, icon = 'flame', source = 'vid
         </div>
         {href && (
           <div className={styles.actions}>
-            <a href={href} className={styles.verMas}>
+            <Link href={href} className={styles.verMas} prefetch>
               {t('secciones.verMas')}
               <ion-icon name="arrow-forward-outline" className={styles.verMasIcon} suppressHydrationWarning></ion-icon>
-            </a>
+            </Link>
           </div>
         )}
       </div>
@@ -80,6 +81,11 @@ export default function Fila({ title, href = null, icon = 'flame', source = 'vid
               role="link"
               tabIndex={0}
               onClick={() => go(item)}
+              onMouseEnter={() => router.prefetch(
+                source === 'hentai' ? hentaiUrl(item)
+                  : source === 'packs' ? `/packs/${item.public_id}`
+                    : videoUrl(item)
+              )}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(item); }
               }}

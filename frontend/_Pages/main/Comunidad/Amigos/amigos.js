@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import styles from './amigos.module.css';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
@@ -180,7 +181,7 @@ export default function AmigosClient() {
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPerfil(u); } }}
       >
         <button type="button" className={styles.friendAvatar} onClick={(e) => { e.stopPropagation(); abrirPerfil(u); }} aria-label={nombreDe(u)}>
-          {u.avatar ? <img src={comunidadMedia(u.avatar)} alt="" loading="lazy" /> : <span>{ini(nombreDe(u))}</span>}
+          {u.avatar ? <Image src={comunidadMedia(u.avatar)} alt="" width={52} height={52} loading="lazy" /> : <span>{ini(nombreDe(u))}</span>}
           {on && <span className={styles.onlineDot} aria-hidden="true" />}
         </button>
         <div className={styles.friendInfo}>
@@ -221,7 +222,7 @@ export default function AmigosClient() {
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPerfil(u); } }}
       >
         <button type="button" className={styles.friendAvatar} onClick={(e) => { e.stopPropagation(); abrirPerfil(u); }} aria-label={nombreDe(u)}>
-          {u.avatar ? <img src={comunidadMedia(u.avatar)} alt="" loading="lazy" /> : <span>{ini(nombreDe(u))}</span>}
+          {u.avatar ? <Image src={comunidadMedia(u.avatar)} alt="" width={52} height={52} loading="lazy" /> : <span>{ini(nombreDe(u))}</span>}
           {on && <span className={styles.onlineDot} aria-hidden="true" />}
         </button>
         <div className={styles.friendInfo}>
@@ -274,7 +275,7 @@ export default function AmigosClient() {
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPerfil(u); } }}
       >
         <button type="button" className={styles.friendAvatar} onClick={(e) => { e.stopPropagation(); abrirPerfil(u); }} aria-label={nombreDe(u)}>
-          {u.avatar ? <img src={comunidadMedia(u.avatar)} alt="" loading="lazy" /> : <span>{ini(nombreDe(u))}</span>}
+          {u.avatar ? <Image src={comunidadMedia(u.avatar)} alt="" width={52} height={52} loading="lazy" /> : <span>{ini(nombreDe(u))}</span>}
         </button>
         <div className={styles.friendInfo}>
           <span className={styles.friendName}>{nombreDe(u)}</span>
@@ -311,7 +312,7 @@ export default function AmigosClient() {
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPerfil(u); } }}
       >
         <button type="button" className={styles.friendAvatar} onClick={(e) => { e.stopPropagation(); abrirPerfil(u); }} aria-label={nombreDe(u)}>
-          {u.avatar ? <img src={comunidadMedia(u.avatar)} alt="" loading="lazy" /> : <span>{ini(nombreDe(u))}</span>}
+          {u.avatar ? <Image src={comunidadMedia(u.avatar)} alt="" width={52} height={52} loading="lazy" /> : <span>{ini(nombreDe(u))}</span>}
         </button>
         <div className={styles.friendInfo}>
           <span className={styles.friendName}>{nombreDe(u)}</span>

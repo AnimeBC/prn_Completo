@@ -24,7 +24,7 @@ function fmt(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export default function HentaiReproductor({ src = '/videos/1.mov', theater, onToggleTheater, onPlay = null }) {
+export default function HentaiReproductor({ src = '/videos/1.mov', poster = null, theater, onToggleTheater, onPlay = null }) {
   const videoRef = useRef(null);
   const wrapRef = useRef(null);
   const adRef = useRef(null);
@@ -149,6 +149,7 @@ export default function HentaiReproductor({ src = '/videos/1.mov', theater, onTo
           ref={videoRef}
           className={styles.video}
           src={src}
+          poster={poster || undefined}
           preload="auto"
           playsInline
           controlsList="nodownload"
@@ -171,10 +172,17 @@ export default function HentaiReproductor({ src = '/videos/1.mov', theater, onTo
           onError={() => { setVideoError(true); setWaiting(false); }}
           onEnded={() => adRef.current?.request()}
         />
-        {waiting && !videoError && (
+        {/* Spinner solo con reproduccion en curso: al abrir se ve la thumb
+            (poster) + el boton de play central. */}
+        {waiting && playing && !videoError && (
           <div className={styles.spinnerOverlay} aria-hidden="true">
             <div className={styles.spinner} />
           </div>
+        )}
+        {!playing && !videoError && (
+          <button type="button" className={styles.playCenter} onClick={togglePlay} aria-label="Reproducir">
+            <ion-icon name="play" suppressHydrationWarning></ion-icon>
+          </button>
         )}
         {videoError && (
           <div className={styles.videoError}>

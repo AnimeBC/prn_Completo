@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import styles from './headerLateralIzquierdo.module.css';
 import { useSidebar } from '@/app/sidebarContext.js';
 import { useRouter, usePathname } from 'next/navigation';
@@ -56,21 +57,9 @@ export default function HeaderLateralIzquierdo() {
     const variantClass =
       item.variant === 'reels' ? styles.promoReels : item.variant === 'live' ? styles.promoLive : '';
     const promoClass = item.variant ? styles.promoItem : '';
-    return (
-      <div
-        key={item.label}
-        role="link"
-        tabIndex={0}
-        aria-current={active ? 'page' : undefined}
-        className={`${styles.navItem} ${promoClass} ${variantClass} ${active ? `${styles.navItemActive} ${styles.promoActive}` : ''}`}
-        onClick={() => handleNavigate(item.href)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleNavigate(item.href);
-          }
-        }}
-      >
+    const className = `${styles.navItem} ${promoClass} ${variantClass} ${active ? `${styles.navItemActive} ${styles.promoActive}` : ''}`;
+    const inner = (
+      <>
         <ion-icon name={item.icon} className={styles.navIcon} suppressHydrationWarning></ion-icon>
         <span>{item.label.startsWith('nav.') ? t(item.label) : item.label}</span>
         {item.tagKey && (
@@ -82,6 +71,40 @@ export default function HeaderLateralIzquierdo() {
             {t(item.tagKey)}
           </span>
         )}
+      </>
+    );
+    // Habilitadas: <Next/Link> -> prefetch automatico (Next 16) y navegacion
+    // instantanea. Deshabilitadas (reels/en-vivo): siguen con modal de
+    // mantenimiento.
+    if (ENABLED_ROUTES.includes(item.href)) {
+      return (
+        <Link
+          key={item.label}
+          href={item.href}
+          aria-current={active ? 'page' : undefined}
+          className={className}
+          onClick={close}
+        >
+          {inner}
+        </Link>
+      );
+    }
+    return (
+      <div
+        key={item.label}
+        role="link"
+        tabIndex={0}
+        aria-current={active ? 'page' : undefined}
+        className={className}
+        onClick={() => handleNavigate(item.href)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleNavigate(item.href);
+          }
+        }}
+      >
+        {inner}
       </div>
     );
   }

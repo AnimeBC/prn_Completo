@@ -1,13 +1,19 @@
 import { Router } from 'express';
 import { query } from '../db/pool.js';
+import { cacheGet, cacheSet } from '../db/redis.js';
 
 const r = Router();
 
-// GET /api/lives
+// GET /api/lives  (lista con caché 60s: cambia poco y la piden todas las visitas)
 r.get('/', async (req, res, next) => {
   try {
+    const ck = 'cache:lives:list';
+    const hit = await cacheGet(ck);
+    if (hit) return res.json(hit);
     const { rows } = await query('SELECT * FROM lives WHERE activo = TRUE ORDER BY id DESC LIMIT 200');
-    res.json({ data: rows, total: rows.length });
+    const payload = { data: rows, total: rows.length };
+    await cacheSet(ck, payload, 60);
+    res.json(payload);
   } catch (e) { next(e); }
 });
 

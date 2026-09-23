@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import styles from './chatFlotante.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
@@ -411,7 +412,9 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   }, [activo, inputFocused, docFocused, userKey, tipo, grupoId, otroKey, mensajes.length]);
 
   useEffect(() => {
-    const iv = setInterval(cargar, 6000);
+    // Respaldo lento: la vía viva es el SSE (pikantepe:change).
+    // Antes eran 6 s y recargaba 50 mensajes por ventana abierta.
+    const iv = setInterval(cargar, 60000);
     const onChange = (e) => {
       const t = String(e?.detail?.type || '');
       if (t === 'comunidad_mensaje' || t === 'comunidad_reaccion' || t === 'comunidad_dm') cargar();
@@ -1232,7 +1235,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                   onClick={() => router.push(canalUrl(m.usuario))}
                 >
                   {m.avatar
-                    ? <img src={comunidadMedia(m.avatar)} alt="" loading="lazy" />
+                    ? <Image src={comunidadMedia(m.avatar)} alt="" width={28} height={28} loading="lazy" />
                     : <span>{String(m.usuario || 'U').trim().slice(0, 1).toUpperCase()}</span>}
                 </button>
               )}

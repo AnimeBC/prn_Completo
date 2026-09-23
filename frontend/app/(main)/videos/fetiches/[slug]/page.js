@@ -28,7 +28,7 @@ async function resolveEntry(slug) {
 
 function toInfo(entry) {
   if (!entry) return null;
-  return { title: entry.title, views: entry.viewsFull, date: entry.date, channel: entry.channel, since: entry.since, tags: entry.tags, desc: entry.desc };
+  return { title: entry.title, views: entry.viewsFull, date: entry.date, channel: entry.channel, since: entry.since, tags: entry.tags, desc: entry.desc, thumb: entry.thumb || '' };
 }
 
 export async function generateMetadata({ params }) {

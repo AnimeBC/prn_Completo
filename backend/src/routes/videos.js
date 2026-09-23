@@ -8,7 +8,7 @@ import {
 } from '../services/upload.js';
 import { authRequired } from '../middleware/auth.js';
 import { slugify, channelSlug } from '../utils/slug.js';
-import { publishEvent, cacheDel } from '../db/redis.js';
+import { publishEvent, cacheDel, cacheGet, cacheSet } from '../db/redis.js';
 import { transcodeVideo, hasFFmpeg, fmtDuration, probe } from '../services/transcode.js';
 
 const r = Router();
@@ -155,6 +155,13 @@ async function tagsForVideos(ids) {
 // GET /api/videos?fetiche=&tendencia=&categoria=&q=&page=&limit=
 r.get('/', async (req, res, next) => {
   try {
+    // Caché 30s por querystring (la piden home/listas en cada visita).
+    // La vista de papelera del admin no se cachea.
+    const ck = `cache:videos:${req.originalUrl}`;
+    if (req.query.papelera !== 'true') {
+      const hit = await cacheGet(ck);
+      if (hit) return res.json(hit);
+    }
     const { fetiche, tendencia, categoria, q = '', page = '1', limit = '16', papelera } = req.query;
     const where = [papelera === 'true' ? 'v.activo = FALSE' : 'v.activo = TRUE'];
     const params = [];
@@ -198,7 +205,9 @@ r.get('/', async (req, res, next) => {
     const tagMap = await tagsForVideos(rows.map((v) => v.id));
     const data = rows.map((v) => ({ ...v, tags: tagMap[v.id] || [] }));
 
-    res.json({ data, total: countRes.rows[0].total, page: p, limit: l });
+    const payload = { data, total: countRes.rows[0].total, page: p, limit: l };
+    if (req.query.papelera !== 'true') await cacheSet(ck, payload, 30);
+    res.json(payload);
   } catch (e) { next(e); }
 });
 

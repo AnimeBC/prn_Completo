@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import styles from './bottomNav.module.css';
 import { useSidebar } from '@/app/sidebarContext.js';
@@ -95,14 +96,10 @@ export default function BottomNav() {
       <nav className={styles.nav} aria-label={es ? 'Navegacion' : 'Navigation'}>
         {ITEMS.map((it) => {
           const active = isActive(it.href);
-          return (
-            <button
-              key={it.href}
-              type="button"
-              className={`${styles.item} ${active ? styles.itemActive : ''} ${it.center ? styles.itemCenter : ''}`}
-              aria-current={active ? 'page' : undefined}
-              onClick={() => go(it.href)}
-            >
+          const cls = `${styles.item} ${active ? styles.itemActive : ''} ${it.center ? styles.itemCenter : ''}`;
+          const aria = active ? 'page' : undefined;
+          const inner = (
+            <>
               <span className={styles.iconWrap}>
                 <ion-icon name={it.icon} className={styles.icon} suppressHydrationWarning></ion-icon>
                 {it.href === '/chat' && unread > 0 && (
@@ -112,6 +109,26 @@ export default function BottomNav() {
                 )}
               </span>
               <span className={styles.label}>{es ? it.label[0] : it.label[1]}</span>
+            </>
+          );
+          // Habilitadas: <Next/Link> con prefetch automatico (Next 16).
+          // Reels: sigue en boton -> modal de mantenimiento.
+          if (it.href !== '/reels' && ENABLED.includes(it.href)) {
+            return (
+              <Link key={it.href} href={it.href} className={cls} aria-current={aria}>
+                {inner}
+              </Link>
+            );
+          }
+          return (
+            <button
+              key={it.href}
+              type="button"
+              className={cls}
+              aria-current={aria}
+              onClick={() => go(it.href)}
+            >
+              {inner}
             </button>
           );
         })}

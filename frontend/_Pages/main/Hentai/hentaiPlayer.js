@@ -167,7 +167,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
         {theater ? (
           <>
             <div className={styles.playerFull}>
-              <HentaiReproductor src={playerSrc} theater={theater} onToggleTheater={() => setTheater((p) => !p)} onPlay={alPrimerPlay} />
+              <HentaiReproductor src={playerSrc} poster={activeFuente?.thumb || serie?.thumb || ''} theater={theater} onToggleTheater={() => setTheater((p) => !p)} onPlay={alPrimerPlay} />
             </div>
             <div className={styles.leftCol}>
               <div className={styles.epMobile}>{episodeList}</div>
@@ -187,7 +187,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
         ) : (
           <>
             <div className={styles.leftCol}>
-              <HentaiReproductor src={playerSrc} theater={theater} onToggleTheater={() => setTheater((p) => !p)} onPlay={alPrimerPlay} />
+              <HentaiReproductor src={playerSrc} poster={activeFuente?.thumb || serie?.thumb || ''} theater={theater} onToggleTheater={() => setTheater((p) => !p)} onPlay={alPrimerPlay} />
               <div className={styles.epMobile}>{episodeList}</div>
               {modeToggle}
               <HentaiInfo hentaiId={hentaiId} capituloId={activeCap?.id} info={info} src={playerSrc} header={header} />

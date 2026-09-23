@@ -15,6 +15,7 @@ export default function AdBanner({ adKey, width = 300, height = 250, src, marco 
       height={height}
       scrolling="no"
       frameBorder="0"
+      loading="lazy"
       sandbox="allow-scripts allow-same-origin allow-popups"
       className={styles.bannerFrame}
     />

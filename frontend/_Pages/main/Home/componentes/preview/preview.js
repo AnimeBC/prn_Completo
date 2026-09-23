@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Image from 'next/image';
 import styles from './preview.module.css';
 
 export default function Preview({ src, thumb, ratio = '16 / 9', children }) {
@@ -47,7 +48,14 @@ export default function Preview({ src, thumb, ratio = '16 / 9', children }) {
     >
       <div className={styles.static} />
       {thumb && !active && (
-        <img src={thumb} alt="" loading="lazy" className={styles.thumbImg} />
+        <Image
+          src={thumb}
+          alt=""
+          fill
+          loading="lazy"
+          sizes="(max-width: 768px) 50vw, (max-width: 1400px) 25vw, 340px"
+          className={styles.thumbImg}
+        />
       )}
       {src && (
         <video

@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { query } from '../db/pool.js';
 import { authRequired } from '../middleware/auth.js';
-import { publishEvent, cacheDel } from '../db/redis.js';
+import { publishEvent, cacheDel, cacheGet, cacheSet } from '../db/redis.js';
 import {
   upload, MEDIA_DIR, publicOf, moveFileSync, removeMedia,
   hentaiRootDir, hentaiSerieFolder, hentaiCapFolder,
@@ -138,6 +138,10 @@ async function finishTranscode({ fuenteId, origPath, destDir }) {
 // GET /api/hentai  -> series con su nº de capítulos
 r.get('/', async (req, res, next) => {
   try {
+    // Caché 30s: la lista la piden home y /hentai en cada visita.
+    const ck = 'cache:hentai:list';
+    const hit = await cacheGet(ck);
+    if (hit) return res.json(hit);
     const { rows } = await query(
       `SELECT h.id, h.slug, h.titulo_es, h.titulo_en, h.titulo_ja, h.titulo_romaji, h.desc_es, h.desc_en, h.canal,
               h.thumb, h.cover, h.vistas, h.tags, h.tipo, h.anio, h.temporada, h.estado,
@@ -164,7 +168,9 @@ r.get('/', async (req, res, next) => {
         ORDER BY h.id DESC
         LIMIT 300`
     );
-    res.json({ data: rows, total: rows.length });
+    const payload = { data: rows, total: rows.length };
+    await cacheSet(ck, payload, 30);
+    res.json(payload);
   } catch (e) { next(e); }
 });
 

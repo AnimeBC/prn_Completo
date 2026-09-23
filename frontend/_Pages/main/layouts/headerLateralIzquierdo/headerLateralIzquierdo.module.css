@@ -71,6 +71,8 @@
   transition: background 0.2s ease, transform 0.1s ease;
   position: relative;
   overflow: hidden;
+  /* Los items habilitados son <Link> (prefetch de Next 16): sin subrayado. */
+  text-decoration: none;
 }
 
 .navItem:hover {
