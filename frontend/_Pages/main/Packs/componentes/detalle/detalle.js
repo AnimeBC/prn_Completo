@@ -151,13 +151,29 @@ export default function PackDetalle({ packId }) {
   useEffect(() => {
     if (!pack.public_id) return;
     let alive = true;
-    viewPack(pack.public_id);
+    viewPack(pack.public_id).then((d) => {
+      // Contador al toque + refresco local de las listas (sin SSE).
+      if (d && !d.error && d.vistas != null) {
+        window.dispatchEvent(new CustomEvent('pkp:vista', { detail: { views: d.vistas } }));
+      }
+    });
     getPackInteractions(pack.public_id).then((d) => {
       if (!alive || !d) return;
       setStats((s) => (authed ? { ...s, ...d } : overlayPackStats({ ...s, ...d }, pack.public_id)));
     });
     return () => { alive = false; };
   }, [pack.public_id, authed]);
+
+  // Contador de vistas: se actualiza al instante cuando se registra una vista.
+  useEffect(() => {
+    const onVista = (e) => {
+      const v = e?.detail?.views;
+      if (v == null) return;
+      setStats((s) => ({ ...s, views: v }));
+    };
+    window.addEventListener('pkp:vista', onVista);
+    return () => window.removeEventListener('pkp:vista', onVista);
+  }, []);
 
   // Avatar del canal (uploader)
   useEffect(() => {

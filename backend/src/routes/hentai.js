@@ -654,13 +654,25 @@ r.put('/fuentes/:fuenteId', authRequired, upload.single('thumb'), async (req, re
   } catch (e) { next(e); }
 });
 
-// POST /api/hentai/capitulos/:capId/view
+// POST /api/hentai/capitulos/:capId/view  -> cuenta al DAR PLAY (anónimos incluidos).
+// Sin límite: cada play cuenta. Suma al capitulo Y a la serie (hentai.vistas:
+// la lista de hentai lee la columna de la serie, por eso antes daba 0).
+// Evento SSE liviano {id: serie, views} para que TODOS parchen el contador
+// al instante en local (sin recargar nada -> sin lag ni saturación).
 r.post('/capitulos/:capId/view', async (req, res, next) => {
   try {
     const capId = Number(req.params.capId);
     if (!capId) return res.status(400).json({ error: 'Capítulo inválido' });
-    await query('UPDATE hentai_capitulos SET vistas = COALESCE(vistas, 0) + 1 WHERE id = $1', [capId]);
-    res.json({ ok: true });
+    const cap = await query('SELECT hentai_id, vistas FROM hentai_capitulos WHERE id = $1', [capId]);
+    if (!cap.rows[0]) return res.status(404).json({ error: 'Capítulo no encontrado' });
+
+    const updCap = await query('UPDATE hentai_capitulos SET vistas = COALESCE(vistas, 0) + 1 WHERE id = $1 RETURNING vistas', [capId]);
+    const updSerie = await query('UPDATE hentai SET vistas = COALESCE(vistas, 0) + 1 WHERE id = $1 RETURNING vistas', [cap.rows[0].hentai_id]);
+    await cacheDel('cache:stats');
+    res.json({ ok: true, views: updCap.rows[0].vistas });
+    try {
+      await publishEvent('hentai_view', { id: cap.rows[0].hentai_id, views: updSerie.rows[0]?.vistas || 0 });
+    } catch { /* opcional */ }
   } catch (e) { next(e); }
 });
 

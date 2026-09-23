@@ -420,13 +420,18 @@ r.post('/:publicId/share', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/packs/:publicId/view
+// POST /api/packs/:publicId/view  { userKey }  (cuenta al abrir el pack; anónimos ok).
+// Sin límite: cada apertura cuenta. Evento SSE liviano {id, views} para que
+// TODOS parchen el contador al instante en local (sin recargar nada).
 r.post('/:publicId/view', async (req, res, next) => {
   try {
     const pack = await getPackByPublic(req.params.publicId);
     if (!pack) return res.status(404).json({ error: 'Pack no encontrado' });
+
     const upd = await query('UPDATE packs SET vistas = COALESCE(vistas, 0) + 1 WHERE id = $1 RETURNING vistas', [pack.id]);
+    await cacheDel('cache:stats');
     res.json({ ok: true, vistas: upd.rows[0].vistas });
+    try { await publishEvent('pack_view', { id: pack.id, views: upd.rows[0].vistas }); } catch { /* opcional */ }
   } catch (e) { next(e); }
 });
 

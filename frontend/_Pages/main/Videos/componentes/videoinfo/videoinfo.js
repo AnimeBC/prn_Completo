@@ -14,7 +14,6 @@ import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { canalUrl, channelSlug } from '@/_Extras/Canales/canal.js';
 import {
   getInteractions,
-  viewVideo,
   likeVideo,
   saveVideo,
   downloadVideo,
@@ -85,10 +84,21 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
       });
     };
     getInteractions(videoId).then(apply);
-    // cuenta la vista al abrir el video (anonima, sirve tambien sin cuenta)
-    viewVideo(videoId).then(apply);
+    // La vista NO se cuenta al abrir: la cuenta videos.js al primer PLAY y
+    // avisa por pkp:vista (listener de abajo) para pintar el contador al toque.
     return () => { alive = false; };
   }, [videoId, authed, info.channel]);
+
+  // Contador de vistas: se actualiza al instante cuando se registra una vista.
+  useEffect(() => {
+    const onVista = (e) => {
+      const v = e?.detail?.views;
+      if (v == null) return;
+      setStats((s) => ({ ...s, views: v }));
+    };
+    window.addEventListener('pkp:vista', onVista);
+    return () => window.removeEventListener('pkp:vista', onVista);
+  }, []);
 
   async function toggleLike() {
     if (authed) {

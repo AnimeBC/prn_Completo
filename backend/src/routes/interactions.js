@@ -83,7 +83,10 @@ r.post('/videos/:id/like', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// POST /api/videos/:id/view  { userKey }
+// POST /api/videos/:id/view  { userKey }  -> cuenta al DAR PLAY (anónimos incluidos).
+// Sin límite: cada play cuenta. Respuesta ligera (sin getStats) + evento SSE
+// liviano {id, views} para que TODOS los conectados parchen el contador al
+// instante en local (sin recargar nada -> sin lag ni saturación).
 r.post('/videos/:id/view', async (req, res, next) => {
   try {
     const v = await getVideo(req.params.id);
@@ -92,10 +95,10 @@ r.post('/videos/:id/view', async (req, res, next) => {
     const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').toString().split(',')[0].trim();
 
     await query('INSERT INTO video_views (video_id, user_key, ip) VALUES ($1,$2,$3)', [v.id, userKey || null, ip]);
-    await query('UPDATE videos SET vistas = COALESCE(vistas,0) + 1 WHERE id = $1', [v.id]);
-
+    const upd = await query('UPDATE videos SET vistas = COALESCE(vistas,0) + 1 WHERE id = $1 RETURNING vistas', [v.id]);
     await cacheDel('cache:stats');
-    res.json(await getStats(v.id, userKey, v.canal));
+    res.json({ ok: true, views: upd.rows[0].vistas });
+    try { await publishEvent('video_view', { id: v.id, views: upd.rows[0].vistas }); } catch { /* opcional */ }
   } catch (e) { next(e); }
 });
 

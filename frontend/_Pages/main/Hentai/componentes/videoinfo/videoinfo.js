@@ -16,7 +16,6 @@ import {
   likeHentai,
   saveHentai,
   downloadHentai,
-  viewHentai,
   followChannel,
   reportHentai,
 } from '@/_Extras/Interacciones/interactions.js';
@@ -74,9 +73,21 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
       });
     };
     getHentaiInteractions(capituloId).then(apply);
-    viewHentai(capituloId).then(apply);
+    // La vista NO se cuenta al abrir: la cuenta hentaiPlayer al primer PLAY
+    // y avisa por pkp:vista (listener de abajo) para pintar el contador.
     return () => { alive = false; };
   }, [capituloId, authed, info.channel]);
+
+  // Contador de vistas: se actualiza al instante cuando se registra una vista.
+  useEffect(() => {
+    const onVista = (e) => {
+      const v = e?.detail?.views;
+      if (v == null) return;
+      setStats((s) => ({ ...s, views: v }));
+    };
+    window.addEventListener('pkp:vista', onVista);
+    return () => window.removeEventListener('pkp:vista', onVista);
+  }, []);
 
   // Foto de perfil del canal (perfil público)
   useEffect(() => {

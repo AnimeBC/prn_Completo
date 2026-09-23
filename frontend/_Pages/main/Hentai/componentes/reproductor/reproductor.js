@@ -24,7 +24,7 @@ function fmt(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export default function HentaiReproductor({ src = '/videos/1.mov', theater, onToggleTheater }) {
+export default function HentaiReproductor({ src = '/videos/1.mov', theater, onToggleTheater, onPlay = null }) {
   const videoRef = useRef(null);
   const wrapRef = useRef(null);
   const adRef = useRef(null);
@@ -155,7 +155,7 @@ export default function HentaiReproductor({ src = '/videos/1.mov', theater, onTo
           onContextMenu={(e) => e.preventDefault()}
           onClick={togglePlay}
           onLoadStart={() => setWaiting(true)}
-          onPlay={() => { setPlaying(true); setWaiting(false); }}
+          onPlay={() => { setPlaying(true); setWaiting(false); if (onPlay) onPlay(); }}
           onPause={() => setPlaying(false)}
           onWaiting={() => setWaiting(true)}
           onStalled={() => setWaiting(true)}

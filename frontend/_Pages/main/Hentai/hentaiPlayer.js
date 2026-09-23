@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hentaiPlayer.module.css';
 import HentaiReproductor from '@/_Pages/main/Hentai/componentes/reproductor';
@@ -8,6 +8,7 @@ import HentaiInfo from '@/_Pages/main/Hentai/componentes/videoinfo';
 import Recomendados from '@/_Pages/main/Videos/componentes/recomendados';
 import Comentarios from '@/_Pages/main/Videos/componentes/comentarios';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
+import { viewHentai } from '@/_Extras/Interacciones/interactions.js';
 
 const MODOS = [
   { id: 'sub', label: 'Subtitulado ES', short: 'Sub', icon: 'text-outline' },
@@ -44,6 +45,20 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
   const fuentes = activeCap?.fuentes || [];
   const activeFuente = fuentes.find((f) => f.modo === modo) || fuentes[0] || null;
   const playerSrc = activeFuente?.src || '';
+
+  // La vista cuenta UNA sola vez por capítulo y solo al primer PLAY
+  // (anónimo incluido: guest key en el body). Sin SSE: el aviso es local.
+  const vistaRef = useRef(null);
+  function alPrimerPlay() {
+    const cap = activeCap?.id;
+    if (!cap || vistaRef.current === cap) return;
+    vistaRef.current = cap;
+    viewHentai(cap).then((d) => {
+      if (d && !d.error && d.views != null) {
+        window.dispatchEvent(new CustomEvent('pkp:vista', { detail: { views: d.views } }));
+      }
+    });
+  }
 
   // Metadatos del modo seleccionado (título, descripción, tags, tipo, estado…)
   const md = (serie?.modos && serie.modos[modo]) || {};
@@ -152,7 +167,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
         {theater ? (
           <>
             <div className={styles.playerFull}>
-              <HentaiReproductor src={playerSrc} theater={theater} onToggleTheater={() => setTheater((p) => !p)} />
+              <HentaiReproductor src={playerSrc} theater={theater} onToggleTheater={() => setTheater((p) => !p)} onPlay={alPrimerPlay} />
             </div>
             <div className={styles.leftCol}>
               <div className={styles.epMobile}>{episodeList}</div>
@@ -172,7 +187,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
         ) : (
           <>
             <div className={styles.leftCol}>
-              <HentaiReproductor src={playerSrc} theater={theater} onToggleTheater={() => setTheater((p) => !p)} />
+              <HentaiReproductor src={playerSrc} theater={theater} onToggleTheater={() => setTheater((p) => !p)} onPlay={alPrimerPlay} />
               <div className={styles.epMobile}>{episodeList}</div>
               {modeToggle}
               <HentaiInfo hentaiId={hentaiId} capituloId={activeCap?.id} info={info} src={playerSrc} header={header} />

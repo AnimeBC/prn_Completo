@@ -56,7 +56,7 @@ export const getPackInteractions = (id) =>
 export const likePack = (id, tipo) => post(`/api/packs/${id}/like`, { userKey: getUserKey(), tipo });
 export const savePack = (id) => post(`/api/packs/${id}/save`, { userKey: getUserKey() });
 export const sharePack = (id, red) => post(`/api/packs/${id}/share`, { userKey: getUserKey(), red });
-export const viewPack = (id) => post(`/api/packs/${id}/view`, {});
+export const viewPack = (id) => post(`/api/packs/${id}/view`, { userKey: getUserKey() });
 export const downloadPack = (id) => post(`/api/packs/${id}/download`, { userKey: getUserKey() });
 
 /* ---------- hentai (capítulos) ---------- */

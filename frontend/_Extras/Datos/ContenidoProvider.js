@@ -175,9 +175,37 @@ export function ContenidoProvider({ children }) {
     });
   }, [es]);
 
+  // Parchea el contador de vistas en LOCAL (sin refetch): el evento SSE trae
+  // {id, views} ya calculado y se pinta al instante en TODOS los conectados
+  // (nadie recarga nada -> sin lag y sin saturar al servidor).
+  const parchearVistas = (tipo, id, n) => {
+    if (!id || !Number.isFinite(n)) return;
+    setData((prev) => {
+      if (tipo === 'video_view') {
+        return { ...prev, videos: prev.videos.map((v) => (v.id === id ? { ...v, views: fmtViews(n, es) } : v)) };
+      }
+      if (tipo === 'hentai_view') {
+        return { ...prev, hentai: prev.hentai.map((h) => (h.id === id ? { ...h, views: fmtViews(n, es) } : h)) };
+      }
+      if (tipo === 'pack_view') {
+        const suf = es ? 'vistas' : 'views';
+        return { ...prev, packs: prev.packs.map((pk) => (pk.id === id ? { ...pk, views: `${n} ${suf}` } : pk)) };
+      }
+      return prev;
+    });
+  };
+
   useEffect(() => {
     load();
-    const onChange = () => load();
+    const onChange = (e) => {
+      const t = e?.detail?.type || '';
+      if (t === 'video_view' || t === 'hentai_view' || t === 'pack_view') {
+        const p = e?.detail?.payload || {};
+        parchearVistas(t, p.id, Number(p.views));
+        return; // vista: parcha el número y NADA más (sin recargas)
+      }
+      load();
+    };
     window.addEventListener('pikantepe:change', onChange);
     return () => window.removeEventListener('pikantepe:change', onChange);
   }, [load]);
