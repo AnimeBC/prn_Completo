@@ -6,7 +6,9 @@ import styles from './grupoDetalle.module.css';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { apiComunidad, comunidadMedia } from '@/_Extras/Comunidad/api.js';
-import { fecha } from '@/_Extras/Fecha/fecha.js';
+import { fecha, presenciaEstado } from '@/_Extras/Fecha/fecha.js';
+import { abrirCanal } from '@/_Extras/Canales/canal.js';
+import { fmtNum } from '@/_Extras/Datos/num.js';
 
 function ini(n) {
   return String(n || 'U').trim().slice(0, 1).toUpperCase();
@@ -24,6 +26,7 @@ export default function GrupoDetalle({ id, initialGrupo = null }) {
   const [rol, setRol] = useState(null);
   const [soyDueno, setSoyDueno] = useState(false);
   const [posts, setPosts] = useState([]);
+  const [miembros, setMiembros] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [msg, setMsg] = useState('');
   const [tab, setTab] = useState('conversacion');
@@ -49,8 +52,16 @@ export default function GrupoDetalle({ id, initialGrupo = null }) {
     setCargando(false);
   }, [grupoId, userKey]);
 
+  // Lista de miembros con presencia real (edad desde la BD) para la pestaña.
+  const cargarMiembros = useCallback(async () => {
+    if (!grupoId) return;
+    const r = await apiComunidad.gruposMiembros(grupoId);
+    setMiembros(Array.isArray(r?.data) ? r.data : []);
+  }, [grupoId]);
+
   useEffect(() => { cargarGrupo(); }, [cargarGrupo]);
   useEffect(() => { cargarPosts(); }, [cargarPosts]);
+  useEffect(() => { if (tab === 'miembros') cargarMiembros(); }, [tab, cargarMiembros]);
 
   // Lee ?tab= de la URL al entrar.
   useEffect(() => {
@@ -72,11 +83,15 @@ export default function GrupoDetalle({ id, initialGrupo = null }) {
   useEffect(() => {
     const onChange = (e) => {
       const tipo = String(e?.detail?.type || '');
-      if (tipo.startsWith('comunidad_')) { cargarGrupo(); cargarPosts(); }
+      if (tipo.startsWith('comunidad_')) {
+        cargarGrupo();
+        cargarPosts();
+        if (tab === 'miembros') cargarMiembros();
+      }
     };
     window.addEventListener('pikantepe:change', onChange);
     return () => window.removeEventListener('pikantepe:change', onChange);
-  }, [cargarGrupo, cargarPosts]);
+  }, [cargarGrupo, cargarPosts, cargarMiembros, tab]);
 
   function requiereAprobacion(g) {
     return g?.privacidad === 'privada' || g?.modo_union === 'invitacion';
@@ -202,9 +217,9 @@ export default function GrupoDetalle({ id, initialGrupo = null }) {
               <ion-icon name={esPublico ? 'earth-outline' : 'lock-closed-outline'} suppressHydrationWarning></ion-icon>
               {esPublico ? (es ? 'Grupo público' : 'Public group') : (es ? 'Grupo privado' : 'Private group')}
               <span className={styles.dot}>·</span>
-              {Number(grupo?.miembros || 0).toLocaleString(es ? 'es-PE' : 'en-US')} {es ? 'miembros' : 'members'}
+              {fmtNum(grupo?.miembros || 0)} {es ? 'miembros' : 'members'}
               <span className={styles.dot}>·</span>
-              {grupo?.activos || 0} {es ? 'activos' : 'active'}
+              {fmtNum(grupo?.activos || 0)} {es ? 'en línea' : 'online'}
             </p>
           </div>
         </div>
@@ -367,7 +382,45 @@ export default function GrupoDetalle({ id, initialGrupo = null }) {
                 <p>{es ? 'Únete al grupo para ver sus miembros.' : 'Join the group to see its members.'}</p>
               </div>
             ) : (
-              <p className={styles.empty}>{es ? `Este grupo tiene ${Number(grupo?.miembros || 0).toLocaleString(es ? 'es-PE' : 'en-US')} miembros.` : `This group has ${Number(grupo?.miembros || 0)} members.`}</p>
+              <div className={styles.miBox}>
+                <p className={styles.miResumen}>
+                  <strong>{fmtNum(grupo?.miembros || 0)}</strong> {es ? 'miembros' : 'members'}
+                  {' · '}
+                  <span className={styles.miOnlineCount}>
+                    {miembros.filter((m) => presenciaEstado(m.edad, es).online).length}
+                  </span> {es ? 'en línea' : 'online'}
+                </p>
+                {miembros.length === 0 ? (
+                  <p className={styles.empty}>{es ? `Este grupo tiene ${fmtNum(grupo?.miembros || 0)} miembros.` : `This group has ${fmtNum(grupo?.miembros || 0)} members.`}</p>
+                ) : (
+                  <div className={styles.miList}>
+                    {miembros.map((m) => {
+                      const est = presenciaEstado(m.edad, es);
+                      const ir = () => abrirCanal(router, m.user_key, m.usuario || m.nombre);
+                      return (
+                        <div
+                          key={m.user_key}
+                          className={styles.miItem}
+                          role="button"
+                          tabIndex={0}
+                          onClick={ir}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ir(); } }}
+                          title={es ? 'Ver perfil' : 'View profile'}
+                        >
+                          <span className={styles.miAvatar}>
+                            {m.avatar ? <img src={comunidadMedia(m.avatar)} alt="" /> : ini(m.usuario)}
+                          </span>
+                          <span className={styles.miName}>{m.usuario || m.nombre}</span>
+                          <span className={`${styles.miState} ${est.online ? '' : styles.miStateOff}`}>
+                            {est.online && <span className={styles.miDot} />}
+                            {est.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )
           )}
         </div>
@@ -385,8 +438,8 @@ export default function GrupoDetalle({ id, initialGrupo = null }) {
             <div className={styles.sideRow}>
               <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
               <div>
-                <strong>{Number(grupo?.miembros || 0).toLocaleString(es ? 'es-PE' : 'en-US')} {es ? 'miembros' : 'members'}</strong>
-                <p>{grupo?.activos || 0} {es ? 'activos ahora' : 'active now'}</p>
+                <strong>{fmtNum(grupo?.miembros || 0)} {es ? 'miembros' : 'members'}</strong>
+                <p>{fmtNum(grupo?.activos || 0)} {es ? 'en línea ahora' : 'online now'}</p>
               </div>
             </div>
             {(soyMiembro || soyDueno) && (

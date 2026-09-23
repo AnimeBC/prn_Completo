@@ -1,9 +1,6 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import PackDescargar from '@/_Pages/main/Packs/componentes/descargar';
-import styles from '@/app/(main)/page.module.css';
 import { apiGet } from '@/_Extras/Datos/server.js';
 
 async function resolvePublicId(id) {
@@ -34,12 +31,9 @@ export default async function PackDescargarPage({ params }) {
   if (pid && pid !== String(publicId)) redirect(`/packs/${pid}/descargar`);
 
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <PackDescargar packId={publicId} />
-      </div>
-    </div>
+    <>
+
+      <PackDescargar packId={publicId} />
+    </>
   );
 }

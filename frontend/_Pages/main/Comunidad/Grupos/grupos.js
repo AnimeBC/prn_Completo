@@ -6,6 +6,7 @@ import styles from './grupos.module.css';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { apiComunidad, comunidadMedia } from '@/_Extras/Comunidad/api.js';
+import { fmtNum } from '@/_Extras/Datos/num.js';
 
 const LIMIT = 12;
 
@@ -19,7 +20,7 @@ const FILTROS_BASE = [
 const ORDENES = [
   { id: 'miembros', es: 'Más miembros', icon: 'people-outline' },
   { id: 'recientes', es: 'Recién salidos', icon: 'sparkles-outline' },
-  { id: 'activos', es: 'Más activos', icon: 'pulse-outline' },
+  { id: 'activos', es: 'Más en línea', icon: 'pulse-outline' },
   { id: 'publicaciones', es: 'Más publicaciones', icon: 'document-text-outline' },
 ];
 
@@ -334,7 +335,7 @@ export default function GruposClient() {
                   </span>
                   <span className={styles.sugerenciaInfo}>
                     <span className={styles.sugerenciaNombre}>{g.nombre}</span>
-                    <span className={styles.sugerenciaMeta}>{es ? 'Comunidad' : 'Community'} · {Number(g.miembros || 0).toLocaleString()}</span>
+                      <span className={styles.sugerenciaMeta}>{es ? 'Comunidad' : 'Community'} · {fmtNum(g.miembros)} {es ? 'miembros' : 'members'} · {fmtNum(g.activos || 0)} {es ? 'en línea' : 'online'}</span>
                   </span>
                   <ion-icon name="people-outline" className={styles.sugerenciaTipo} suppressHydrationWarning></ion-icon>
                 </button>
@@ -461,7 +462,7 @@ export default function GruposClient() {
                         ? <p className={styles.desc}>{g.descripcion}</p>
                         : <p className={styles.desc}>{es ? 'Comunidad de la plataforma.' : 'Platform community.'}</p>}
                       <span className={styles.metaSub}>
-                        18+ | {Number(g.miembros).toLocaleString(es ? 'es-PE' : 'en-US')} {es ? 'miembros' : 'members'} | {g.activos || 0} {es ? 'activos' : 'active'}
+                        18+ | {fmtNum(g.miembros)} {es ? 'miembros' : 'members'} | {fmtNum(g.activos || 0)} {es ? 'en línea' : 'online'}
                       </span>
                     </div>
                     {g.solicitud === 'pendiente' && !g.miembro ? (

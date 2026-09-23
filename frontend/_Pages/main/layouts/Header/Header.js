@@ -9,6 +9,7 @@ import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { videoUrl } from '@/_Extras/Datos/urls.js';
+import { abrirCanal } from '@/_Extras/Canales/canal.js';
 import Notificaciones from '@/_Pages/main/layouts/Header/componentes/notificaciones';
 import Mensajes from '@/_Pages/main/layouts/Header/componentes/mensajes';
 import { useCall } from '@/_Extras/Llamadas/CallProvider.js';
@@ -66,9 +67,22 @@ export default function Header() {
     window.dispatchEvent(new CustomEvent('pkp:chatback'));
   }
 
-  function irAlCanal() {
-    if (chatInfo?.canal_slug) router.push(`/canal/${chatInfo.canal_slug}`);
-    else openMaint();
+  // Información del chat (celular): grupo -> pestaña de información del grupo;
+  // DM -> canal REAL resuelto por user_key (evita 404 por nombre visible).
+  async function irAlCanal() {
+    if (chatInfo?.tipo === 'grupo' && chatInfo?.grupo_id) {
+      router.push(`/comunidad/grupo/${chatInfo.grupo_id}?tab=informacion`);
+      return;
+    }
+    if (chatInfo?.canal_slug) {
+      router.push(`/canal/${chatInfo.canal_slug}`);
+      return;
+    }
+    if (chatInfo?.tipo === 'dm' && chatInfo?.user_key) {
+      await abrirCanal(router, chatInfo.user_key, chatInfo.nombre);
+      return;
+    }
+    openMaint();
   }
 
   // Llamada / videollamada desde el header de chat en celular.

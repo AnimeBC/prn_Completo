@@ -325,6 +325,7 @@
 .headInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .name { font-size: 13.5px; color: var(--text-primary, #E4E6EB); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .state { font-size: 11px; color: #22C55E; }
+.stateOff { color: var(--text-secondary, #8E8E93); }
 
 .iconBtn {
   width: 28px;

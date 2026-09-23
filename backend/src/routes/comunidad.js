@@ -168,10 +168,12 @@ r.get('/grupos', async (req, res, next) => {
     const expSolicitud = userKey
       ? "(SELECT cs.estado FROM comunidad_solicitudes cs WHERE cs.comunidad_id = c.id AND cs.user_key = $USER LIMIT 1)"
       : 'NULL';
+    // En línea real: latido de 60s -> ventana de 2 minutos (antes 5 min
+    // hacia que un desconectado seguía pintado "activo" un buen rato).
     const expActivos = `(SELECT COUNT(*)::int FROM comunidad_miembros cm
                  JOIN comunidad_presencia pr ON pr.user_key = cm.user_key
                 WHERE cm.comunidad_id = c.id
-                  AND pr.last_seen > NOW() - INTERVAL '5 minutes')`;
+                  AND pr.last_seen > NOW() - INTERVAL '2 minutes')`;
     const expArchivos = `((SELECT COALESCE(SUM(jsonb_array_length(p.media)), 0)::int
                    FROM comunidad_posts p WHERE p.comunidad_id = c.id AND p.activo = TRUE)
                 + (SELECT COUNT(*)::int FROM comunidad_mensajes m
@@ -265,7 +267,7 @@ r.get('/grupos/:id', async (req, res, next) => {
     const activos = await query(
       `SELECT COUNT(*)::int AS n FROM comunidad_miembros cm
          JOIN comunidad_presencia pr ON pr.user_key = cm.user_key
-        WHERE cm.comunidad_id = $1 AND pr.last_seen > NOW() - INTERVAL '5 minutes'`,
+        WHERE cm.comunidad_id = $1 AND pr.last_seen > NOW() - INTERVAL '2 minutes'`,
       [id]
     );
     const archivos = await query(
@@ -278,6 +280,27 @@ r.get('/grupos/:id', async (req, res, next) => {
     grupo.activos = activos.rows[0].n;
     grupo.archivos = archivos.rows[0].n;
     res.json({ grupo, soyMiembro, solicitud, rol, soyDueno });
+  } catch (e) { next(e); }
+});
+
+// GET /api/comunidad/grupos/:id/miembros -> lista de miembros con presencia
+// (edad en segundos por el reloj de la BD; el frontend decide "en línea"/"hace X").
+r.get('/grupos/:id/miembros', async (req, res, next) => {
+  try {
+    const gid = intOrNull(req.params.id);
+    if (!gid) return res.status(400).json({ error: 'Grupo inválido' });
+    const { rows } = await query(
+      `SELECT cm.user_key, u.usuario, u.nombre, u.avatar,
+              EXTRACT(EPOCH FROM (NOW() - pr.last_seen))::int AS edad
+         FROM comunidad_miembros cm
+         LEFT JOIN users u ON u.user_key = cm.user_key
+         LEFT JOIN comunidad_presencia pr ON pr.user_key = cm.user_key
+        WHERE cm.comunidad_id = $1
+        ORDER BY (pr.last_seen IS NULL), pr.last_seen DESC NULLS LAST, u.usuario ASC
+        LIMIT 300`,
+      [gid]
+    );
+    res.json({ data: rows, total: rows.length });
   } catch (e) { next(e); }
 });
 
@@ -1008,6 +1031,10 @@ r.get('/chats', async (req, res, next) => {
          SELECT cm.comunidad_id FROM comunidad_miembros cm WHERE cm.user_key = $1
        )
        SELECT c.id, c.slug, c.nombre, c.avatar, c.descripcion, c.privacidad, c.miembros,
+              (SELECT COUNT(*)::int FROM comunidad_miembros cm
+                 JOIN comunidad_presencia pr ON pr.user_key = cm.user_key
+                WHERE cm.comunidad_id = c.id
+                  AND pr.last_seen > NOW() - INTERVAL '2 minutes') AS activos,
               m.texto AS ultimo_texto, m.tipo AS ultimo_tipo, m.usuario AS ultimo_usuario,
               m.user_key AS ultimo_user_key, m.media AS ultimo_media, m.created_at AS ultimo_creado,
               (SELECT COUNT(*)::int
@@ -1561,14 +1588,18 @@ r.get('/buscar', async (req, res, next) => {
       out.personas = rows;
     }
 
-    // Comunidades
+    // Comunidades (con contador de en línea real, como en las tarjetas).
     if (buscaGrupos) {
       const { rows } = await query(
-        `SELECT id, nombre, slug, avatar, privacidad, modo_union, miembros
-           FROM comunidades
-          WHERE activo = TRUE
-            AND (lower(nombre) LIKE $1 OR lower(COALESCE(descripcion,'')) LIKE $1)
-          ORDER BY miembros DESC
+        `SELECT c.id, c.nombre, c.slug, c.avatar, c.privacidad, c.modo_union, c.miembros,
+                (SELECT COUNT(*)::int FROM comunidad_miembros cm
+                   JOIN comunidad_presencia pr ON pr.user_key = cm.user_key
+                  WHERE cm.comunidad_id = c.id
+                    AND pr.last_seen > NOW() - INTERVAL '2 minutes') AS activos
+           FROM comunidades c
+          WHERE c.activo = TRUE
+            AND (lower(c.nombre) LIKE $1 OR lower(COALESCE(c.descripcion,'')) LIKE $1)
+          ORDER BY c.miembros DESC
           LIMIT ${limG} OFFSET ${offset}`,
         [like]
       );
@@ -1799,14 +1830,18 @@ r.get('/canal-slug/:userKey', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// GET /api/comunidad/presencia
+// GET /api/comunidad/presencia -> actividad real desde la BD (last_seen).
+// Devuelve la edad en SEGUNDOS (reloj de la BD -> sin problemas de zona
+// horaria) y 7 dias de historial para que el frontend muestre "hace X" a los
+// desconectados y "en línea" solo si edad < 2 min (latido global cada 60s).
 r.get('/presencia', async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT user_key, usuario, avatar, last_seen
+      `SELECT user_key, usuario, avatar, last_seen,
+              EXTRACT(EPOCH FROM (NOW() - last_seen))::int AS edad
          FROM comunidad_presencia
-        WHERE last_seen > NOW() - INTERVAL '5 minutes'
-        ORDER BY last_seen DESC LIMIT 60`
+        WHERE last_seen > NOW() - INTERVAL '7 days'
+        ORDER BY last_seen DESC LIMIT 200`
     );
     res.json({ data: rows, total: rows.length });
   } catch (e) { next(e); }
@@ -1866,7 +1901,7 @@ r.get('/admin/resumen', authRequired, async (req, res, next) => {
       query('SELECT COUNT(*)::int AS n FROM comunidad_mensajes WHERE activo = TRUE'),
       query('SELECT COUNT(*)::int AS n FROM comunidad_stories WHERE activo = TRUE AND expires_at > NOW()'),
       query("SELECT COUNT(*)::int AS n FROM comunidad_reportes WHERE estado = 'pendiente'"),
-      query("SELECT COUNT(*)::int AS n FROM comunidad_presencia WHERE last_seen > NOW() - INTERVAL '5 minutes'"),
+      query("SELECT COUNT(*)::int AS n FROM comunidad_presencia WHERE last_seen > NOW() - INTERVAL '2 minutes'"),
       query("SELECT COUNT(*)::int AS n FROM comunidad_solicitudes WHERE estado = 'pendiente'"),
     ]);
     res.json({

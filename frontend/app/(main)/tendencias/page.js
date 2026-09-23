@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import TendenciasClient from '@/_Pages/main/Tendencias/tendencias.js';
-import styles from '@/app/(main)/page.module.css';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
 export const metadata = {
@@ -21,12 +18,9 @@ export const metadata = {
 
 export default function TendenciasPage() {
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <TendenciasClient />
-      </div>
-    </div>
+    <>
+
+      <TendenciasClient />
+    </>
   );
 }

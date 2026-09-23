@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import HentaiPlayer from '@/_Pages/main/Hentai/hentaiPlayer';
-import styles from '@/app/(main)/page.module.css';
 import { apiGet, mediaUrl, sinceOf } from '@/_Extras/Datos/server.js';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
@@ -86,18 +83,15 @@ export default async function HentaiSeriePage({ params }) {
   const entry = await resolveEntry(slug);
 
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <HentaiPlayer
+    <>
+
+      <HentaiPlayer
           hentaiId={entry?.id || slug}
           slug={entry?.slug || slug}
           info={toInfo(entry)}
           serie={entry}
           capitulos={entry?.capitulos || []}
         />
-      </div>
-    </div>
+    </>
   );
 }

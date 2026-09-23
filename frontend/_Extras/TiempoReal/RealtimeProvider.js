@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
+import { apiComunidad } from '@/_Extras/Comunidad/api.js';
 import { initSonido, playNotification, setSonidoActivo } from '@/_Extras/Sonido/sonido.js';
 
 // Mismo criterio que _Extras/Api/api.js: si se abre desde la red local
@@ -60,6 +61,25 @@ export function RealtimeProvider({ children }) {
 
   // Sonido: desbloqueo por gesto + ajuste global (activo por defecto).
   useEffect(() => { initSonido(); }, []);
+
+  // Latido global de presencia (BD last_seen) en TODAS las paginas: antes solo
+  // latia /comunidad y "en linea" mentia en el resto de la app. Cada 60s y solo
+  // con la pestana visible; cada latido publica comunidada_presencia por SSE
+  // y todos los clientes refrescan el estado al instante.
+  useEffect(() => {
+    const beat = () => {
+      const k = mineRef.current;
+      if (!k || typeof document === 'undefined') return;
+      if (document.visibilityState !== 'visible') return;
+      apiComunidad.latido(k).catch(() => {});
+    };
+    beat();
+    const iv = setInterval(beat, 60000);
+    const onVis = () => { if (document.visibilityState === 'visible') beat(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVis); };
+  }, []);
+
   useEffect(() => {
     let alive = true;
     const k = user?.user_key || userKey || '';

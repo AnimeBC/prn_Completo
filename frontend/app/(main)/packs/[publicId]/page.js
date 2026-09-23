@@ -1,9 +1,6 @@
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import PackDetalle from '@/_Pages/main/Packs/componentes/detalle';
-import styles from '@/app/(main)/page.module.css';
 import { apiGet } from '@/_Extras/Datos/server.js';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
@@ -51,12 +48,9 @@ export default async function PackPage({ params }) {
   if (pid && pid !== String(publicId)) redirect(`/packs/${pid}`);
 
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <PackDetalle packId={publicId} />
-      </div>
-    </div>
+    <>
+
+      <PackDetalle packId={publicId} />
+    </>
   );
 }

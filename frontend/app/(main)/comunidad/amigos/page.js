@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import AmigosClient from '@/_Pages/main/Comunidad/Amigos';
-import styles from '@/app/(main)/page.module.css';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
 const T = 'Amigos';
@@ -17,12 +14,9 @@ export const metadata = {
 
 export default function AmigosPage() {
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <AmigosClient />
-      </div>
-    </div>
+    <>
+
+      <AmigosClient />
+    </>
   );
 }

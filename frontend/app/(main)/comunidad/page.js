@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import ComunidadClient from '@/_Pages/main/Comunidad/comunidad.js';
-import styles from '@/app/(main)/page.module.css';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
 export const metadata = {
@@ -14,12 +11,9 @@ export const metadata = {
 
 export default function ComunidadPage() {
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <ComunidadClient />
-      </div>
-    </div>
+    <>
+
+      <ComunidadClient />
+    </>
   );
 }

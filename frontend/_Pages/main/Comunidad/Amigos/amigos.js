@@ -8,6 +8,7 @@ import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { apiComunidad, comunidadMedia } from '@/_Extras/Comunidad/api.js';
 import { canalUrl } from '@/_Extras/Canales/canal.js';
+import { presenciaEstado } from '@/_Extras/Fecha/fecha.js';
 
 const LIMIT = 24;
 
@@ -41,16 +42,30 @@ export default function AmigosClient() {
   const [cargandoMas, setCargandoMas] = useState(false);
   const [msg, setMsg] = useState('');
 
-  const [online, setOnline] = useState(new Set());
+  // Presencia real desde la BD (latido global cada 60s): "en línea" solo con
+  // edad < 2 min; si no, "hace X" (presenciaEstado usa la edad del backend).
+  const [presenciaRows, setPresenciaRows] = useState([]);
+  const online = useMemo(
+    () => new Set(
+      presenciaRows
+        .filter((p) => presenciaEstado(p.edad, es).online)
+        .map((p) => String(p.user_key))
+    ),
+    [presenciaRows, es]
+  );
+  const edadMap = useMemo(
+    () => new Map(presenciaRows.map((p) => [String(p.user_key), p.edad])),
+    [presenciaRows]
+  );
 
   const scrollRef = useRef(null);
 
-  /* ---------- presencia (Redis/SSE) ---------- */
+  /* ---------- presencia (Redis/SSE -> BD) ---------- */
   const cargarPresencia = useCallback(async () => {
-    if (!authed) { setOnline(new Set()); return; }
+    if (!authed) { setPresenciaRows([]); return; }
     const r = await apiComunidad.presencia();
-    const arr = Array.isArray(r?.data) ? r.data : Array.isArray(r?.usuarios) ? r.usuarios : [];
-    setOnline(new Set(arr.map((x) => String(x.user_key || x))));
+    const arr = Array.isArray(r?.data) ? r.data : [];
+    setPresenciaRows(arr);
   }, [authed]);
 
   useEffect(() => { cargarPresencia(); }, [cargarPresencia]);
@@ -212,6 +227,7 @@ export default function AmigosClient() {
 
   function renderTarjeta(u) {
     const on = online.has(String(u.user_key));
+    const est = presenciaEstado(edadMap.get(String(u.user_key)), es);
     return (
       <article
         key={u.user_key}
@@ -231,7 +247,7 @@ export default function AmigosClient() {
             {u.favorito && <ion-icon name="star" className={styles.star} suppressHydrationWarning></ion-icon>}
           </button>
           <span className={`${styles.friendState} ${on ? styles.stateOn : ''}`}>
-            {on ? (es ? 'en línea' : 'online') : (es ? 'desconectado' : 'offline')}
+            {est.label}
           </span>
           {(u.canal_pais || u.canal_seguidores) && (
             <span className={styles.friendMeta}>

@@ -1,9 +1,6 @@
 import { cache } from 'react';
 import { notFound } from 'next/navigation';
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import CanalClient from '@/_Pages/main/Canal/canal.js';
-import styles from '@/app/(main)/page.module.css';
 import { apiGet, mediaUrl } from '@/_Extras/Datos/server.js';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
@@ -45,18 +42,15 @@ export default async function CanalPage({ params }) {
   if (!channel) notFound();
 
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <CanalClient
+    <>
+
+      <CanalClient
           slug={slug}
           initialChannel={channel}
           initialVideos={vids.data}
           initialTotal={vids.total}
           initialPages={vids.pages}
         />
-      </div>
-    </div>
+    </>
   );
 }

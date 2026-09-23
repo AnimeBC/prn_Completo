@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 import styles from './chatFlotante.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import { comunidadMedia, apiComunidad } from '@/_Extras/Comunidad/api.js';
-import { canalUrl } from '@/_Extras/Canales/canal.js';
+import { abrirCanal } from '@/_Extras/Canales/canal.js';
+import { presenciaEstado } from '@/_Extras/Fecha/fecha.js';
+import { fmtNum } from '@/_Extras/Datos/num.js';
 import { useCall } from '@/_Extras/Llamadas/CallProvider.js';
 import Premium from '@/_Pages/main/Chat/componentes/premium';
 import Restringido from '@/_Pages/main/Chat/componentes/restringido';
@@ -348,6 +350,32 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
     const el = bodyRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }
+
+  // Estado REAL del otro en DM: desde la BD (edad del backend) + SSE, en vez
+  // del texto fijo "en línea" que mentia aunque estuviera desconectado.
+  const [otroEdad, setOtroEdad] = useState(null);
+  useEffect(() => {
+    if (tipo !== 'dm' || !otroKey) { setOtroEdad(null); return undefined; }
+    let alive = true;
+    const cargarPres = () => apiComunidad.presencia()
+      .then((r) => {
+        if (!alive || !Array.isArray(r?.data)) return;
+        const row = r.data.find((p) => String(p.user_key) === String(otroKey));
+        setOtroEdad(row ? row.edad : null);
+      })
+      .catch(() => {});
+    cargarPres();
+    const iv = setInterval(cargarPres, 60000);
+    const onChange = (e) => {
+      if (String(e?.detail?.type || '') === 'comunidad_presencia') cargarPres();
+    };
+    window.addEventListener('pikantepe:change', onChange);
+    return () => {
+      alive = false;
+      clearInterval(iv);
+      window.removeEventListener('pikantepe:change', onChange);
+    };
+  }, [tipo, otroKey]);
 
   // Al cambiar de conversacion: estado limpio y abierto en el ULTIMO mensaje
   // (aunque la instancia no se desmonte por alguna otra via).
@@ -841,7 +869,22 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   }
 
   function irAlCanal() {
-    if (tipo === 'dm' && canalSlug) router.push(`/canal/${canalSlug}`);
+    if (canalSlug) router.push(`/canal/${canalSlug}`);
+  }
+
+  // Perfil del emisor (avatar/nombre): el slug REAL por user_key -> sin 404.
+  function irAlPerfil(m) {
+    abrirCanal(router, m.user_key, m.usuario);
+  }
+
+  // Clic en el encabezado del chat (avatar + nombre + estado):
+  // grupo -> pestaña de información del grupo; DM -> su canal.
+  const headEsDm = tipo === 'dm' && !!canalSlug;
+  const headEsGrupo = tipo === 'grupo' && !!grupoId;
+  const headClic = headEsDm || headEsGrupo;
+  function irHead() {
+    if (headEsGrupo) router.push(`/comunidad/grupo/${grupoId}?tab=informacion`);
+    else if (headEsDm) irAlCanal();
   }
 
   function llamar(tipoLlamada) {
@@ -970,12 +1013,16 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           </button>
         )}
         <div
-          className={`${styles.headMain} ${tipo === 'dm' && canalSlug ? styles.headMainClick : ''}`}
-          onClick={tipo === 'dm' && canalSlug ? irAlCanal : undefined}
-          onKeyDown={tipo === 'dm' && canalSlug ? ((e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); irAlCanal(); } }) : undefined}
-          role={tipo === 'dm' && canalSlug ? 'button' : undefined}
-          tabIndex={tipo === 'dm' && canalSlug ? 0 : undefined}
-          title={tipo === 'dm' && canalSlug ? (es ? 'Ver perfil' : 'View profile') : undefined}
+          className={`${styles.headMain} ${headClic ? styles.headMainClick : ''}`}
+          onClick={headClic ? irHead : undefined}
+          onKeyDown={headClic ? ((e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); irHead(); } }) : undefined}
+          role={headClic ? 'button' : undefined}
+          tabIndex={headClic ? 0 : undefined}
+          title={headClic
+            ? (headEsGrupo
+                ? (es ? 'Ver información del grupo' : 'View group info')
+                : (es ? 'Ver perfil' : 'View profile'))
+            : undefined}
         >
           <span className={styles.avatarWrap}>
             <span className={styles.avatar}>
@@ -985,9 +1032,13 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           </span>
           <div className={styles.headInfo}>
             <strong className={styles.name}>{nombreMostrado}</strong>
-            <span className={styles.state}>
+            <span className={`${styles.state} ${tipo === 'dm' && !presenciaEstado(otroEdad, es).online ? styles.stateOff : ''}`}>
               {tipo !== 'grupo' && tema.emoji ? `${tema.emoji} ` : ''}
-              {tipo === 'grupo' ? (chat?.miembros ? `${chat.miembros} ${es ? 'miembros' : 'members'}` : '') : (es ? 'en línea' : 'online')}
+              {tipo === 'grupo'
+                ? (chat?.miembros
+                    ? `${fmtNum(chat.miembros)} ${es ? 'miembros' : 'members'} · ${fmtNum(chat.activos || 0)} ${es ? 'en línea' : 'online'}`
+                    : '')
+                : presenciaEstado(otroEdad, es).label}
             </span>
           </div>
         </div>
@@ -1232,7 +1283,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                   type="button"
                   className={styles.msgAvatar}
                   title={es ? 'Ver perfil' : 'View profile'}
-                  onClick={() => router.push(canalUrl(m.usuario))}
+                  onClick={() => irAlPerfil(m)}
                 >
                   {m.avatar
                     ? <Image src={comunidadMedia(m.avatar)} alt="" width={28} height={28} loading="lazy" />
@@ -1241,7 +1292,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
               )}
               <div className={`${styles.bubble} ${mio ? styles.bubbleMine : ''} ${esMedia && !m.eliminado ? styles.bubbleMedia : ''} ${esMedia && !m.eliminado && m.texto ? styles.bubbleWithCaption : ''} ${m.eliminado ? styles.bubbleDeleted : ''}`}>
                 {!mio && tipo === 'grupo' && !m.eliminado && (
-                  <button type="button" className={styles.user} onClick={() => router.push(canalUrl(m.usuario))}>
+                  <button type="button" className={styles.user} onClick={() => irAlPerfil(m)}>
                     {m.usuario}
                   </button>
                 )}

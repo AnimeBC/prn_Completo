@@ -118,6 +118,8 @@ export const apiComunidad = {
     return req(`/api/comunidad/grupos${qs ? `?${qs}` : ''}`);
   },
   grupo: (id, userKey = '') => req(`/api/comunidad/grupos/${id}${userKey ? `?userKey=${encodeURIComponent(userKey)}` : ''}`),
+  /** Miembros del grupo con su presencia (edad en segundos desde la BD). */
+  gruposMiembros: (id) => req(`/api/comunidad/grupos/${id}/miembros`),
   crearGrupo: (fd) => req('/api/comunidad/grupos', { method: 'POST', headers: authHeaders(), body: fd }),
   unirse: (id, userKey, mensaje = '', accion = '') => req(`/api/comunidad/grupos/${id}/join`, jsonPost({ userKey, mensaje, accion })),
   grupoAvatar: (id, userKey, file) => {

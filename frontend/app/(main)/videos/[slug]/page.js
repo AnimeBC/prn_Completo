@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import VideosClient from '@/_Pages/main/Videos/videos.js';
-import styles from '@/app/(main)/page.module.css';
 import { notFound } from 'next/navigation';
 import { apiGet, mediaUrl, sinceOf } from '@/_Extras/Datos/server.js';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
@@ -94,18 +91,14 @@ export default async function VideoPage({ params }) {
     : null;
 
   return (
-    <div className={styles.layout}>
+    <>
       {jsonLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       )}
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <VideosClient videoId={entry?.id || slug} src={src} info={toInfo(entry)} renditions={entry?.renditions || []} />
-      </div>
-    </div>
+      <VideosClient videoId={entry?.id || slug} src={src} info={toInfo(entry)} renditions={entry?.renditions || []} />
+    </>
   );
 }

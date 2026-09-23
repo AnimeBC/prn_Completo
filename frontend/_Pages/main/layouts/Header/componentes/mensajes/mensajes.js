@@ -93,7 +93,7 @@ export default function Mensajes() {
       ultimo_media: c.ultimo_media,
       ultimo_user_key: c.ultimo_user_key,
       ultimo_creado: c.ultimo_creado,
-      chat: { id: c.id, nombre: c.nombre, avatar: c.avatar, miembros: c.miembros },
+      chat: { id: c.id, nombre: c.nombre, avatar: c.avatar, miembros: c.miembros, activos: c.activos || 0 },
     }));
     const d = (dm?.data || []).map((c) => {
       const nombre = c.otro_usuario || c.otro_nombre || 'Usuario';

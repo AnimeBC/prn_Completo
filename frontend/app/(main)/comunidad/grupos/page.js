@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import GruposClient from '@/_Pages/main/Comunidad/Grupos';
-import styles from '@/app/(main)/page.module.css';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
 const T = 'Comunidades';
@@ -17,12 +14,9 @@ export const metadata = {
 
 export default function GruposPage() {
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <GruposClient />
-      </div>
-    </div>
+    <>
+
+      <GruposClient />
+    </>
   );
 }

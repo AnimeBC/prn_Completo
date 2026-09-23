@@ -44,4 +44,27 @@ export function hace(ts, locale = 'es') {
   return dt.setLocale(loc(locale)).toRelative() || '';
 }
 
-export default { fecha, fechaCorta, hora, hace, tzLocal };
+/**
+ * Estado de presencia REAL segun la edad en SEGUNDOS (la calcula el backend
+ * con el reloj de la BD -> sin problemas de zona horaria).
+ * < 2 min = en línea (el latido global manda cada 60s); si no, relativo:
+ * "hace 5 min" / "hace 3 h" / "hace 2 d" / "desconectado".
+ */
+export function presenciaEstado(edad, locale = 'es') {
+  const es = locale !== 'en';
+  const s = Number(edad);
+  if (!Number.isFinite(s) || s < 0) return { online: false, label: es ? 'desconectado' : 'offline' };
+  if (s < 120) return { online: true, label: es ? 'en línea' : 'online' };
+  if (s < 3600) {
+    const m = Math.max(1, Math.round(s / 60));
+    return { online: false, label: es ? `hace ${m} min` : `${m}m ago` };
+  }
+  if (s < 86400) {
+    const h = Math.max(1, Math.round(s / 3600));
+    return { online: false, label: es ? `hace ${h} h` : `${h}h ago` };
+  }
+  const d = Math.max(1, Math.round(s / 86400));
+  return { online: false, label: es ? `hace ${d} d` : `${d}d ago` };
+}
+
+export default { fecha, fechaCorta, hora, hace, tzLocal, presenciaEstado };

@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import VideosClient from '@/_Pages/main/Videos/videos.js';
-import styles from '@/app/(main)/page.module.css';
 import { apiGet, mediaUrl, sinceOf } from '@/_Extras/Datos/server.js';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
@@ -63,12 +60,9 @@ export default async function FeticheVideoPage({ params }) {
   const entry = await resolveEntry(slug);
 
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <VideosClient videoId={entry?.id || slug} src={entry?.src || ''} info={toInfo(entry)} renditions={entry?.renditions || []} />
-      </div>
-    </div>
+    <>
+
+      <VideosClient videoId={entry?.id || slug} src={entry?.src || ''} info={toInfo(entry)} renditions={entry?.renditions || []} />
+    </>
   );
 }

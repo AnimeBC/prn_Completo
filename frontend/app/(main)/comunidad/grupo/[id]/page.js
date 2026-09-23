@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import GrupoDetalle from '@/_Pages/main/Comunidad/GrupoDetalle';
-import styles from '@/app/(main)/page.module.css';
 import { apiGet, mediaUrl } from '@/_Extras/Datos/server.js';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
@@ -30,12 +27,9 @@ export default async function GrupoPage({ params }) {
   const grupo = await getGrupo(id);
 
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <GrupoDetalle id={id} initialGrupo={grupo} />
-      </div>
-    </div>
+    <>
+
+      <GrupoDetalle id={id} initialGrupo={grupo} />
+    </>
   );
 }

@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import HentaiClient from '@/_Pages/main/Hentai/hentai.js';
-import styles from '@/app/(main)/page.module.css';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
 const OG_TITLE = 'Hentai';
@@ -17,12 +14,9 @@ export const metadata = {
 
 export default function HentaiPage() {
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <HentaiClient />
-      </div>
-    </div>
+    <>
+
+      <HentaiClient />
+    </>
   );
 }

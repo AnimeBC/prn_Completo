@@ -11,7 +11,8 @@ import { useSidebar } from '@/app/sidebarContext.js';
 
 import { apiComunidad, comunidadMedia, comprimirImagen } from '@/_Extras/Comunidad/api.js';
 import { soloUnoPlay } from '@/_Extras/Media/onlyOne.js';
-import { hace, fecha } from '@/_Extras/Fecha/fecha.js';
+import { hace, fecha, presenciaEstado } from '@/_Extras/Fecha/fecha.js';
+import { fmtNum } from '@/_Extras/Datos/num.js';
 import AdBanner from '@/_Pages/main/Home/componentes/anuncio/AdBanner.js';
 
 // Anuncios de la comunidad (banners de 728x90 que ya usa el resto del sitio).
@@ -492,17 +493,9 @@ export default function ComunidadClient() {
     if (g) { abrioQueryRef.current = true; abrirChat(g); }
   }, [grupos]);
 
-  // Presencia: latido + refresco
-  useEffect(() => {
-    if (!userKey) return;
-    apiComunidad.latido(userKey);
-    const beat = setInterval(() => apiComunidad.latido(userKey), 60000);
-    const poll = setInterval(async () => {
-      const r = await apiComunidad.presencia();
-      if (Array.isArray(r.data)) setPresencia(r.data);
-    }, 30000);
-    return () => { clearInterval(beat); clearInterval(poll); };
-  }, [userKey]);
+  // Presencia: el latido global (RealtimeProvider) mantiene la BD al día cada
+  // 60s; aquí solo se refresca cuando llega el evento SSE. Sin sondeo propio.
+  // (Antes había un poll de 30s + latido local redundantes.)
 
   // Mantén una referencia viva de los chats (para el sondeo sin re-suscribir)
   useEffect(() => { chatsRef.current = chats; }, [chats]);
@@ -957,7 +950,20 @@ export default function ComunidadClient() {
   }
 
   // Amigos = contactos con los que ya tienes conversación (no cualquiera).
-  const onlineSet = useMemo(() => new Set(presencia.map((p) => String(p.user_key))), [presencia]);
+  // Presencia real desde la BD: "en línea" solo si el latido tiene <2 min;
+  // el resto muestra "hace X" (presenciaEstado calcula con la edad del backend).
+  const onlineSet = useMemo(
+    () => new Set(
+      presencia
+        .filter((p) => presenciaEstado(p.edad, es).online)
+        .map((p) => String(p.user_key))
+    ),
+    [presencia, es]
+  );
+  const presenciaMap = useMemo(
+    () => new Map(presencia.map((p) => [String(p.user_key), p.edad])),
+    [presencia]
+  );
   const amigosFiltrados = useMemo(() => {
     const q = onlineQ.trim().toLowerCase();
     const yo = String(userKey || '');
@@ -1005,11 +1011,11 @@ export default function ComunidadClient() {
             <strong>{g.nombre}</strong>
             <span className={styles.groupMeta}>
               <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
-              {Number(g.miembros).toLocaleString(es ? 'es-PE' : 'en-US')} {es ? 'miembros' : 'members'}
+              {fmtNum(g.miembros)} {es ? 'miembros' : 'members'}
             </span>
             <span className={styles.groupMeta}>
               <ion-icon name="radio-button-on" className={styles.onIcon} suppressHydrationWarning></ion-icon>
-              {g.activos || 0} {es ? 'activos' : 'active'}
+              {fmtNum(g.activos || 0)} {es ? 'en línea' : 'online'}
               <ion-icon name="folder-outline" suppressHydrationWarning></ion-icon>
               {g.archivos || 0} {es ? 'archivos' : 'files'}
             </span>
@@ -1043,6 +1049,7 @@ export default function ComunidadClient() {
   }
 
   function renderAmigoItem(u) {
+    const est = presenciaEstado(presenciaMap.get(String(u.user_key)), es);
     return (
       <div
         key={u.user_key}
@@ -1058,8 +1065,8 @@ export default function ComunidadClient() {
           <span className={styles.onlineName}>
             {u.usuario}{String(u.user_key) === String(userKey) ? (es ? ' (Tú)' : ' (You)') : ''}
           </span>
-          <span className={`${styles.onlineState} ${onlineSet.has(String(u.user_key)) ? '' : styles.onlineStateOff}`}>
-            {onlineSet.has(String(u.user_key)) ? (es ? 'en línea' : 'online') : (es ? 'desconectado' : 'offline')}
+          <span className={`${styles.onlineState} ${est.online ? '' : styles.onlineStateOff}`}>
+            {est.label}
           </span>
         </div>
         <ion-icon name="chatbubble-ellipses-outline" className={styles.onlineChatIcon} suppressHydrationWarning></ion-icon>
@@ -1126,7 +1133,7 @@ export default function ComunidadClient() {
                     </span>
                     <span className={styles.sugerenciaInfo}>
                       <span className={styles.sugerenciaNombre}>{g.nombre}</span>
-                      <span className={styles.sugerenciaMeta}>{es ? 'Comunidad' : 'Community'} · {Number(g.miembros || 0).toLocaleString()}</span>
+                      <span className={styles.sugerenciaMeta}>{es ? 'Comunidad' : 'Community'} · {fmtNum(g.miembros)} {es ? 'miembros' : 'members'} · {fmtNum(g.activos || 0)} {es ? 'en línea' : 'online'}</span>
                     </span>
                     <ion-icon name="people-outline" className={styles.sugerenciaTipo} suppressHydrationWarning></ion-icon>
                   </button>
@@ -1407,7 +1414,7 @@ export default function ComunidadClient() {
                       <div className={styles.buscarInfo}>
                         <span className={styles.buscarNombre}>{g.nombre}</span>
                         <span className={styles.buscarMeta}>
-                          {es ? 'Comunidad' : 'Community'} · {Number(g.miembros || 0).toLocaleString()}
+                          {es ? 'Comunidad' : 'Community'} · {fmtNum(g.miembros)} {es ? 'miembros' : 'members'} · {fmtNum(g.activos || 0)} {es ? 'en línea' : 'online'}
                         </span>
                       </div>
                       <button type="button" className={styles.buscarAccion} onClick={() => abrirChat(g)}>

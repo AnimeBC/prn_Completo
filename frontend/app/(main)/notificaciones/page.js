@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import NotificacionesPage from '@/_Pages/main/Notificaciones/NotificacionesPage.js';
-import styles from '@/app/(main)/page.module.css';
 
 export const metadata = {
   title: 'Notificaciones',
@@ -12,12 +9,9 @@ export const metadata = {
 
 export default function Page() {
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <NotificacionesPage />
-      </div>
-    </div>
+    <>
+
+      <NotificacionesPage />
+    </>
   );
 }

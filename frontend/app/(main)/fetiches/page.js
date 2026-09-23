@@ -1,7 +1,4 @@
-import Header from '@/_Pages/main/layouts/Header/Header';
-import Sidebar from '@/_Pages/main/layouts/headerLateralIzquierdo';
 import FetichesClient from '@/_Pages/main/Fetiches/fetiches.js';
-import styles from '@/app/(main)/page.module.css';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
 
 export const metadata = {
@@ -14,12 +11,9 @@ export const metadata = {
 
 export default function FetichesPage() {
   return (
-    <div className={styles.layout}>
-      <Header />
-      <div className={styles.body}>
-        <Sidebar />
-        <FetichesClient />
-      </div>
-    </div>
+    <>
+
+      <FetichesClient />
+    </>
   );
 }

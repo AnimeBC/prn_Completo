@@ -1,0 +1,268 @@
+/* Esqueletos de carga por página: imitan el layout real para que el 1s de
+   carga no deforme nada (mismos breakpoints, alturas y formas que el HTML). */
+
+.page {
+  padding: 24px;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: calc(100vh - 80px);
+}
+.inner {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* Pulso sutil: nada de gigantes ni saltos de layout */
+.sk {
+  background: var(--bg-surface, #1A1A1E);
+  border-radius: 8px;
+  animation: skPulse 1.1s ease-in-out infinite alternate;
+}
+@keyframes skPulse {
+  from { opacity: 0.5; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk { animation: none; opacity: 0.7; }
+}
+
+/* ============ LISTA (videos / hentai / tendencias / fetiches / packs) ============ */
+.listLayout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.listMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.listRail {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+@media (max-width: 1400px) {
+  .listRail { display: none; }
+}
+
+.headRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.headLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.titleSk { width: 200px; height: 26px; }
+.subSk { width: 150px; height: 13px; border-radius: 6px; }
+.tools { display: flex; gap: 8px; flex-shrink: 0; }
+.toolSk { width: 138px; height: 38px; border-radius: 999px; }
+.searchSk { height: 44px; border-radius: 12px; }
+.allHeadSk { display: flex; justify-content: space-between; align-items: center; }
+.allHeadSk .sk:first-child { width: 140px; height: 16px; }
+.allHeadSk .sk:last-child { width: 90px; height: 13px; }
+
+.gridSk {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.cardSk {
+  border: 1px solid var(--border, #27272A);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-card, #121215);
+}
+.thumbSk {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 0;
+}
+.cardBody {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.l1 { height: 13px; width: 72%; border-radius: 6px; }
+.l2 { height: 11px; width: 45%; border-radius: 6px; }
+.adSk { height: 90px; border-radius: 8px; }
+.railBox { height: 250px; border-radius: 12px; }
+.railBoxTall { height: 320px; border-radius: 12px; }
+
+@media (max-width: 1100px) {
+  .gridSk { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+  .page { padding: 12px; }
+  .gridSk { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .toolSk { width: 104px; }
+  .headRow { flex-wrap: wrap; }
+}
+
+/* ============ DETALLE (video / hentai / pack) ============ */
+.detGrid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 24px;
+  align-items: start;
+}
+.detGridPack {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 24px;
+  align-items: start;
+  padding: 0 16px;
+}
+.detLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.playerSk { aspect-ratio: 16 / 9; border-radius: 12px; }
+.detTitle { height: 26px; width: 72%; }
+.detMeta { height: 14px; width: 38%; }
+.chRow { display: flex; align-items: center; gap: 12px; }
+.avatarSk { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; }
+.chLines { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+.chL1 { height: 13px; width: 170px; border-radius: 6px; }
+.chL2 { height: 11px; width: 110px; border-radius: 6px; }
+.actRow { display: flex; gap: 8px; flex-wrap: wrap; }
+.actSk { width: 46px; height: 36px; border-radius: 999px; }
+.commentSk { height: 96px; border-radius: 12px; }
+.detRight {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.miniSk {
+  border: 1px solid var(--border, #27272A);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-card, #121215);
+}
+.miniBody { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+
+@media (max-width: 1100px) {
+  .detGrid,
+  .detGridPack { grid-template-columns: 1fr; }
+  .detRight { display: none; }
+}
+@media (max-width: 768px) {
+  .page { padding: 12px; }
+}
+
+/* ============ COMUNIDAD ============ */
+/* Su .main real usa padding 20 (el genérico de .page es 24). */
+.pageComm { padding: 20px; }
+.commGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+.commMain { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.commRight { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.buscarSk { height: 48px; border-radius: 24px; }
+.storiesSk { display: flex; gap: 10px; overflow: hidden; }
+.storySk { width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; }
+.labelSk { width: 170px; height: 14px; border-radius: 6px; }
+.postSk {
+  border: 1px solid var(--border, #27272A);
+  border-radius: 12px;
+  background: var(--bg-card, #121215);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.postHead { display: flex; align-items: center; gap: 10px; }
+.postAvatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+.postLines { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.postMedia { height: 190px; border-radius: 10px; }
+.postText { height: 13px; width: 80%; border-radius: 6px; }
+.rightBox {
+  border: 1px solid var(--border, #27272A);
+  border-radius: 12px;
+  background: var(--bg-card, #121215);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rightBox .sk:first-child { width: 60%; height: 15px; }
+.rightBox .sk:last-child { width: 85%; height: 12px; }
+
+@media (max-width: 1100px) {
+  .commGrid { grid-template-columns: 1fr; }
+  .commRight { display: none; }
+}
+@media (max-width: 768px) {
+  .page { padding: 12px; }
+}
+
+/* ============ CHAT ============ */
+.chatWrap {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  height: calc(100vh - 80px);
+  box-sizing: border-box;
+  padding: 16px 20px;
+  gap: 20px;
+}
+.chatLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  border-right: 1px solid var(--border, #27272A);
+  padding-right: 16px;
+}
+.chatSearch { height: 40px; border-radius: 20px; }
+.convRow { display: flex; align-items: center; gap: 10px; }
+.convAvatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; }
+.convLines { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+.convL1 { height: 13px; width: 55%; border-radius: 6px; }
+.convL2 { height: 11px; width: 35%; border-radius: 6px; }
+.chatRight {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+}
+.chatCircle { width: 64px; height: 64px; border-radius: 50%; }
+.chatLine { height: 14px; width: 220px; max-width: 70%; border-radius: 7px; }
+
+@media (max-width: 768px) {
+  .chatWrap { grid-template-columns: 1fr; padding: 12px; }
+  .chatLeft { border-right: none; padding-right: 0; }
+  .chatRight { display: none; }
+}
+
+/* ============ GENÉRICO (rutas sin esqueleto propio) ============ */
+.genTitle { width: 190px; height: 26px; }
+.genSearch { height: 44px; border-radius: 12px; max-width: 640px; }
+.genGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  max-width: 940px;
+}
+.genBlock { height: 120px; border-radius: 12px; }
+@media (max-width: 768px) {
+  .page { padding: 12px; }
+  .genGrid { grid-template-columns: repeat(2, 1fr); }
+}
