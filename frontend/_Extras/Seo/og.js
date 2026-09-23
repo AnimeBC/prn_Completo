@@ -4,7 +4,9 @@
  * (WhatsApp, Facebook, Telegram, Discord, X) necesitan para mostrar la portada.
  */
 const BASE = 'https://pikantepe.com';
-const DEFAULT_IMG = `${BASE}/logo.png`;
+// ?v=2 rompe la caché de las redes (guardan por URL): la proxima vez que
+// alguien comparta el link bajan la imagen nueva en vez de la scrapeada vieja.
+const DEFAULT_IMG = `${BASE}/logo.png?v=2`;
 
 /** Convierte una ruta /media/... o relativa en URL absoluta. */
 export function absUrl(u) {

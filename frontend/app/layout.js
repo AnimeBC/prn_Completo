@@ -57,13 +57,13 @@ export const metadata = {
     title: 'pikante pe — Videos, packs y comunidad picante',
     description: 'Descubre videos, packs exclusivos, fetiches, hentai y comunidad en vivo en pikante pe. El mejor contenido picante peruano.',
     url: '/',
-    image: '/logo.png',
+    image: '/logo.png?v=2',
     imageAlt: 'pikante pe',
   }),
   twitter: buildTwitter({
     title: 'pikante pe — Videos, packs y comunidad picante',
     description: 'Videos, packs, fetiches y hentai en pikante pe. Únete a la comunidad.',
-    image: '/logo.png',
+    image: '/logo.png?v=2',
   }),
 };
 
@@ -85,7 +85,7 @@ export default function RootLayout({ children }) {
               '@type': 'Organization',
               name: 'pikante pe',
               url: 'https://pikantepe.com',
-              logo: 'https://pikantepe.com/logo.png',
+              logo: 'https://pikantepe.com/logo.png?v=2',
               address: {
                 '@type': 'PostalAddress',
                 addressCountry: 'PE',
