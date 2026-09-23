@@ -821,18 +821,27 @@
   flex-wrap: wrap;
   margin-top: 2px;
 }
-.reactions { display: flex; flex-wrap: wrap; gap: 4px; }
+/* Reacciones en fila propia bajo el contenido (no tapan ni empujan nada). */
+.reactionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
 .visto { font-size: 9.5px; color: #4599FF; margin-left: 4px; white-space: nowrap; }
 .reaction {
   border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.3);
   color: inherit;
   font-size: 11px;
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: 999px;
   cursor: pointer;
   font-family: inherit;
+  line-height: 1.5;
 }
+.reaction:hover { border-color: var(--primary, #F20D16); }
 .reactionMine { border-color: #0A84FF; background: rgba(10, 132, 255, 0.25); }
 
 /* Acciones al costado del mensaje: se ven al pasar el mouse (PC). */
@@ -1135,6 +1144,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+/* Nuestro reproductor dentro del visor del album (16:9, sin pasarse de alto). */
+.albumPlayer {
+  width: min(96vw, 920px, 138vh);
 }
 .albumMedia {
   max-width: min(96vw, 920px);

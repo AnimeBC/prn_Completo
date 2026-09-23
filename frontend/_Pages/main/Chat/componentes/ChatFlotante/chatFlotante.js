@@ -257,8 +257,22 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
       const map = new Map(prev.map((m) => [String(m.id), m]));
       let cambio = false;
       for (const m of data) {
-        if (!map.has(String(m.id))) cambio = true;
-        map.set(String(m.id), m);
+        const k = String(m.id);
+        const old = map.get(k);
+        if (!old) {
+          cambio = true;
+        } else if (
+          // Tambien detecta cambios en mensajes EXISTENTES (reacciones,
+          // ediciones, borrados) — antes solo contaban los ids nuevos y el
+          // refresco se tiraba: las reacciones nunca se actualizaban.
+          old.texto !== m.texto ||
+          old.editado !== m.editado ||
+          old.eliminado !== m.eliminado ||
+          JSON.stringify(old.reacciones || []) !== JSON.stringify(m.reacciones || [])
+        ) {
+          cambio = true;
+        }
+        map.set(k, m);
       }
       if (!cambio) return prev;
       return [...map.values()].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
@@ -334,6 +348,14 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }
 
+  // Al cambiar de conversacion: estado limpio y abierto en el ULTIMO mensaje
+  // (aunque la instancia no se desmonte por alguna otra via).
+  useEffect(() => {
+    inicializadoRef.current = false;
+    lastLen.current = 0;
+    atBottomRef.current = true;
+  }, [tipo, grupoId, otroKey]);
+
   useEffect(() => {
     cargar();
   }, [cargar]);
@@ -367,10 +389,14 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
     if (onTema) onTema({ gradient: tema.gradient || '', color: tema.color || '', emoji: tema.emoji || '' });
   }, [onTema, tema.gradient, tema.color, tema.emoji]);
 
-  // Al abrir/activar el chat, enfoca el input para escribir de una.
+  // Al abrir/activar el chat, enfoca el input y baja al ULTIMO mensaje.
   useEffect(() => {
     if (!activo) return undefined;
-    const t = setTimeout(() => { if (inputRef.current) inputRef.current.focus({ preventScroll: true }); }, 60);
+    const t = setTimeout(() => {
+      if (inputRef.current) inputRef.current.focus({ preventScroll: true });
+      const el = bodyRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }, 60);
     return () => clearTimeout(t);
   }, [activo]);
 
@@ -396,18 +422,42 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
 
   useEffect(() => {
     const el = bodyRef.current;
-    if (!el) return;
+    if (!el) return undefined;
     // Si se cargaron mensajes antiguos, mantiene la posición (no salta).
     if (prependRef.current) {
       const { height, top } = prependRef.current;
       prependRef.current = null;
       el.scrollTop = el.scrollHeight - height + top;
       lastLen.current = mensajes.length;
-      return;
+      return undefined;
     }
-    // Al abrir o si estás abajo, salta al último mensaje.
-    if (atBottomRef.current) el.scrollTop = el.scrollHeight;
+
+    const bajar = () => {
+      el.scrollTop = el.scrollHeight;
+      atBottomRef.current = true;
+    };
+
+    // Apertura del chat o mensajes nuevos estando abajo: al ULTIMO mensaje.
+    if (atBottomRef.current) bajar();
     lastLen.current = mensajes.length;
+
+    // Mientras estés "abajo", re-ancla cuando el contenido crezca:
+    // las fotos/videos/albums cargan tarde y ensanchan el ultimo mensaje.
+    // (Crecer no dispara scroll, así que atBottomRef sigue en true hasta que
+    //  el usuario suba a leer historia: en ese caso ya no lo molestamos.)
+    const alCrecer = () => {
+      if (atBottomRef.current) bajar();
+    };
+    el.addEventListener('load', alCrecer, true); // <img> que termina de cargar
+    const ro = new ResizeObserver(alCrecer);      // la ventana cambia de medida
+    ro.observe(el);
+    const timers = [150, 400, 900, 1600].map((ms) => setTimeout(alCrecer, ms));
+
+    return () => {
+      el.removeEventListener('load', alCrecer, true);
+      ro.disconnect();
+      timers.forEach((t) => clearTimeout(t));
+    };
   }, [mensajes]);
 
   // Carga progresiva de emojis (por categorías) para no laggear al abrir.
@@ -671,10 +721,39 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
 
   async function reaccionar(m, emoji) {
     setReactMenu(null);
+    // Optimista: el cambio se ve AL INSTANTE (toggle igual que el backend).
+    setMensajes((cur) => cur.map((x) => {
+      if (String(x.id) !== String(m.id)) return x;
+      const arr = (Array.isArray(x.reacciones) ? x.reacciones : []).map((rx) => ({ ...rx }));
+      const iMine = arr.findIndex((rx) => rx.mi);
+      if (iMine >= 0) {
+        const mine = arr[iMine];
+        if (mine.emoji === emoji) {
+          // Mismo emoji -> quitar mi reaccion.
+          mine.n -= 1;
+          if (mine.n <= 0) arr.splice(iMine, 1);
+          else mine.mi = false;
+        } else {
+          // Otro emoji -> cambia mi voto (una sola reaccion por usuario).
+          mine.mi = false;
+          mine.n -= 1;
+          if (mine.n <= 0) arr.splice(iMine, 1);
+          const j = arr.findIndex((rx) => rx.emoji === emoji);
+          if (j >= 0) { arr[j].n += 1; arr[j].mi = true; }
+          else arr.push({ emoji, n: 1, mi: true });
+        }
+      } else {
+        const j = arr.findIndex((rx) => rx.emoji === emoji);
+        if (j >= 0) { arr[j].n += 1; arr[j].mi = true; }
+        else arr.push({ emoji, n: 1, mi: true });
+      }
+      return { ...x, reacciones: arr };
+    }));
     const r = tipo === 'grupo'
       ? await apiComunidad.reaccionarMensaje(m.id, userKey, emoji)
       : await apiComunidad.dmReaccionar(m.id, userKey, emoji);
-    if (!r?.error) cargar();
+    if (r?.error) { setMsg(r.error); return; } // error visible, nunca en silencio
+    cargar();
   }
 
   /** Coloca un panel flotante pegado al botón (auto izquierda/derecha). */
@@ -1278,16 +1357,19 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                   </>
                 )}
 
+                {/* Reacciones: fila propia DEBAJO del contenido (audio/archivo/
+                    mensaje), sin tapar ni apretar nada mas. */}
+                {Array.isArray(m.reacciones) && m.reacciones.length > 0 && !m.eliminado && (
+                  <div className={styles.reactionsRow}>
+                    {m.reacciones.map((rx) => (
+                      <button key={rx.emoji} type="button" className={`${styles.reaction} ${rx.mi ? styles.reactionMine : ''}`} onClick={() => reaccionar(m, rx.emoji)}>
+                        {rx.emoji} {rx.n}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div className={styles.metaRow}>
-                  {Array.isArray(m.reacciones) && m.reacciones.length > 0 && !m.eliminado && (
-                    <div className={styles.reactions}>
-                      {m.reacciones.map((rx) => (
-                        <button key={rx.emoji} type="button" className={`${styles.reaction} ${rx.mi ? styles.reactionMine : ''}`} onClick={() => reaccionar(m, rx.emoji)}>
-                          {rx.emoji} {rx.n}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                   <span className={styles.time}>
                     {hora(m.created_at, es)}
                     {mio && !m.eliminado && (
@@ -1703,7 +1785,9 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
             )}
             <div className={styles.albumStage}>
               {k === 'video' && (
-                <video key={src} className={styles.albumMedia} src={src} controls autoPlay playsInline />
+                <div className={styles.albumPlayer}>
+                  <Reproductor key={src} src={src} ads={false} />
+                </div>
               )}
               {k === 'audio' && (
                 <audio key={src} className={styles.albumAudio} src={src} controls autoPlay />
