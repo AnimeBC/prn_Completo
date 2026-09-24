@@ -419,7 +419,7 @@ export default function Mensajes() {
                     : String(gp.usuario || '?').trim().charAt(0).toUpperCase()}
                 </span>
                 <span className={styles.storyViewerName}>{gp.usuario}</span>
-                <button type="button" className={styles.storyViewerX} onClick={() => setStory(null)} aria-label="Cerrar">
+                <button type="button" className={styles.storyViewerX} onClick={() => setStory(null)} aria-label={es ? 'Cerrar' : 'Close'}>
                   <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
                 </button>
               </div>

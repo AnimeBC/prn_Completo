@@ -68,7 +68,7 @@ export default function Compositor({ open, onClose, userKey, onSent }) {
       <div className={styles.card}>
         <div className={styles.head}>
           <h3 className={styles.title}>{es ? 'Nuevo mensaje' : 'New message'}</h3>
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Cerrar">
+          <button type="button" className={styles.close} onClick={onClose} aria-label={es ? 'Cerrar' : 'Close'}>
             <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
           </button>
         </div>

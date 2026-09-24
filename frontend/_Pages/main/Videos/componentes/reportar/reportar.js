@@ -74,7 +74,7 @@ export default function ReportModal({ open, onClose, videoId, onReported, submit
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className={styles.card}>
-        <button className={styles.close} type="button" onClick={onClose} aria-label="Cerrar">
+        <button className={styles.close} type="button" onClick={onClose} aria-label={es ? 'Cerrar' : 'Close'}>
           <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
         </button>
 

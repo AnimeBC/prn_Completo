@@ -155,22 +155,8 @@
 
 .promoTagIcon {
   font-size: 12px;
-  color: #F20D16;
+  color: currentColor;
   flex-shrink: 0;
-}
-
-.liveDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #FFFFFF;
-  animation: liveBlink 1.2s ease-in-out infinite;
-  flex-shrink: 0;
-}
-
-@keyframes liveBlink {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.35; transform: scale(0.75); }
 }
 
 .moreBtn {

@@ -393,7 +393,7 @@ export default function PackDescargar({ packId }) {
                           : `${fmtBytes(d.loaded)}${d.total ? ` / ${fmtBytes(d.total)}` : ''} · ${fmtSpeed(d.speed)}${d.eta ? ` · ${fmtEta(d.eta)}` : ''}`}
                   </span>
                 </div>
-                <button className={styles.dockClose} type="button" onClick={() => cancel(d.id)} aria-label="Cancelar">
+                <button className={styles.dockClose} type="button" onClick={() => cancel(d.id)} aria-label={es ? 'Cancelar' : 'Cancel'}>
                   <ion-icon name={done ? 'checkmark-outline' : 'close-outline'} suppressHydrationWarning></ion-icon>
                 </button>
               </div>

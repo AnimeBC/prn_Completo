@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import styles from './reproductor.module.css';
+import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import VastPostRoll from '@/_Extras/Ads/VastPostRoll.js';
 
 const SPEEDS = [1, 1.25, 1.5, 2];
@@ -25,6 +26,7 @@ function fmt(sec) {
 }
 
 export default function HentaiReproductor({ src = '/videos/1.mov', poster = null, theater, onToggleTheater, onPlay = null }) {
+  const { t } = useLanguage();
   const videoRef = useRef(null);
   const wrapRef = useRef(null);
   const adRef = useRef(null);
@@ -180,24 +182,24 @@ export default function HentaiReproductor({ src = '/videos/1.mov', poster = null
           </div>
         )}
         {!playing && !videoError && (
-          <button type="button" className={styles.playCenter} onClick={togglePlay} aria-label="Reproducir">
+          <button type="button" className={styles.playCenter} onClick={togglePlay} aria-label={t('video.reproducir')}>
             <ion-icon name="play" suppressHydrationWarning></ion-icon>
           </button>
         )}
         {videoError && (
           <div className={styles.videoError}>
             <ion-icon name="alert-circle-outline" className={styles.videoErrorIcon} suppressHydrationWarning></ion-icon>
-            <p className={styles.videoErrorText}>Could not load the anime</p>
-            <span className={styles.videoErrorSub}>Check the file or try another quality</span>
+            <p className={styles.videoErrorText}>{t('video.errorVideo')}</p>
+            <span className={styles.videoErrorSub}>{t('video.errorVideoSub')}</span>
             <button className={styles.videoRetryBtn} type="button" onClick={retry}>
               <ion-icon name="refresh-outline" className={styles.videoRetryIcon} suppressHydrationWarning></ion-icon>
-              Retry
+              {t('video.reintentar')}
             </button>
           </div>
         )}
         {qualityOpen && (
           <div className={styles.qualityMenu}>
-            <p className={styles.qualityTitle}>Quality</p>
+            <p className={styles.qualityTitle}>{t('video.calidad')}</p>
             {QUALITIES.map((q) => (
               <button
                 key={q.label}
@@ -214,7 +216,7 @@ export default function HentaiReproductor({ src = '/videos/1.mov', poster = null
           </div>
         )}
         <div className={styles.controls}>
-          <div className={styles.progress} onClick={seek} role="slider" aria-label="Progress" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} tabIndex={0}
+          <div className={styles.progress} onClick={seek} role="slider" aria-label={t('video.progreso')} aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'ArrowRight' && videoRef.current) videoRef.current.currentTime += 5; if (e.key === 'ArrowLeft' && videoRef.current) videoRef.current.currentTime -= 5; }}>
             <div className={styles.bufferedFill} style={{ width: `${Math.min(Math.max(buffered, 0), 1) * 100}%` }} />
             <div className={styles.progressFill} style={{ width: `${pct}%` }}>
@@ -223,14 +225,14 @@ export default function HentaiReproductor({ src = '/videos/1.mov', poster = null
           </div>
           <div className={styles.controlsRow}>
             <div className={styles.controlsLeft}>
-              <button className={styles.ctrlBtn} type="button" aria-label={playing ? 'Pause' : 'Play'} onClick={togglePlay}>
+              <button className={styles.ctrlBtn} type="button" aria-label={playing ? t('video.pausar') : t('video.reproducir')} onClick={togglePlay}>
                 <ion-icon name={playing ? 'pause-sharp' : 'play-sharp'} className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
-              <button className={styles.ctrlBtn} type="button" aria-label="Next anime">
+              <button className={styles.ctrlBtn} type="button" aria-label={t('video.siguienteVideo')}>
                 <ion-icon name="play-skip-forward-sharp" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
               <div className={styles.volumeWrap}>
-                <button className={styles.ctrlBtn} type="button" aria-label={muted ? 'Unmute' : 'Mute'} onClick={toggleMute}>
+                <button className={styles.ctrlBtn} type="button" aria-label={muted ? t('video.activarSonido') : t('video.silenciar')} onClick={toggleMute}>
                   <ion-icon name={volumeIcon()} className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
                 </button>
                 <input
@@ -241,7 +243,7 @@ export default function HentaiReproductor({ src = '/videos/1.mov', poster = null
                   step="0.05"
                   value={muted ? 0 : volume}
                   onChange={changeVolume}
-                  aria-label="Volume"
+                  aria-label={t('video.volumen')}
                   style={{
                     background: `linear-gradient(to right, #F20D16 ${(muted ? 0 : volume) * 100}%, rgba(242,13,22,0.22) ${(muted ? 0 : volume) * 100}%)`,
                   }}
@@ -250,17 +252,17 @@ export default function HentaiReproductor({ src = '/videos/1.mov', poster = null
               <span className={styles.time}>{fmt(current)} / {fmt(duration)}</span>
             </div>
             <div className={styles.controlsRight}>
-              <button className={styles.speedBtn} type="button" aria-label="Speed" onClick={cycleSpeed}>{speed}x</button>
-              <button className={`${styles.ctrlBtn} ${qualityOpen ? styles.ctrlActive : ''}`} type="button" aria-label="Quality" onClick={() => setQualityOpen((p) => !p)}>
+              <button className={styles.speedBtn} type="button" aria-label={t('video.velocidad')} onClick={cycleSpeed}>{speed}x</button>
+              <button className={`${styles.ctrlBtn} ${qualityOpen ? styles.ctrlActive : ''}`} type="button" aria-label={t('video.calidadVideo')} onClick={() => setQualityOpen((p) => !p)}>
                 <ion-icon name="settings-sharp" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
-              <button className={styles.ctrlBtn} type="button" aria-label="Mini player" onClick={togglePip}>
+              <button className={styles.ctrlBtn} type="button" aria-label={t('video.mini')} onClick={togglePip}>
                 <ion-icon name="albums-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
-              <button className={`${styles.ctrlBtn} ${theater ? styles.ctrlActive : ''}`} type="button" aria-label="Theater mode" onClick={onToggleTheater}>
+              <button className={`${styles.ctrlBtn} ${theater ? styles.ctrlActive : ''}`} type="button" aria-label={t('video.teatro')} onClick={onToggleTheater}>
                 <ion-icon name="square-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
-              <button className={styles.ctrlBtn} type="button" aria-label="Fullscreen" onClick={toggleFullscreen}>
+              <button className={styles.ctrlBtn} type="button" aria-label={t('video.completa')} onClick={toggleFullscreen}>
                 <ion-icon name="expand-sharp" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
             </div>

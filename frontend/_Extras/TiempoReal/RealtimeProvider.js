@@ -40,6 +40,8 @@ const NO_REFRESH = new Set([
   // Llamadas: se manejan en vivo por pikantepe:change (CallProvider/ChatFlotante).
   'call_offer', 'call_answer', 'call_ice', 'call_reject', 'call_hangup', 'call_state',
   'call_grupo_start', 'call_grupo_join', 'call_grupo_leave', 'call_grupo_signal', 'call_grupo_end',
+  // Match (Omegle): pairing/signaling/chat en vivo por pikantepe:change (Match).
+  'match_found', 'match_end', 'match_signal', 'match_chat',
 ]);
 
 const RealtimeContext = createContext({ connected: false, lastEvent: null });
@@ -126,7 +128,7 @@ export function RealtimeProvider({ children }) {
         // Se difiere para evitar "Router action dispatched before initialization".
         // Nunca refrescar server components por eventos de llamada/comunidad/dm:
         // se manejan en vivo y refrescar re-monta todo (bucles y cortes).
-        if (!NO_REFRESH.has(tipo) && !tipo.startsWith('comunidad_') && !tipo.startsWith('call_')) {
+        if (!NO_REFRESH.has(tipo) && !tipo.startsWith('comunidad_') && !tipo.startsWith('call_') && !tipo.startsWith('match_')) {
           setTimeout(() => {
             try { router.refresh(); } catch { /* router aún no listo */ }
           }, 80);

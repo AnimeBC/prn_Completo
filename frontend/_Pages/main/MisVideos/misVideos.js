@@ -109,6 +109,9 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
   const router = useRouter();
   const { locale } = useLanguage();
   const es = locale !== 'en';
+  // Título/vacío de la sección según endpoint (si no se pasa prop).
+  const tituloSecc = title || (endpoint === 'saved' ? (es ? 'Favoritos' : 'Favorites') : endpoint === 'likes' ? (es ? 'Me gusta' : 'Likes') : endpoint === 'history' ? (es ? 'Historial' : 'History') : endpoint === 'downloads' ? (es ? 'Descargas' : 'Downloads') : (es ? 'Videos' : 'Videos'));
+  const vacioSecc = emptyText || (endpoint === 'saved' ? (es ? 'Aún no guardas ningún video.' : 'You have not saved any video yet.') : endpoint === 'likes' ? (es ? 'Aún no le diste me gusta a nada.' : 'You haven’t liked anything yet.') : endpoint === 'history' ? (es ? 'Todavía no has visto ningún video.' : 'You have not watched any video yet.') : endpoint === 'downloads' ? (es ? 'Aún no has descargado ningún video.' : 'You haven’t downloaded any video yet.') : (es ? 'No hay videos todavía.' : 'No videos yet.'));
   const { authed } = useAuth();
   const { videos } = useContenido();
 
@@ -139,7 +142,7 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
         if (!alive) return;
         setItems((j.data || []).map((v) => ({
           id: v.id,
-          title: v.titulo_es || v.titulo_en || `Video #${v.id}`,
+          title: es ? (v.titulo_es || v.titulo_en || `Video #${v.id}`) : (v.titulo_en || v.titulo_es || `Video #${v.id}`),
           channel: v.canal || 'administrador pikante.pe',
           views: fmtViews(v.vistas, es),
           duration: v.duracion || '00:00',
@@ -165,7 +168,7 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
         .then((r) => r.json())
         .then((j) => setItems((j.data || []).map((v) => ({
           id: v.id,
-          title: v.titulo_es || v.titulo_en || `Video #${v.id}`,
+          title: es ? (v.titulo_es || v.titulo_en || `Video #${v.id}`) : (v.titulo_en || v.titulo_es || `Video #${v.id}`),
           channel: v.canal || 'administrador pikante.pe',
           views: fmtViews(v.vistas, es),
           duration: v.duracion || '00:00',
@@ -265,7 +268,7 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
         <div className={styles.feed}>
           <div className={styles.headRow}>
             <div>
-              {title && <h1 className={styles.title}>{title}</h1>}
+              {!embedded && tituloSecc && <h1 className={styles.title}>{tituloSecc}</h1>}
               <p className={styles.count}>
                 {filtered.length} {es ? 'videos' : 'videos'}
                 {isFiltering ? ` · ${es ? 'filtrados' : 'filtered'}` : ''}
@@ -288,7 +291,7 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
                 onChange={(e) => { setQuery(e.target.value); resetPage(); }}
               />
               {query && (
-                <button className={styles.searchClear} type="button" aria-label="Limpiar" onClick={() => { setQuery(''); resetPage(); }}>
+                <button className={styles.searchClear} type="button" aria-label={es ? 'Limpiar' : 'Clear'} onClick={() => { setQuery(''); resetPage(); }}>
                   <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
                 </button>
               )}
@@ -297,7 +300,7 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
 
           <div className={styles.allHead}>
             <h2 className={styles.sectionTitle}>
-              {isFiltering ? (es ? 'Resultados' : 'Results') : (title || (es ? 'Videos' : 'Videos'))}
+              {isFiltering ? (es ? 'Resultados' : 'Results') : tituloSecc}
             </h2>
             <div className={styles.allHeadRight}>
               {isFiltering && (
@@ -318,7 +321,7 @@ export default function MisVideos({ title, endpoint, emptyText, embedded = false
           ) : filtered.length === 0 ? (
             <div className={styles.empty}>
               <ion-icon name="folder-open-outline" suppressHydrationWarning></ion-icon>
-              <p>{emptyText || (es ? 'No hay videos todavía.' : 'No videos yet.')}</p>
+              <p>{vacioSecc}</p>
             </div>
           ) : (
             <div className={styles.grid}>{groups}</div>

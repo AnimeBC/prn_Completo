@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import styles from './reproductor.module.css';
+import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import VastPostRoll from '@/_Extras/Ads/VastPostRoll.js';
 import { soloUnoPlay, soloUnoStop } from '@/_Extras/Media/onlyOne.js';
 
@@ -28,6 +29,7 @@ const Reproductor = forwardRef(function Reproductor({
   startTime = 0,
   onTime = null,
 }, ref) {
+  const { t } = useLanguage();
   const videoRef = useRef(null);
   const wrapRef = useRef(null);
   const resumeRef = useRef(null);
@@ -212,24 +214,24 @@ const Reproductor = forwardRef(function Reproductor({
           </div>
         )}
         {!playing && !videoError && (
-          <button type="button" className={styles.playCenter} onClick={togglePlay} aria-label="Reproducir">
+          <button type="button" className={styles.playCenter} onClick={togglePlay} aria-label={t('video.reproducir')}>
             <ion-icon name="play" suppressHydrationWarning></ion-icon>
           </button>
         )}
         {videoError && (
           <div className={styles.videoError}>
             <ion-icon name="alert-circle-outline" className={styles.videoErrorIcon} suppressHydrationWarning></ion-icon>
-            <p className={styles.videoErrorText}>No se pudo cargar el video</p>
-            <span className={styles.videoErrorSub}>Revisa el archivo o prueba con otra calidad</span>
+            <p className={styles.videoErrorText}>{t('video.errorVideo')}</p>
+            <span className={styles.videoErrorSub}>{t('video.errorVideoSub')}</span>
             <button className={styles.videoRetryBtn} type="button" onClick={retry}>
               <ion-icon name="refresh-outline" className={styles.videoRetryIcon} suppressHydrationWarning></ion-icon>
-              Reintentar
+              {t('video.reintentar')}
             </button>
           </div>
         )}
         {qualityOpen && (
           <div className={styles.qualityMenu}>
-            <p className={styles.qualityTitle}>Calidad</p>
+            <p className={styles.qualityTitle}>{t('video.calidad')}</p>
             {qualities.map((q) => (
               <button
                 key={q.label}
@@ -246,7 +248,7 @@ const Reproductor = forwardRef(function Reproductor({
           </div>
         )}
         <div className={styles.controls}>
-          <div className={styles.progress} onClick={seek} role="slider" aria-label="Progreso" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} tabIndex={0}
+          <div className={styles.progress} onClick={seek} role="slider" aria-label={t('video.progreso')} aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'ArrowRight' && videoRef.current) videoRef.current.currentTime += 5; if (e.key === 'ArrowLeft' && videoRef.current) videoRef.current.currentTime -= 5; }}>
             <div className={styles.bufferedFill} style={{ width: `${Math.min(Math.max(buffered, 0), 1) * 100}%` }} />
             <div className={styles.progressFill} style={{ width: `${pct}%` }}>
@@ -255,16 +257,16 @@ const Reproductor = forwardRef(function Reproductor({
           </div>
           <div className={styles.controlsRow}>
             <div className={styles.controlsLeft}>
-              <button className={styles.ctrlBtn} type="button" aria-label={playing ? 'Pausar' : 'Reproducir'} onClick={togglePlay}>
+              <button className={styles.ctrlBtn} type="button" aria-label={playing ? t('video.pausar') : t('video.reproducir')} onClick={togglePlay}>
                 <ion-icon name={playing ? 'pause-sharp' : 'play-sharp'} className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
               {!compact && (
-                <button className={styles.ctrlBtn} type="button" aria-label="Siguiente video">
+                <button className={styles.ctrlBtn} type="button" aria-label={t('video.siguienteVideo')}>
                   <ion-icon name="play-skip-forward-sharp" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
                 </button>
               )}
               <div className={styles.volumeWrap}>
-                <button className={styles.ctrlBtn} type="button" aria-label={muted ? 'Activar sonido' : 'Silenciar'} onClick={toggleMute}>
+                <button className={styles.ctrlBtn} type="button" aria-label={muted ? t('video.activarSonido') : t('video.silenciar')} onClick={toggleMute}>
                   <ion-icon name={volumeIcon()} className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
                 </button>
                 {!compact && (
@@ -276,7 +278,7 @@ const Reproductor = forwardRef(function Reproductor({
                     step="0.05"
                     value={muted ? 0 : volume}
                     onChange={changeVolume}
-                    aria-label="Volumen"
+                    aria-label={t('video.volumen')}
                     style={{
                       background: `linear-gradient(to right, #F20D16 ${(muted ? 0 : volume) * 100}%, rgba(242,13,22,0.22) ${(muted ? 0 : volume) * 100}%)`,
                     }}
@@ -286,21 +288,21 @@ const Reproductor = forwardRef(function Reproductor({
               <span className={styles.time}>{fmt(current)} / {fmt(duration)}</span>
             </div>
             <div className={styles.controlsRight}>
-              <button className={styles.speedBtn} type="button" aria-label="Velocidad" onClick={cycleSpeed}>{speed}x</button>
-              <button className={`${styles.ctrlBtn} ${qualityOpen ? styles.ctrlActive : ''}`} type="button" aria-label="Calidad del video" aria-haspopup="menu" aria-expanded={qualityOpen} onClick={() => setQualityOpen((p) => !p)}>
+              <button className={styles.speedBtn} type="button" aria-label={t('video.velocidad')} onClick={cycleSpeed}>{speed}x</button>
+              <button className={`${styles.ctrlBtn} ${qualityOpen ? styles.ctrlActive : ''}`} type="button" aria-label={t('video.calidadVideo')} aria-haspopup="menu" aria-expanded={qualityOpen} onClick={() => setQualityOpen((p) => !p)}>
                 <ion-icon name="settings-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
               {!compact && (
-                <button className={styles.ctrlBtn} type="button" aria-label="Mini reproductor" onClick={togglePip}>
+                <button className={styles.ctrlBtn} type="button" aria-label={t('video.mini')} onClick={togglePip}>
                   <ion-icon name="albums-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
                 </button>
               )}
               {!compact && (
-                <button className={`${styles.ctrlBtn} ${theater ? styles.ctrlActive : ''}`} type="button" aria-label="Modo teatro" onClick={onToggleTheater}>
+                <button className={`${styles.ctrlBtn} ${theater ? styles.ctrlActive : ''}`} type="button" aria-label={t('video.teatro')} onClick={onToggleTheater}>
                   <ion-icon name="square-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
                 </button>
               )}
-              <button className={styles.ctrlBtn} type="button" aria-label="Pantalla completa" onClick={toggleFullscreen}>
+              <button className={styles.ctrlBtn} type="button" aria-label={t('video.completa')} onClick={toggleFullscreen}>
                 <ion-icon name="expand-sharp" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
               </button>
             </div>

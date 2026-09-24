@@ -1174,7 +1174,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
             <button type="button" className={styles.iconBtn} onClick={expandir} title={es ? 'Expandir' : 'Expand'}>
               <ion-icon name="expand-outline" suppressHydrationWarning></ion-icon>
             </button>
-            <button type="button" className={styles.iconBtn} onClick={onClose} title="Cerrar">
+            <button type="button" className={styles.iconBtn} onClick={onClose} title={es ? 'Cerrar' : 'Close'}>
               <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
             </button>
           </>

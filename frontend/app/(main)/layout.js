@@ -66,7 +66,8 @@ export default function MainLayout({ children }) {
           {children}
         </div>
       </div>
-      <Footer />
+      {/* Sin footer en /match: la videollamada usa toda la altura. */}
+      {pathname !== '/match' && <Footer />}
       <BottomNav />
     </>
   );

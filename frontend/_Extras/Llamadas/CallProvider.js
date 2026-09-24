@@ -7,6 +7,7 @@ import { API_URL, mediaUrl } from '@/_Extras/Api/api.js';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { playRing, stopRing } from '@/_Extras/Sonido/sonido.js';
 import { apiComunidad } from '@/_Extras/Comunidad/api.js';
+import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 
 const CallContext = createContext({
   iniciar: () => {}, colgar: () => {}, enLlamada: false,
@@ -265,6 +266,8 @@ function WaveAvatar({ stream, avatar, nombre }) {
 // Tile de video grupal (estilo Meet/Teams): video o avatar, nombre SIEMPRE
 // visible y boton para fijar/quitar fijado (pantalla completa). Sin arrastre.
 function VideoTile({ stream, info, onPin, pinned }) {
+  const { locale } = useLanguage();
+  const es = locale !== 'en';
   const videoRef = useRef(null);
   const [hayVideo, setHayVideo] = useState(false);
   const hablando = useIsSpeaking(stream);
@@ -295,7 +298,7 @@ function VideoTile({ stream, info, onPin, pinned }) {
       tabIndex={0}
       onClick={() => onPin?.()}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPin?.(); } }}
-      title={pinned ? 'Quitar de pantalla completa' : 'Ver en pantalla completa'}
+      title={pinned ? (es ? 'Quitar de pantalla completa' : 'Exit full screen') : (es ? 'Ver en pantalla completa' : 'View full screen')}
     >
       <video
         ref={videoRef}
@@ -319,8 +322,8 @@ function VideoTile({ stream, info, onPin, pinned }) {
             type="button"
             className={styles.tileChipBtn}
             onClick={(e) => { e.stopPropagation(); onPin?.(); }}
-            title={pinned ? 'Quitar de pantalla completa' : 'Ver en pantalla completa'}
-            aria-label={pinned ? 'Quitar de pantalla completa' : 'Ver en pantalla completa'}
+            title={pinned ? (es ? 'Quitar de pantalla completa' : 'Exit full screen') : (es ? 'Ver en pantalla completa' : 'View full screen')}
+            aria-label={pinned ? (es ? 'Quitar de pantalla completa' : 'Exit full screen') : (es ? 'Ver en pantalla completa' : 'View full screen')}
           >
             <ion-icon name={pinned ? 'contract-outline' : 'expand-outline'} suppressHydrationWarning></ion-icon>
           </button>
@@ -387,6 +390,8 @@ function LocalVideo({ stream, className }) {
 // (PC sin webcam o camara apagada), muestra la foto de perfil y el nombre.
 // Es arrastrable por el asa de su esquina (la posicion se guarda).
 function LocalBox({ stream, videoOn, user, userKey }) {
+  const { locale } = useLanguage();
+  const es = locale !== 'en';
   const wrapRef = useRef(null);
   const [pos, setPos] = useState(null);
   // Ondas en MI foto cuando hablo (caso: PC sin camara).
@@ -440,7 +445,7 @@ function LocalBox({ stream, videoOn, user, userKey }) {
   const nombre = user?.nombre || user?.usuario || '';
   return (
     <div ref={wrapRef} className={styles.localVideo} style={estilo}>
-      <button type="button" className={styles.localDrag} onPointerDown={onDown} title="Mover" aria-label="Mover recuadro">
+      <button type="button" className={styles.localDrag} onPointerDown={onDown} title={es ? 'Mover' : 'Move'} aria-label={es ? 'Mover recuadro' : 'Move box'}>
         <ion-icon name="move-outline" suppressHydrationWarning></ion-icon>
       </button>
       {videoOn && stream ? (
@@ -477,6 +482,8 @@ function RemoteVideo({ stream, className }) {
 
 // Barra de titulo estilo ventana de app: minimizar / agrandar / cerrar.
 function WindowBar({ titulo, sub, minimizado, pipWin, onMin, onClose }) {
+  const { locale } = useLanguage();
+  const es = locale !== 'en';
   return (
     <div className={styles.winBar}>
       <span className={styles.winDot} />
@@ -485,10 +492,10 @@ function WindowBar({ titulo, sub, minimizado, pipWin, onMin, onClose }) {
         {sub && <span className={styles.winSub}>{sub}</span>}
       </div>
       <div className={styles.winBtns}>
-        <button type="button" className={styles.winBtn} onClick={onMin} title={minimizado || pipWin ? 'Restaurar' : 'Minimizar'}>
+        <button type="button" className={styles.winBtn} onClick={onMin} title={minimizado || pipWin ? (es ? 'Restaurar' : 'Restore') : (es ? 'Minimizar' : 'Minimize')}>
           <ion-icon name={minimizado || pipWin ? 'chevron-up-outline' : 'chevron-down-outline'} suppressHydrationWarning></ion-icon>
         </button>
-        <button type="button" className={`${styles.winBtn} ${styles.winClose}`} onClick={onClose} title="Cerrar (colgar)">
+        <button type="button" className={`${styles.winBtn} ${styles.winClose}`} onClick={onClose} title={es ? 'Cerrar (colgar)' : 'Close (hang up)'}>
           <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
         </button>
       </div>
@@ -554,6 +561,8 @@ function fmtDur(seg) {
  */
 export function CallProvider({ children }) {
   const { user, userKey } = useAuth();
+  const { locale } = useLanguage();
+  const es = locale !== 'en';
   const [mounted, setMounted] = useState(false);
   const [call, setCall] = useState(null);
   const [localStream, setLocalStream] = useState(null);
@@ -720,7 +729,7 @@ export function CallProvider({ children }) {
         setEstado('activa');
         afinarAudio(pc);
       } else if (st === 'failed') {
-        setError('Se perdió la conexión');
+        setError(es ? 'Se perdió la conexión' : 'Connection lost');
       } else if (st === 'disconnected') {
         // Intenta recuperar sin cortar la llamada.
         try { pc.restartIce?.(); } catch { /* noop */ }
@@ -827,7 +836,7 @@ export function CallProvider({ children }) {
         proto: (typeof window !== 'undefined' && window.location.protocol),
         host: (typeof window !== 'undefined' && window.location.host),
       });
-      setError('Tu navegador no soporta llamadas'); return;
+      setError(es ? 'Tu navegador no soporta llamadas' : 'Your browser does not support calls'); return;
     }
     const media = await obtenerMedia(tipo);
     if (!media) { dlog('1:1 iniciar sin media'); return; }
@@ -875,7 +884,7 @@ export function CallProvider({ children }) {
     setLocalStream(media);
     try {
       await pc.setRemoteDescription({ type: 'offer', sdp: c.offerSdp });
-    } catch { setError('No se pudo iniciar la llamada'); limpiar(); return; }
+    } catch { setError(es ? 'No se pudo iniciar la llamada' : 'Could not start the call'); limpiar(); return; }
     flushIce();
     const answer = await pc.createAnswer();
     answer.sdp = mejorarSdp(answer.sdp);
@@ -1033,7 +1042,7 @@ export function CallProvider({ children }) {
     if (!userKey || !comunidadId || salaRef.current || callRef.current) { dlog('iniciarGrupo abortado', { userKey: !!userKey, comunidadId: !!comunidadId, enSala: !!salaRef.current, enLlamada: !!callRef.current }); return; }
     if (!navigator?.mediaDevices?.getUserMedia) {
       dlog('SIN mediaDevices (grupo)', { secure: (typeof window !== 'undefined' && window.isSecureContext), proto: (typeof window !== 'undefined' && window.location.protocol) });
-      setError('Tu navegador no soporta llamadas'); return;
+      setError(es ? 'Tu navegador no soporta llamadas' : 'Your browser does not support calls'); return;
     }
     // Si ya hay una llamada en curso en el grupo (iniciada por OTRO),
     // no se puede crear otra: hay que unirse a la existente.
@@ -1041,7 +1050,7 @@ export function CallProvider({ children }) {
       const act = await apiComunidad.llamadaGrupoActiva(comunidadId);
       if (act?.sala && String(act.sala.iniciador_key) !== String(userKey)) {
         dlog('iniciarGrupo abortado: ya hay llamada en curso', act.sala.call_id);
-        setError('Ya hay una llamada en curso en este grupo. Únete a ella.');
+        setError(es ? 'Ya hay una llamada en curso en este grupo. Únete a ella.' : 'There is already a call in this group. Join it.');
         return;
       }
     } catch { /* sin red: el backend igual lo valida */ }
@@ -1061,9 +1070,9 @@ export function CallProvider({ children }) {
 
   async function unirseGrupo(comunidadId, callId, tipo, info) {
     dlog('unirseGrupo', { comunidadId, callId, tipo, userKey, enSala: !!salaRef.current, enLlamada: !!callRef.current });
-    if (!userKey || !comunidadId || !callId) { setError('Datos de llamada inválidos'); dlog('unirseGrupo abortado datos'); return; }
-    if (salaRef.current || callRef.current) { setError('Ya estás en una llamada'); dlog('unirseGrupo abortado ya en llamada'); return; }
-    if (!navigator?.mediaDevices?.getUserMedia) { setError('Tu navegador no soporta llamadas'); return; }
+    if (!userKey || !comunidadId || !callId) { setError(es ? 'Datos de llamada inválidos' : 'Invalid call data'); dlog('unirseGrupo abortado datos'); return; }
+    if (salaRef.current || callRef.current) { setError(es ? 'Ya estás en una llamada' : 'You are already in a call'); dlog('unirseGrupo abortado ya en llamada'); return; }
+    if (!navigator?.mediaDevices?.getUserMedia) { setError(es ? 'Tu navegador no soporta llamadas' : 'Your browser does not support calls'); return; }
     setError('');
     // Acepta el aviso entrante (oculta el modal mientras conecta).
     setSala({ comunidadId, callId, tipo: tipo || 'audio', nombre: info?.nombre || '' });
@@ -1320,7 +1329,7 @@ export function CallProvider({ children }) {
   const ui = (() => {
     if (!call) return null;
     const esIn = call.direction === 'in' && call.estado === 'sonando';
-    const titulo = call.peerNombre || (call.tipo === 'video' ? 'Videollamada' : 'Llamada');
+    const titulo = call.peerNombre || (call.tipo === 'video' ? (es ? 'Videollamada' : 'Video call') : (es ? 'Llamada' : 'Call'));
 
     if (esIn) {
       return (
@@ -1330,12 +1339,12 @@ export function CallProvider({ children }) {
               {call.peerAvatar ? <img src={mediaUrl(call.peerAvatar)} alt="" /> : String(titulo).charAt(0).toUpperCase()}
             </span>
             <strong className={styles.inName}>{titulo}</strong>
-            <span className={styles.inSub}>{call.tipo === 'video' ? 'Videollamada entrante' : 'Llamada de voz entrante'}</span>
+            <span className={styles.inSub}>{call.tipo === 'video' ? (es ? 'Videollamada entrante' : 'Incoming video call') : (es ? 'Llamada de voz entrante' : 'Incoming voice call')}</span>
             <div className={styles.inActions}>
-              <button type="button" className={`${styles.rnd} ${styles.rndRed}`} onClick={rechazar} title="Rechazar">
+              <button type="button" className={`${styles.rnd} ${styles.rndRed}`} onClick={rechazar} title={es ? 'Rechazar' : 'Decline'}>
                 <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
               </button>
-              <button type="button" className={`${styles.rnd} ${styles.rndGreen}`} onClick={aceptar} title="Aceptar">
+              <button type="button" className={`${styles.rnd} ${styles.rndGreen}`} onClick={aceptar} title={es ? 'Aceptar' : 'Accept'}>
                 {call.tipo === 'video'
                   ? <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
                   : <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>}
@@ -1382,15 +1391,15 @@ export function CallProvider({ children }) {
         )}
 
         <div className={styles.controls}>
-          <button type="button" className={`${styles.rnd} ${micOn ? styles.rndDim : styles.rndRed}`} onClick={toggleMic} title={micOn ? 'Silenciar' : 'Activar micrófono'}>
+          <button type="button" className={`${styles.rnd} ${micOn ? styles.rndDim : styles.rndRed}`} onClick={toggleMic} title={micOn ? (es ? 'Silenciar' : 'Mute') : (es ? 'Activar micrófono' : 'Unmute mic')}>
             <ion-icon name={micOn ? 'mic-outline' : 'mic-off-outline'} suppressHydrationWarning></ion-icon>
           </button>
           {call.tipo === 'video' && (
-            <button type="button" className={`${styles.rnd} ${camOn ? styles.rndDim : styles.rndRed}`} onClick={toggleCam} title={camOn ? 'Apagar cámara' : 'Encender cámara'}>
+            <button type="button" className={`${styles.rnd} ${camOn ? styles.rndDim : styles.rndRed}`} onClick={toggleCam} title={camOn ? (es ? 'Apagar cámara' : 'Turn off camera') : (es ? 'Encender cámara' : 'Turn on camera')}>
               <ion-icon name={camOn ? 'videocam-outline' : 'videocam-off-outline'} suppressHydrationWarning></ion-icon>
             </button>
           )}
-          <button type="button" className={`${styles.rnd} ${styles.rndRed}`} onClick={colgar} title="Colgar">
+          <button type="button" className={`${styles.rnd} ${styles.rndRed}`} onClick={colgar} title={es ? 'Colgar' : 'Hang up'}>
             <ion-icon name="call-outline" className={styles.hangIcon} suppressHydrationWarning></ion-icon>
           </button>
         </div>
@@ -1402,7 +1411,7 @@ export function CallProvider({ children }) {
 
   const uiSala = (() => {
     if (!sala) return null;
-    const titulo = sala.nombre || 'Llamada de grupo';
+    const titulo = sala.nombre || (es ? 'Llamada de grupo' : 'Group call');
     // Aviso entrante (aun sin unirme): campana + aceptar/unirse.
     if (sala.entrante) {
       return (
@@ -1413,13 +1422,13 @@ export function CallProvider({ children }) {
             </span>
             <strong className={styles.inName}>{titulo}</strong>
             <span className={styles.inSub}>
-              {sala.iniciadorNombre ? `${sala.iniciadorNombre} · ` : ''}{sala.tipo === 'video' ? 'Videollamada de grupo' : 'Llamada de grupo'}
+              {sala.iniciadorNombre ? `${sala.iniciadorNombre} · ` : ''}{sala.tipo === 'video' ? (es ? 'Videollamada de grupo' : 'Group video call') : (es ? 'Llamada de grupo' : 'Group call')}
             </span>
             <div className={styles.inActions}>
-              <button type="button" className={`${styles.rnd} ${styles.rndRed}`} onClick={() => setSala(null)} title="Rechazar">
+              <button type="button" className={`${styles.rnd} ${styles.rndRed}`} onClick={() => setSala(null)} title={es ? 'Rechazar' : 'Decline'}>
                 <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
               </button>
-              <button type="button" className={`${styles.rnd} ${styles.rndGreen}`} onClick={() => unirseGrupo(sala.comunidadId, sala.callId, sala.tipo, { nombre: titulo })} title="Unirse">
+              <button type="button" className={`${styles.rnd} ${styles.rndGreen}`} onClick={() => unirseGrupo(sala.comunidadId, sala.callId, sala.tipo, { nombre: titulo })} title={es ? 'Unirse' : 'Join'}>
                 {sala.tipo === 'video'
                   ? <ion-icon name="videocam-outline" suppressHydrationWarning></ion-icon>
                   : <ion-icon name="call-outline" suppressHydrationWarning></ion-icon>}
@@ -1441,7 +1450,7 @@ export function CallProvider({ children }) {
         {esVideo ? (() => {
           // Rejilla tipo Meet: yo mismo + los demas, con chip de nombre y pin.
           const selfEntry = {
-            info: { userKey: userKey || 'me', nombre: user?.nombre || user?.usuario || 'Tú', avatar: user?.avatar || null },
+            info: { userKey: userKey || 'me', nombre: user?.nombre || user?.usuario || (es ? 'Tú' : 'You'), avatar: user?.avatar || null },
             stream: localStream,
           };
           const todos = [selfEntry, ...grid];
@@ -1480,13 +1489,13 @@ export function CallProvider({ children }) {
               ))}
             </div>
             <strong className={styles.inName}>{titulo}</strong>
-            <span className={styles.inSub}>{grid.length + 1} en la llamada</span>
+            <span className={styles.inSub}>{grid.length + 1} {es ? 'en la llamada' : 'on the call'}</span>
           </div>
         )}
 
         <WindowBar
           titulo={titulo}
-          sub={`${grid.length + 1} en la llamada`}
+          sub={`${grid.length + 1} ${es ? 'en la llamada' : 'on the call'}`}
           minimizado={minimizado}
           pipWin={pipWin}
           onMin={toggleMin}
@@ -1494,15 +1503,15 @@ export function CallProvider({ children }) {
         />
 
         <div className={styles.controls}>
-          <button type="button" className={`${styles.rnd} ${micOn ? styles.rndDim : styles.rndRed}`} onClick={toggleMic} title={micOn ? 'Silenciar' : 'Activar micrófono'}>
+          <button type="button" className={`${styles.rnd} ${micOn ? styles.rndDim : styles.rndRed}`} onClick={toggleMic} title={micOn ? (es ? 'Silenciar' : 'Mute') : (es ? 'Activar micrófono' : 'Unmute mic')}>
             <ion-icon name={micOn ? 'mic-outline' : 'mic-off-outline'} suppressHydrationWarning></ion-icon>
           </button>
           {esVideo && (
-            <button type="button" className={`${styles.rnd} ${camOn ? styles.rndDim : styles.rndRed}`} onClick={toggleCam} title={camOn ? 'Apagar cámara' : 'Encender cámara'}>
+            <button type="button" className={`${styles.rnd} ${camOn ? styles.rndDim : styles.rndRed}`} onClick={toggleCam} title={camOn ? (es ? 'Apagar cámara' : 'Turn off camera') : (es ? 'Encender cámara' : 'Turn on camera')}>
               <ion-icon name={camOn ? 'videocam-outline' : 'videocam-off-outline'} suppressHydrationWarning></ion-icon>
             </button>
           )}
-          <button type="button" className={`${styles.rnd} ${styles.rndRed}`} onClick={salirGrupo} title="Salir">
+          <button type="button" className={`${styles.rnd} ${styles.rndRed}`} onClick={salirGrupo} title={es ? 'Salir' : 'Leave'}>
             <ion-icon name="call-outline" className={styles.hangIcon} suppressHydrationWarning></ion-icon>
           </button>
         </div>
@@ -1636,21 +1645,21 @@ export function CallProvider({ children }) {
             : String(amistadModal.nombre || '?').charAt(0).toUpperCase()}
         </span>
         <strong className={styles.amistadTitle}>
-          {amistadModal.estado === 'enviada' ? 'Solicitud enviada' : (amistadModal.nombre || 'Este usuario')}
+          {amistadModal.estado === 'enviada' ? (es ? 'Solicitud enviada' : 'Request sent') : (amistadModal.nombre || (es ? 'Este usuario' : 'This user'))}
         </strong>
         <span className={styles.amistadText}>
           {amistadModal.estado === 'enviada'
-            ? 'Tu solicitud de amistad fue enviada. Podras llamarle cuando la acepte.'
-            : 'Solo puedes llamar a tus amigos. Envia una solicitud de amistad para poder llamarle.'}
+            ? (es ? 'Tu solicitud de amistad fue enviada. Podrás llamarle cuando la acepte.' : 'Your friend request was sent. You will be able to call them once they accept it.')
+            : (es ? 'Solo puedes llamar a tus amigos. Envía una solicitud de amistad para poder llamarle.' : 'You can only call your friends. Send a friend request to be able to call them.')}
         </span>
         <div className={styles.amistadActions}>
           {amistadModal.estado === 'enviada' ? (
-            <button type="button" className={styles.amistadOk} onClick={() => setAmistadModal(null)}>Entendido</button>
+            <button type="button" className={styles.amistadOk} onClick={() => setAmistadModal(null)}>{es ? 'Entendido' : 'Got it'}</button>
           ) : (
             <>
-              <button type="button" className={styles.amistadCancel} onClick={() => setAmistadModal(null)}>Cancelar</button>
+              <button type="button" className={styles.amistadCancel} onClick={() => setAmistadModal(null)}>{es ? 'Cancelar' : 'Cancel'}</button>
               <button type="button" className={styles.amistadOk} onClick={enviarSolicitudAmistad} disabled={amistadEnviando}>
-                {amistadEnviando ? 'Enviando...' : 'Enviar solicitud'}
+                {amistadEnviando ? (es ? 'Enviando...' : 'Sending...') : (es ? 'Enviar solicitud' : 'Send request')}
               </button>
             </>
           )}
@@ -1664,7 +1673,7 @@ export function CallProvider({ children }) {
     <div className={styles.toastError} role="alert">
       <ion-icon name="warning-outline" suppressHydrationWarning></ion-icon>
       <span>{error}</span>
-      <button type="button" onClick={() => setError('')} aria-label="Cerrar">
+      <button type="button" onClick={() => setError('')} aria-label={es ? 'Cerrar' : 'Close'}>
         <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
       </button>
     </div>

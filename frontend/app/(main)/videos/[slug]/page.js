@@ -11,6 +11,8 @@ async function resolveEntry(slug) {
     id: r.id,
     slug: r.slug || String(r.id),
     title: r.titulo_es || r.titulo_en,
+    titleEs: r.titulo_es || '',
+    titleEn: r.titulo_en || '',
     viewsFull: `${Number(r.vistas || 0).toLocaleString('es-PE')} vistas`,
     date: r.created_at,
     channel: r.canal,
@@ -31,6 +33,8 @@ function toInfo(entry) {
   if (!entry) return null;
   return {
     title: entry.title,
+    titleEs: entry.titleEs || '',
+    titleEn: entry.titleEn || '',
     views: entry.viewsFull,
     date: entry.date,
     channel: entry.channel,

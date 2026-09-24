@@ -24,6 +24,7 @@ import channelsRoutes from './routes/channels.js';
 import notificacionesRoutes from './routes/notificaciones.js';
 import ajustesRoutes from './routes/ajustes.js';
 import callsRoutes from './routes/calls.js';
+import matchRoutes from './routes/match.js';
 
 const app = express();
 
@@ -94,6 +95,7 @@ app.use('/api/notificaciones', notificacionesRoutes);
 // ajustes globales (/api/ajustes/sonido)
 app.use('/api/ajustes', ajustesRoutes);
 app.use('/api/calls', callsRoutes);
+app.use('/api/match', matchRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

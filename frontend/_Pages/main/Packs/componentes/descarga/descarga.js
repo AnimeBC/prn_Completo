@@ -18,13 +18,15 @@ export default function DescargaModal({
   paso1,
   paso2,
   directo,
-  titulo = 'Descargar',
+  titulo,
   onDownload,
   downloadFile = false,
   downloadName = '',
 }) {
   const { t, locale } = useLanguage();
   const es = locale !== 'en';
+  const tituloDl = titulo || t('descarga.titulo');
+  const tituloDl = titulo || t('descarga.titulo');
   const [step, setStep] = useState(1);
 
   // ¿El destino es un archivo descargable (videos) o una página (packs)?
@@ -115,11 +117,11 @@ export default function DescargaModal({
         className={styles.dlCard}
         role="dialog"
         aria-modal="true"
-        aria-label={titulo}
+        aria-label={tituloDl}
         onClick={(e) => e.stopPropagation()}
       >
         <div className={styles.dlHead}>
-          <h3 className={styles.dlTitle}>{titulo}</h3>
+          <h3 className={styles.dlTitle}>{tituloDl}</h3>
           <button className={styles.dlClose} type="button" aria-label={t('descarga.cerrar')} onClick={onClose}>
             <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
           </button>

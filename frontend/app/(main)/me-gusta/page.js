@@ -11,7 +11,7 @@ export default function MeGustaPage() {
   return (
     <>
 
-      <MisVideos title="Me gusta" endpoint="likes" emptyText="Aún no le diste me gusta a nada." />
+      <MisVideos endpoint="likes" />
     </>
   );
 }

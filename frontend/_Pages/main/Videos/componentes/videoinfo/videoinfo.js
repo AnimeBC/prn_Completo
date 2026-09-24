@@ -37,13 +37,16 @@ function formatCount(n) {
 }
 
 export default function VideoInfo({ videoId, info: infoProp = null, src = '/videos/1.mov' }) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const es = locale !== 'en';
   const router = useRouter();
   const { videos } = useContenido();
   const INFO = Object.fromEntries(
-    videos.map((v) => [v.id, { title: v.title, views: v.viewsFull, date: v.date, channel: v.channel, channelAvatar: v.channelAvatar, channelSlug: v.channelSlug, since: v.since, tags: v.tags, desc: v.desc }])
+    videos.map((v) => [v.id, { title: v.title, titleEs: v.titleEs, titleEn: v.titleEn, views: v.viewsFull, date: v.date, channel: v.channel, channelAvatar: v.channelAvatar, channelSlug: v.channelSlug, since: v.since, tags: v.tags, desc: v.desc }])
   );
   const info = INFO[videoId] || infoProp || { title: `Video #${videoId ?? ''}`, views: '0 vistas', date: 'recent', channel: 'administrador pikante.pe', channelAvatar: '', channelSlug: '', since: '', tags: [], desc: '' };
+  // Título según idioma (del provider o del server); si no hay EN, el ES.
+  const titulo = es ? (info.titleEs || info.title) : (info.titleEn || info.title);
 
   const [expanded, setExpanded] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -163,7 +166,7 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
   return (
     <div className={styles.col}>
       <div className={styles.videoHead}>
-        <h1 className={styles.videoTitle}>{info.title}</h1>
+        <h1 className={styles.videoTitle}>{titulo}</h1>
         <p className={styles.videoMeta}>{formatCount(stats.views)} vistas • {info.date}</p>
       </div>
 
@@ -251,7 +254,7 @@ export default function VideoInfo({ videoId, info: infoProp = null, src = '/vide
       <CompartirModal
         open={shareOpen}
         onClose={() => setShareOpen(false)}
-        title={info.title}
+        title={titulo}
       />
 
       <ReportModal

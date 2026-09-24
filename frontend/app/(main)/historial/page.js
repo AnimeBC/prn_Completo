@@ -11,7 +11,7 @@ export default function HistorialPage() {
   return (
     <>
 
-      <MisVideos title="Historial" endpoint="history" emptyText="Todavía no has visto ningún video." />
+      <MisVideos endpoint="history" />
     </>
   );
 }

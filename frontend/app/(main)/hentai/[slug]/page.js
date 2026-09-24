@@ -23,6 +23,8 @@ async function resolveEntry(slug) {
     id: r.id,
     slug: r.slug || String(r.id),
     title: r.titulo_es || r.titulo_en,
+    titleEs: r.titulo_es || '',
+    titleEn: r.titulo_en || '',
     titulo_es: r.titulo_es || '',
     titulo_ja: r.titulo_ja || '',
     titulo_en: r.titulo_en || '',
@@ -48,7 +50,7 @@ async function resolveEntry(slug) {
 
 function toInfo(entry) {
   if (!entry) return null;
-  return { title: entry.title, views: entry.viewsFull, date: entry.date, channel: entry.channel, since: entry.since, tags: entry.tags, desc: entry.desc };
+  return { title: entry.title, titleEs: entry.titleEs || '', titleEn: entry.titleEn || '', views: entry.viewsFull, date: entry.date, channel: entry.channel, since: entry.since, tags: entry.tags, desc: entry.desc };
 }
 
 export async function generateMetadata({ params }) {

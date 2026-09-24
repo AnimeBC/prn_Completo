@@ -1575,7 +1575,7 @@ export default function ComunidadClient() {
               onPointerUp={storySwipeEnd}
             >
               <div className={styles.viewerHead}>
-                <button type="button" className={styles.viewerX} onClick={() => setStoryView(null)} aria-label="Cerrar">
+                <button type="button" className={styles.viewerX} onClick={() => setStoryView(null)} aria-label={es ? 'Cerrar' : 'Close'}>
                   <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
                 </button>
                 <span className={styles.viewerAvatar}>
@@ -1752,7 +1752,7 @@ export default function ComunidadClient() {
                     <button type="button" className={styles.iconBtn} onClick={() => minimizarChat(c.id)} title="Minimizar">
                       <ion-icon name="remove-outline" suppressHydrationWarning></ion-icon>
                     </button>
-                    <button type="button" className={styles.iconBtn} onClick={() => cerrarChat(c.id)} title="Cerrar">
+                    <button type="button" className={styles.iconBtn} onClick={() => cerrarChat(c.id)} title={es ? 'Cerrar' : 'Close'}>
                       <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
                     </button>
                   </div>
@@ -1865,7 +1865,7 @@ export default function ComunidadClient() {
           <div className={styles.chatBubbles}>
             {chats.filter((c) => c.minimizado).map((c) => (
               <div key={c.id} className={`${styles.bubble} ${c.cerrando ? styles.cerrando : ''}`}>
-                <button type="button" className={styles.bubbleClose} onClick={() => cerrarChat(c.id)} aria-label="Cerrar">
+                    <button type="button" className={styles.bubbleClose} onClick={() => cerrarChat(c.id)} aria-label={es ? 'Cerrar' : 'Close'}>
                   <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
                 </button>
                 <button type="button" className={styles.bubbleHead} onClick={() => restaurarChat(c.id)} title={c.grupo.nombre}>

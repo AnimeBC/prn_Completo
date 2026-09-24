@@ -635,7 +635,7 @@ export default function PerfilClient() {
         <div className={styles.verifyBanner}>
           <ion-icon name="mail-open-outline" suppressHydrationWarning></ion-icon>
           <span>{verifyNotice}</span>
-          <button type="button" onClick={() => setVerifyNotice('')} aria-label="Cerrar">
+          <button type="button" onClick={() => setVerifyNotice('')} aria-label={es ? 'Cerrar' : 'Close'}>
             <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
           </button>
         </div>

@@ -10,7 +10,7 @@ import { useTheme } from '@/_Extras/CambiodeColor/ThemeProvider.js';
 const sectionPrincipal = [
   { icon: 'home-outline', label: 'nav.inicio', href: '/' },
   { icon: 'play-circle-outline', label: 'nav.reels', href: '/reels', variant: 'reels', tagKey: 'nav.sugerido' },
-  { icon: 'dice-outline', label: 'nav.enVivo', href: '/en-vivo', variant: 'live', tagKey: 'nav.enVivoTag' },
+  { icon: 'dice-outline', label: 'nav.enVivo', href: '/match', variant: 'live', tagKey: 'nav.enVivoTag' },
   { icon: 'film-outline', label: 'nav.todosVideos', href: '/videos' },
   { icon: 'sparkles-outline', label: 'nav.hentai', href: '/hentai' },
   { icon: 'trending-up-outline', label: 'nav.tendencias', href: '/tendencias' },
@@ -26,7 +26,7 @@ const tusGuardados = [
 ];
 
 // Rutas habilitadas al publicar; el resto muestra modal de mantenimiento.
-const ENABLED_ROUTES = ['/', '/videos', '/tendencias', '/fetiches', '/packs', '/comunidad', '/hentai', '/favoritos', '/historial', '/me-gusta', '/perfil'];
+const ENABLED_ROUTES = ['/', '/match', '/videos', '/tendencias', '/fetiches', '/packs', '/comunidad', '/hentai', '/favoritos', '/historial', '/me-gusta', '/perfil'];
 
 export default function HeaderLateralIzquierdo() {
   const { isOpen, close, openMaint } = useSidebar();
@@ -64,9 +64,11 @@ export default function HeaderLateralIzquierdo() {
         <span>{item.label.startsWith('nav.') ? t(item.label) : item.label}</span>
         {item.tagKey && (
           <span className={`${styles.promoTag} ${item.variant === 'live' ? styles.promoTagLive : ''}`}>
-            {item.variant === 'live' && <span className={styles.liveDot} />}
             {item.variant === 'reels' && (
               <ion-icon name="flame-outline" className={styles.promoTagIcon} suppressHydrationWarning></ion-icon>
+            )}
+            {item.variant === 'live' && (
+              <ion-icon name="sparkles-outline" className={styles.promoTagIcon} suppressHydrationWarning></ion-icon>
             )}
             {t(item.tagKey)}
           </span>
@@ -74,7 +76,7 @@ export default function HeaderLateralIzquierdo() {
       </>
     );
     // Habilitadas: <Next/Link> -> prefetch automatico (Next 16) y navegacion
-    // instantanea. Deshabilitadas (reels/en-vivo): siguen con modal de
+    // instantanea. Deshabilitadas (reels): siguen con modal de
     // mantenimiento.
     if (ENABLED_ROUTES.includes(item.href)) {
       return (

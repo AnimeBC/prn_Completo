@@ -173,7 +173,7 @@ export default function Header() {
       return <div className={styles.results}><p className={styles.resultEmpty}>Buscando…</p></div>;
     }
     if (results.length === 0) {
-      return <div className={styles.results}><p className={styles.resultEmpty}>Sin resultados para “{query.trim()}”.</p></div>;
+      return <div className={styles.results}><p className={styles.resultEmpty}>{es ? 'Sin resultados para' : 'No results for'} “{query.trim()}”.</p></div>;
     }
     return (
       <div className={styles.results}>
@@ -282,9 +282,10 @@ export default function Header() {
             <button
               type="button"
               className={styles.meetBtn}
-              onClick={openMaint}
-              aria-label={`${t('nav.enVivo')} · ${es ? 'pronto' : 'soon'}`}
-              title={`${t('nav.enVivo')} · ${es ? 'pronto' : 'soon'}`}
+              onClick={() => router.push('/match')}
+              onMouseEnter={() => router.prefetch('/match')}
+              aria-label={t('nav.enVivo')}
+              title={t('nav.enVivo')}
             >
               <ion-icon name="dice-outline" suppressHydrationWarning></ion-icon>
               {/* Pildora corta (1 palabra): el nombre completo vive en el lateral. */}

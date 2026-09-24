@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './hentaiPlayer.module.css';
+import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import HentaiReproductor from '@/_Pages/main/Hentai/componentes/reproductor';
 import HentaiInfo from '@/_Pages/main/Hentai/componentes/videoinfo';
 import Recomendados from '@/_Pages/main/Videos/componentes/recomendados';
@@ -29,6 +30,8 @@ function pickModo(cap, prefer) {
 
 export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, info = null, serie = null, capitulos = [] }) {
   const router = useRouter();
+  const { locale } = useLanguage();
+  const es = locale !== 'en';
   const [theater, setTheater] = useState(false);
   const inicial = (capNumero != null && capitulos.find((c) => String(c.numero) === String(capNumero))) || capitulos[0] || null;
   const [capId, setCapId] = useState(inicial?.id ?? null);
@@ -62,8 +65,12 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
 
   // Metadatos del modo seleccionado (título, descripción, tags, tipo, estado…)
   const md = (serie?.modos && serie.modos[modo]) || {};
+  // Título principal según idioma (EN si existe; si no, el ES).
+  const tituloSerie = es
+    ? (serie?.titulo_es || serie?.titulo_en || serie?.title || info?.title)
+    : (serie?.titulo_en || serie?.titulo_es || serie?.title || info?.title);
   const meta = {
-    title: md.titulo || serie?.title || info?.title,
+    title: md.titulo || tituloSerie,
     desc: md.descripcion || serie?.desc || info?.desc,
     tipo: md.tipo || serie?.tipo,
     anio: md.anio || serie?.anio,
@@ -130,6 +137,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
         {capitulos.map((c) => {
           const modos = (c.fuentes || []).map((f) => f.modo);
           const fuente = (c.fuentes || []).find((f) => f.modo === modo) || (c.fuentes || [])[0] || null;
+          const epNombre = es ? (c.titulo_es || c.titulo_en) : (c.titulo_en || c.titulo_es);
           return (
             <button
               key={c.id}
@@ -144,7 +152,7 @@ export default function HentaiPlayer({ hentaiId, slug = '', capNumero = null, in
               </span>
               <span className={styles.chapterBody}>
                 <span className={styles.chapterNum}>Ep. {c.numero}</span>
-                {c.titulo_es && <span className={styles.chapterName}>{c.titulo_es}</span>}
+                {epNombre && <span className={styles.chapterName}>{epNombre}</span>}
                 <span className={styles.chapterMetaRow}>
                   <span className={styles.chapterModes}>
                     {MODOS.filter((m) => modos.includes(m.id)).map((m) => (

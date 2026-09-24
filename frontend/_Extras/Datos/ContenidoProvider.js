@@ -51,8 +51,10 @@ function mapVideo(r, es) {
   return {
     id: r.id,
     slug: r.slug || '',
-    title: r.titulo_es || r.titulo_en || `Video #${r.id}`,
-    titleEn: r.titulo_en,
+    // Título según el idioma del sitio; si no hay EN, se queda el ES.
+    title: es ? (r.titulo_es || r.titulo_en || `Video #${r.id}`) : (r.titulo_en || r.titulo_es || `Video #${r.id}`),
+    titleEn: r.titulo_en || '',
+    titleEs: r.titulo_es || '',
     channel: r.canal || 'administrador pikante.pe',
     channelAvatar: media(r.canal_avatar) || '',
     channelSlug: r.canal_slug || '',
@@ -77,7 +79,9 @@ function mapHentai(r, es) {
   return {
     id: r.id,
     slug: r.slug || '',
-    title: r.titulo_es || r.titulo_en || `Anime #${r.id}`,
+    title: es ? (r.titulo_es || r.titulo_en || `Hentai #${r.id}`) : (r.titulo_en || r.titulo_es || `Hentai #${r.id}`),
+    titleEn: r.titulo_en || '',
+    titleEs: r.titulo_es || '',
     channel: r.canal || 'Studio Kitsune',
     channelAvatar: media(r.canal_avatar) || '',
     channelSlug: r.canal_slug || '',

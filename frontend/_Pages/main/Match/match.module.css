@@ -1,0 +1,1595 @@
+.page {
+  width: 100%;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* La seccion ocupa casi toda la pantalla (header 80px + aire).
+   Los anuncios quedan FUERA de este bloque, en su propia franja. */
+.grid {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 12px;
+  background: var(--bg-surface, #0D0D0E);
+  border: 1px solid var(--border, #1C1C1E);
+  border-radius: 12px;
+  padding: 12px;
+  height: calc(100dvh - 96px);
+  min-height: 600px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+/* ===== Paneles laterales ===== */
+.side {
+  background: var(--bg-card, #141416);
+  border: 1px solid var(--border, #1F1F22);
+  border-radius: 10px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.sideTitulo {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary, #8E8E93);
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.grupoLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary, #8E8E93);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.chip {
+  background: var(--border, #242428);
+  color: var(--text-secondary, #D1D1D6);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.chipOn {
+  background: var(--primary, #E60000);
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+.radioFila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  padding: 8px 0;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text-secondary, #8E8E93);
+  cursor: pointer;
+  text-align: left;
+}
+
+.radioOn {
+  color: var(--text-primary, #FFFFFF);
+}
+
+.radio {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #3A3A3C;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.radioOn .radio {
+  border-color: var(--primary, #E60000);
+}
+
+.radioMark::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary, #E60000);
+}
+
+.radioIcon {
+  font-size: 18px;
+  color: var(--primary, #E60000);
+}
+
+.rango {
+  width: 100%;
+  accent-color: var(--primary, #E60000);
+  height: 5px;
+}
+
+.rangoExtremos {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary, #8E8E93);
+}
+
+.toggleFila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  padding: 8px 0 0;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--text-secondary, #8E8E93);
+  cursor: pointer;
+  text-align: left;
+}
+
+.toggle {
+  width: 36px;
+  height: 20px;
+  background: var(--border, #2C2C2E);
+  border-radius: 10px;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.toggleOn {
+  background: var(--primary, #E60000);
+}
+
+.toggleKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #8E8E93;
+  border-radius: 50%;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.toggleOn .toggleKnob {
+  transform: translateX(16px);
+  background: #FFFFFF;
+}
+
+.miPerfil {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary, #FFFFFF);
+  background: var(--border, #1C1C1E);
+  border: 1px solid var(--border, #2C2C2E);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.miPerfil ion-icon {
+  font-size: 22px;
+  color: var(--primary, #E60000);
+  flex-shrink: 0;
+}
+
+.miPerfil span {
+  flex: 1;
+  min-width: 0;
+}
+
+.editarPerfil {
+  background: transparent;
+  border: 1px solid var(--border, #3A3A3C);
+  color: var(--text-secondary, #A1A1AA);
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 700;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.editarPerfil:hover {
+  border-color: var(--primary, #E60000);
+  color: var(--text-primary, #FFFFFF);
+}
+
+.filtrosBtn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card, #1C1C1E);
+  border: 1px solid var(--border, #2C2C2E);
+  color: var(--text-secondary, #A1A1AA);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.filtrosBtn:hover {
+  border-color: var(--primary, #E60000);
+  color: var(--text-primary, #FFFFFF);
+}
+
+.filtrosBtn ion-icon {
+  font-size: 17px;
+}
+
+.filtrosCount {
+  background: var(--primary, #E60000);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+
+/* ===== Centro ===== */
+.centro {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.centroHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary, #E60000);
+  min-height: 22px;
+  flex-wrap: wrap;
+}
+
+.estadoPunto {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text-secondary, #8E8E93);
+  flex-shrink: 0;
+}
+
+.puntoPulso {
+  background: var(--primary, #E60000);
+  animation: pulso 1.2s ease-in-out infinite;
+}
+
+.puntoOn {
+  background: #30D158;
+}
+
+@keyframes pulso {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+
+.estadoTexto {
+  color: var(--primary, #E60000);
+}
+
+.videoGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  position: relative;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 200px;
+}
+
+.tile {
+  position: relative;
+  background: var(--bg-card, #18181A);
+  border: 1px solid var(--border, #242426);
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 0;
+  height: 100%;
+}
+
+/* PiP: mi camara flotando en la esquina inferior derecha del video grande. */
+.pip {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  width: clamp(140px, 22%, 280px);
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: var(--bg-card, #18181A);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
+  z-index: 4;
+}
+
+.pip .video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.pipChip {
+  top: 6px;
+  left: 6px;
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+/* Barra mini de estado encima del video (solo movil): reemplaza la caja
+   de estado + stats para no robar espacio al video ni al chat. */
+.miniStats {
+  display: none;
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  left: auto;
+  z-index: 6;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 130px);
+  pointer-events: none;
+}
+
+.miniPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #FFFFFF;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+
+.miniPill ion-icon {
+  font-size: 13px;
+  color: var(--primary, #E60000);
+}
+
+.miniHint {
+  display: none;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 42px;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(242, 13, 22, 0.55);
+  color: var(--text-primary, #FFFFFF);
+  font-size: 11.5px;
+  line-height: 1.4;
+  padding: 7px 10px;
+  border-radius: 8px;
+  text-align: center;
+  backdrop-filter: blur(4px);
+}
+
+.video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #000;
+}
+
+.tileVacio,
+.tileOff {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary, #8E8E93);
+  background: rgba(0, 0, 0, 0.35);
+  text-align: center;
+  padding: 16px;
+}
+
+.tileOff {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.tileChip {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(0, 0, 0, 0.65);
+  padding: 6px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #FFFFFF;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8E8E93;
+  flex-shrink: 0;
+}
+
+.shuffleFab {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 56px;
+  height: 56px;
+  background: rgba(30, 30, 32, 0.94);
+  border: 1px solid #3A3A3C;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+  color: #FFFFFF;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+.shuffleFab:hover {
+  background: var(--primary, #E60000);
+  border-color: var(--primary, #E60000);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+.shuffleFab ion-icon {
+  font-size: 26px;
+}
+
+/* ===== Caja de estado (compacta en PC: todo en una fila) ===== */
+.cajaEstado {
+  background: var(--bg-card, #141416);
+  border: 1px solid var(--border, #1F1F22);
+  border-radius: 10px;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.cajaTop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--primary, #E60000);
+  border-top-color: transparent;
+  animation: gira 1s linear infinite;
+  flex-shrink: 0;
+}
+
+.spinnerOff {
+  animation: none;
+  border-color: var(--border, #3A3A3C);
+  border-top-color: transparent;
+}
+
+@keyframes gira {
+  to { transform: rotate(360deg); }
+}
+
+.cajaTitulo {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary, #E60000);
+}
+
+.cajaSub {
+  font-size: 12.5px;
+  color: var(--text-secondary, #8E8E93);
+  margin-top: 1px;
+}
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-secondary, #8E8E93);
+}
+
+.statValor {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+  margin-top: 1px;
+}
+
+.errorBox {
+  background: rgba(242, 13, 22, 0.12);
+  border: 1px solid rgba(242, 13, 22, 0.5);
+  color: var(--text-primary, #FFFFFF);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+/* Guias de validacion: campo marcado en rojo + linea de aviso debajo. */
+.campoMal .campoInput {
+  border-color: var(--primary, #E60000);
+  box-shadow: 0 0 0 3px rgba(242, 13, 22, 0.35);
+}
+
+.checkMal {
+  border-color: var(--primary, #E60000) !important;
+  background: rgba(242, 13, 22, 0.1) !important;
+}
+
+.campoLinea {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: -2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: rgba(255, 130, 135, 0.95);
+}
+
+.campoLinea::before {
+  content: '';
+  width: 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--primary, #E60000);
+  flex-shrink: 0;
+}
+
+/* Modal de aviso centrado: solo se muestra en movil (el inline no se ve ahi). */
+.errorModal {
+  display: none;
+}
+
+.errorModalCaja {
+  width: 100%;
+  max-width: 380px;
+  background: var(--bg-card, #141416);
+  border: 1px solid rgba(242, 13, 22, 0.55);
+  border-radius: 16px;
+  padding: 26px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+}
+
+.errorModalIcono {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(150deg, rgba(255, 42, 51, 0.95), rgba(170, 8, 15, 0.85));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+
+.errorModalIcono ion-icon {
+  font-size: 28px;
+}
+
+.errorModalTitulo {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+}
+
+.errorModalTexto {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+.errorModalCaja .btnPrincipal {
+  width: 100%;
+  margin-top: 6px;
+}
+
+/* ===== Acciones ===== */
+.acciones {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.btnPrincipal {
+  flex: 1;
+  background: var(--primary, #E60000);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-family: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: filter 0.15s ease;
+  min-height: 60px;
+  text-align: left;
+}
+
+.btnPrincipal:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.btnPrincipal:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btnPrincipal ion-icon {
+  font-size: 24px;
+}
+
+.btnPrincipalTop {
+  display: block;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.btnPrincipalSub {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
+.btnDetener {
+  flex: 1;
+  background: var(--border, #2C2C2E);
+  color: var(--text-primary, #FFFFFF);
+  border: 1px solid var(--border, #3A3A3C);
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 60px;
+}
+
+.btnSecundario {
+  background: var(--border, #2C2C2E);
+  color: var(--text-primary, #FFFFFF);
+  border: 1px solid var(--border, #3A3A3C);
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 60px;
+}
+
+.ctrls {
+  display: flex;
+  gap: 10px;
+}
+
+.ctrl {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 1px solid var(--border, #3A3A3C);
+  background: var(--bg-card, #1C1C1E);
+  color: var(--text-primary, #FFFFFF);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.ctrl ion-icon {
+  font-size: 24px;
+}
+
+.ctrl:hover {
+  border-color: var(--primary, #E60000);
+}
+
+.ctrlOff {
+  background: rgba(242, 13, 22, 0.18);
+  border-color: rgba(242, 13, 22, 0.6);
+  color: var(--primary, #FF4D4D);
+}
+
+.ctrlRojo {
+  background: var(--primary, #E60000);
+  border-color: var(--primary, #E60000);
+  color: #FFFFFF;
+}
+
+.ctrlRojo:hover {
+  filter: brightness(1.1);
+}
+
+/* ===== Chat (derecha, ~20% — estilo Omegle) ===== */
+.chat {
+  padding: 0;
+  gap: 0;
+  flex: 0 0 20%;
+  min-width: 300px;
+  max-width: 420px;
+  min-height: 0;
+  max-height: none;
+  align-self: stretch;
+}
+
+.chatHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border, #242426);
+  padding: 16px 16px 12px;
+}
+
+.chatTitulo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary, #FFFFFF);
+}
+
+.chatTitulo ion-icon {
+  color: var(--primary, #E60000);
+  font-size: 20px;
+}
+
+.flagBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #3A3A3C);
+  background: var(--bg-card, #1C1C1E);
+  color: var(--text-secondary, #A1A1AA);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.flagBtn:hover {
+  color: var(--primary, #FF4D4D);
+  border-color: var(--primary, #E60000);
+}
+
+.flagBtn ion-icon {
+  font-size: 20px;
+}
+
+.chatLog {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  font-size: 14px;
+  padding: 14px 16px;
+  min-height: 60px;
+}
+
+.chatVacio {
+  color: var(--text-secondary, #8E8E93);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* Franja de anuncios FUERA de la seccion: divs propios con tamaño fijo
+   (no se estiran ni se comprimen con la pantalla; con scroll si no caben). */
+.adsFila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: center;
+  margin-top: 16px;
+  padding: 0 4px 8px;
+}
+
+.adSlot728 {
+  width: 728px;
+  max-width: 100%;
+}
+
+.adSlot300 {
+  width: 300px;
+  flex-shrink: 0;
+}
+
+.adSlotSmart {
+  width: 340px;
+  flex-shrink: 0;
+}
+
+/* Slots que en movil empujarian el chat: se ocultan (el chat va primero). */
+.adSoloEscritorio {
+  width: auto;
+}
+
+@media (max-width: 1023px) {
+  .adSoloEscritorio {
+    display: none;
+  }
+
+  .adSlot728 {
+    width: 100%;
+  }
+}
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.msgYo {
+  align-items: flex-end;
+}
+
+.msgSistema {
+  align-items: center;
+}
+
+.msgMeta {
+  font-size: 12px;
+  color: var(--text-secondary, #8E8E93);
+}
+
+.msgMeta span {
+  color: var(--text-primary, #FFFFFF);
+  font-weight: 600;
+}
+
+.msgYo .msgMeta span {
+  color: var(--primary, #FF6B6B);
+}
+
+.msgTexto {
+  color: var(--text-primary, #FFFFFF);
+  background: var(--border, #1C1C1E);
+  border-radius: 10px;
+  padding: 9px 13px;
+  max-width: 92%;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.msgYo .msgTexto {
+  background: var(--primary, #E60000);
+  color: #FFFFFF;
+}
+
+.msgSistema .msgTexto {
+  background: transparent;
+  color: var(--text-secondary, #8E8E93);
+  font-style: italic;
+  padding: 0;
+  text-align: center;
+}
+
+.chatForm {
+  position: relative;
+  margin: 0 16px 16px;
+  display: flex;
+  flex-shrink: 0;
+}
+
+.chatInput {
+  width: 100%;
+  background: var(--bg-input, #1C1C1E);
+  border: 1px solid var(--border, #2C2C2E);
+  border-radius: 8px;
+  padding: 14px 52px 14px 14px;
+  color: var(--text-primary, #FFFFFF);
+  font-size: 15px;
+  font-family: inherit;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.chatInput:focus {
+  border-color: var(--primary, #E60000);
+}
+
+.chatInput:disabled {
+  opacity: 0.5;
+}
+
+.chatSend {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  bottom: 5px;
+  width: 42px;
+  background: var(--primary, #E60000);
+  border: none;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #FFFFFF;
+}
+
+.chatSend:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chatSend ion-icon {
+  font-size: 18px;
+}
+
+/* ===== Modales (registro / reporte) ===== */
+.overlay {
+  position: fixed;
+  inset: 0;
+  /* 9800: encima de la BottomNav (9600) y de filtros (9700), debajo de
+     chat (9900) y llamadas (9999). Renderizado via portal fuera de .body,
+     asi el blur/OPACIDAD SIEMPRE tapa el header fijo y la navegacion
+     de abajo. Padding deja libre el header (80px) arriba. */
+  z-index: 9800;
+  background: rgba(5, 5, 5, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 96px 20px 24px;
+  backdrop-filter: blur(4px);
+}
+
+.modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  background: var(--bg-card, #141416);
+  border: 1px solid rgba(242, 13, 22, 0.4);
+  border-radius: 16px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 40px rgba(242, 13, 22, 0.12);
+  animation: modalIn 0.18s ease-out;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.modalHead {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.modalIcono {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: linear-gradient(150deg, rgba(255, 42, 51, 0.9), rgba(170, 8, 15, 0.8));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #FFFFFF;
+}
+
+.modalIcono ion-icon {
+  font-size: 20px;
+}
+
+.modalIconoRojo {
+  background: linear-gradient(150deg, rgba(242, 13, 22, 1), rgba(140, 8, 15, 0.9));
+}
+
+.modalTitulo {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+}
+
+.modalTexto {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.campoLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary, #8E8E93);
+}
+
+/* Nota bajo los intereses: busqueda preferente + fallback. Roja y compacta. */
+.campoHint {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 130, 135, 0.95);
+  background: rgba(242, 13, 22, 0.1);
+  border: 1px solid rgba(242, 13, 22, 0.45);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+
+.campoInput {
+  width: 100%;
+  background: var(--bg-input, #1C1C1E);
+  border: 1px solid var(--border, #2C2C2E);
+  border-radius: 10px;
+  padding: 15px 16px;
+  color: var(--text-primary, #FFFFFF);
+  font-size: 17px;
+  font-family: inherit;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.campoInput:focus {
+  border-color: var(--primary, #E60000);
+}
+
+.campoTextarea {
+  resize: vertical;
+  min-height: 88px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+select.campoInput {
+  cursor: pointer;
+}
+
+.genOpciones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.genOp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--border, #242428);
+  border: 1px solid transparent;
+  color: var(--text-secondary, #D1D1D6);
+  border-radius: 10px;
+  padding: 14px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.genOp ion-icon {
+  font-size: 18px;
+}
+
+.genOpOn {
+  background: rgba(242, 13, 22, 0.18);
+  border-color: var(--primary, #E60000);
+  color: #FFFFFF;
+}
+
+/* Aviso de seguridad: rojo (igual que el hint) y compacto, sin icono. */
+.avisoCaja {
+  background: rgba(242, 13, 22, 0.1);
+  border: 1px solid rgba(242, 13, 22, 0.45);
+  border-radius: 8px;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.avisoTitulo {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--primary, #E60000);
+}
+
+.avisoTexto {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 130, 135, 0.95);
+}
+
+/* Checkbox personalizado: el input nativo queda oculto y se pintan
+   la caja (.checkBox) y el tick con ion-icon. */
+.checkFila {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--text-primary, #FFFFFF);
+  cursor: pointer;
+  background: var(--bg-input, #1C1C1E);
+  border: 1px solid var(--border, #2C2C2E);
+  border-radius: 10px;
+  padding: 13px 14px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.checkFila:hover {
+  border-color: var(--border, #3A3A3C);
+}
+
+.checkOn {
+  border-color: rgba(242, 13, 22, 0.65);
+  background: rgba(242, 13, 22, 0.08);
+}
+
+.checkFila input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.checkBox {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 2px solid #48484D;
+  background: var(--bg-card, #141416);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.checkBox ion-icon {
+  font-size: 16px;
+}
+
+.checkFila:hover .checkBox {
+  border-color: var(--primary, #E60000);
+}
+
+.checkOn .checkBox {
+  background: linear-gradient(150deg, var(--primary, #E60000), #B0090F);
+  border-color: var(--primary, #E60000);
+  color: #FFFFFF;
+  transform: scale(1.05);
+}
+
+.checkTexto {
+  flex: 1;
+  min-width: 0;
+  padding-top: 3px;
+}
+
+/* Link "las reglas" dentro del checkbox: abre el modal de reglas. */
+.linkReglas {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--primary, #E60000);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.linkReglas:hover {
+  color: var(--primary-hover, #FF1A1A);
+}
+
+.modalAcciones {
+  display: flex;
+  gap: 12px;
+}
+
+.modalAcciones .btnPrincipal {
+  min-width: 0;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 1023px) {
+  .grid {
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .page {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Movil: la caja de estado + stats se reemplaza por la barra mini
+     encima del video (miniStats), sin empujar video ni chat. */
+  .cajaEstado {
+    display: none;
+  }
+
+  .miniStats {
+    display: flex;
+  }
+
+  .miniHint {
+    display: block;
+  }
+
+  .videoGrid {
+    min-height: clamp(300px, 46vh, 560px);
+  }
+
+  .chat {
+    flex: 0 0 auto;
+    min-width: 0;
+    max-width: none;
+    min-height: 240px;
+    max-height: 46vh;
+  }
+
+  .filtrosBtn {
+    padding: 7px 11px;
+    font-size: 12px;
+  }
+
+  /* El fondo del modal no tapa la BottomNav (58px + safe-area): el modal
+     centrado deja pasar la barra igual que el header de arriba. */
+  .overlay {
+    padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 640px) {
+  .grid {
+    padding: 8px;
+    gap: 8px;
+    border-radius: 8px;
+  }
+
+  .centro {
+    gap: 10px;
+  }
+
+  .videoGrid {
+    min-height: 0;
+    flex: 0 0 auto;
+  }
+
+  /* Tile con ALTO fijo por vh (nunca por aspect-ratio): con 4/3 + min-height
+     el tile se calculaba MAS ANCHO que el contenedor y se cortaba a la
+     derecha (se veia ~75%). Asi el ancho es siempre el 100%. */
+  .tile {
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    aspect-ratio: auto;
+    height: clamp(240px, 44vh, 360px);
+    box-sizing: border-box;
+  }
+
+  .tileVacio,
+  .tileOff {
+    font-size: 14px;
+    padding: 46px 18px 76px;
+  }
+
+  /* Texto dentro del PiP: fuente chica para que NO se salga del recuadro. */
+  .pip .tileVacio,
+  .pip .tileOff {
+    font-size: 10.5px;
+    line-height: 1.3;
+    padding: 6px;
+  }
+
+  .pip {
+    width: clamp(110px, 34%, 160px);
+    right: 10px;
+    bottom: 10px;
+  }
+
+  .chat {
+    min-height: 220px;
+    max-height: 50vh;
+  }
+
+  /* Botones compactos: mismo ancho pero sin gastar media pantalla en padding. */
+  .acciones {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btnPrincipal {
+    width: 100%;
+    order: -1;
+    min-height: 50px;
+    padding: 7px 14px;
+    border-radius: 9px;
+    gap: 10px;
+  }
+
+  .btnPrincipalTop {
+    font-size: 15px;
+  }
+
+  .btnPrincipalSub {
+    font-size: 11px;
+    margin-top: 0;
+  }
+
+  .btnDetener {
+    min-height: 50px;
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+
+  .ctrls {
+    width: 100%;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .ctrl {
+    width: 50px;
+    height: 50px;
+  }
+
+  .chatForm {
+    margin: 0 10px 10px;
+  }
+
+  .chatInput {
+    padding: 12px 46px 12px 12px;
+    font-size: 16px; /* 16px evita el zoom automatico del teclado en iOS */
+  }
+
+  .chatSend {
+    width: 38px;
+  }
+
+  .chatLog {
+    padding: 12px;
+  }
+
+  .stats {
+    font-size: 11px;
+  }
+
+  .statValor {
+    font-size: 18px;
+  }
+
+  .modal {
+    padding: 20px;
+    gap: 16px;
+  }
+
+  /* Capa a pantalla completa: blur + opacidad para que el fondo se vea
+     sin estorbar. El modal queda CENTRADO verticalmente entre el header
+     top (56px) y la BottomNav (58px + safe-area). */
+  .overlay {
+    align-items: center;
+    justify-content: center;
+    padding: calc(64px + env(safe-area-inset-top, 0px)) 12px calc(72px + env(safe-area-inset-bottom, 0px));
+    background: rgba(5, 5, 5, 0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Contenido del modal centrado: cabecera, campos y checkbox al medio. */
+  .modal {
+    text-align: center;
+  }
+
+  .modalHead {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+  }
+
+  .campoLabel {
+    text-align: center;
+  }
+
+  .chips {
+    justify-content: center;
+  }
+
+  .checkFila {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .campoHint,
+  .avisoTexto {
+    text-align: center;
+  }
+
+  .modal {
+    max-width: none;
+    width: 100%;
+    border-radius: 16px;
+    max-height: calc(100dvh - 64px - 72px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    padding: 22px 18px;
+    animation: modalIn 0.18s ease-out;
+  }
+
+  .modalTitulo {
+    font-size: 19px;
+  }
+
+  /* El aviso inline no se ve en movil: se oculta y manda el modal centrado. */
+  .errorSoloDesk {
+    display: none;
+  }
+
+  .errorModal {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 9900;
+    background: rgba(5, 5, 5, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    animation: modalIn 0.18s ease-out;
+  }
+
+  /* Genero: 2x2 en vez de 4 filas apiladas; mas compacto. */
+  .genOpciones {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .genOp {
+    padding: 10px 8px;
+    font-size: 13px;
+    gap: 6px;
+  }
+
+  .genOp ion-icon {
+    font-size: 16px;
+  }
+
+  /* Acciones invertidas: Comenzar (principal) a la izquierda,
+     Cerrar (retroceder) a la derecha, uno al lado del otro y compactos. */
+  .modalAcciones {
+    position: sticky;
+    bottom: 0;
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+    gap: 8px;
+    background: var(--bg-card, #141416);
+    padding-top: 12px;
+    margin-top: 4px;
+  }
+
+  .modalAcciones .btnPrincipal,
+  .modalAcciones .btnSecundario {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 10px;
+    font-size: 14px;
+    border-radius: 9px;
+  }
+
+  .modalAcciones .btnPrincipalTop {
+    font-size: 14px;
+  }
+
+  .modalAcciones .btnPrincipalSub {
+    font-size: 10.5px;
+  }
+
+  .modalAcciones .btnPrincipal ion-icon {
+    font-size: 18px;
+  }
+}

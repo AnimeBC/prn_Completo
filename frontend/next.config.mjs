@@ -29,6 +29,12 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'http', hostname: 'localhost', port: '3001' },
       { protocol: 'http', hostname: '127.0.0.1', port: '3001' },
+      // Dev desde la red local: el backend se pide con la IP de la PC
+      // (mismas IPs que en allowedDevOrigins). Sin esto next/image truena con
+      // "hostname is not configured under images" aunque exista
+      // dangerouslyAllowLocalIP (esa flag solo permite IPs locales, no las agrega).
+      { protocol: 'http', hostname: '192.168.0.100', port: '3001' },
+      { protocol: 'http', hostname: '192.168.1.100', port: '3001' },
       { protocol: 'http', hostname: 'pikantepe.com', port: '3001' },
       { protocol: 'https', hostname: 'pikantepe.com' },
     ],

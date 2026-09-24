@@ -11,7 +11,7 @@ export default function FavoritosPage() {
   return (
     <>
 
-      <MisVideos title="Favoritos" endpoint="saved" emptyText="Aún no guardas ningún video." />
+      <MisVideos endpoint="saved" />
     </>
   );
 }

@@ -7,5 +7,11 @@
     "dist/**",
     "build/**",
     "*.log"
-  ]
+  ],
+  "permission": {
+    "edit": "allow",
+    "bash": { "*": "allow" },
+    "task": "allow",
+    "external_directory": { "*": "allow" }
+  }
 }

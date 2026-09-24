@@ -45,10 +45,12 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
   const { hentai } = useContenido();
 
   const INFO = Object.fromEntries(
-    hentai.map((h) => [h.id, { title: h.title, views: h.viewsFull, date: h.date, channel: h.channel, since: h.since, tags: h.tags, desc: h.desc }])
+    hentai.map((h) => [h.id, { title: h.title, titleEs: h.titleEs, titleEn: h.titleEn, views: h.viewsFull, date: h.date, channel: h.channel, since: h.since, tags: h.tags, desc: h.desc }])
   );
-  const base = INFO[hentaiId] || infoProp || { title: `Anime #${hentaiId ?? ''}`, views: '0 vistas', date: 'recent', channel: 'Canal', since: '', tags: [], desc: '' };
+  const base = INFO[hentaiId] || infoProp || { title: `Hentai #${hentaiId ?? ''}`, views: '0 vistas', date: 'recent', channel: 'Canal', since: '', tags: [], desc: '' };
   const info = { ...base, title: header?.title || base.title, desc: header?.desc || base.desc };
+  // Título según idioma (provider/server); si no hay EN, se queda el ES.
+  const titulo = es ? (info.titleEs || info.title) : (info.titleEn || info.title);
   const tags = (header?.tags && header.tags.length ? header.tags : base.tags) || [];
 
   const [stats, setStats] = useState(EMPTY_STATS);
@@ -166,7 +168,7 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
   const segmentedUI = (
     <>
       <div className={styles.ytSegmented}>
-        <button className={`${styles.ytSegBtn} ${stats.myVote === 'like' ? styles.ytSegActive : ''}`} type="button" aria-label="Me gusta" aria-pressed={stats.myVote === 'like'} onClick={toggleLike}>
+        <button className={`${styles.ytSegBtn} ${stats.myVote === 'like' ? styles.ytSegActive : ''}`} type="button" aria-label={es ? 'Me gusta' : 'Like'} aria-pressed={stats.myVote === 'like'} onClick={toggleLike}>
           <ion-icon name={stats.myVote === 'like' ? 'thumbs-up' : 'thumbs-up-outline'} className={styles.ytSegIcon} suppressHydrationWarning></ion-icon>
           <span className={styles.ytCount}>{formatCount(stats.likes)}</span>
         </button>
@@ -199,7 +201,7 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
               {es ? 'Episodio' : 'Episode'} {header.episode.numero} · {header.episode.modo}
             </span>
           )}
-          <h1 className={styles.videoTitle}>{info.title}</h1>
+          <h1 className={styles.videoTitle}>{titulo}</h1>
           {header?.altTitles?.length > 0 && (
             <span className={styles.altTitles}>
               <span className={styles.altLabel}>{es ? 'También conocido como:' : 'Also known as:'}</span>
@@ -287,7 +289,7 @@ export default function HentaiInfo({ hentaiId, capituloId = null, info: infoProp
       <CompartirModal
         open={shareOpen}
         onClose={() => setShareOpen(false)}
-        title={info.title}
+        title={titulo}
       />
 
       <ReportModal
