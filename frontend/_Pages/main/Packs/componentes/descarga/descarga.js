@@ -26,7 +26,6 @@ export default function DescargaModal({
   const { t, locale } = useLanguage();
   const es = locale !== 'en';
   const tituloDl = titulo || t('descarga.titulo');
-  const tituloDl = titulo || t('descarga.titulo');
   const [step, setStep] = useState(1);
 
   // ¿El destino es un archivo descargable (videos) o una página (packs)?
