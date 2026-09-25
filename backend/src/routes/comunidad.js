@@ -925,20 +925,9 @@ r.post('/grupos/:id/mensajes', communityUpload.array('media', 10), async (req, r
     );
     res.status(201).json({ ok: true, mensaje: ins.rows[0] });
     await notify('comunidad_mensaje', { id: ins.rows[0].id, comunidad_id: id, de: user.user_key });
-    // No se notifica por cada mensaje del chat de grupo (evita spam).
-    // Solo si es una respuesta directa a tu mensaje.
-    if (replyTo) {
-      const rp = await query('SELECT user_key FROM comunidad_mensajes WHERE id = $1', [replyTo]);
-      await notificarDueno(rp.rows[0]?.user_key, {
-        tipo: 'respuesta',
-        titulo: `${nameOf(user)} respondió a tu mensaje`,
-        texto: texto || `[${tipo}]`,
-        url: `/chat?conv=${id}`,
-        icono: 'return-down-forward',
-        actor: user,
-        meta: { grupo_id: id, mensaje_id: ins.rows[0].id },
-      });
-    }
+    // Las respuestas del CHAT de grupo NO generan notificacion (solo SSE en vivo).
+    // Si en el futuro hay comentarios sobre las fotos/publicaciones del grupo,
+    // esos si notifican (van por /comunidad?post=...).
   } catch (e) { next(e); }
 });
 
@@ -996,7 +985,6 @@ r.post('/mensajes/:msjId/reaccion', async (req, res, next) => {
     const m = await query('SELECT comunidad_id, user_key FROM comunidad_mensajes WHERE id = $1 AND activo = TRUE', [msjId]);
     if (!m.rows[0]) return res.status(404).json({ error: 'Mensaje no encontrado' });
     const comId = m.rows[0].comunidad_id;
-    const msjOwner = m.rows[0].user_key;
     // Solo miembros (o dueño) pueden reaccionar en grupos privados.
     if (comId) {
       const g = await query('SELECT privacidad, user_key FROM comunidades WHERE id = $1', [comId]);
@@ -1019,15 +1007,7 @@ r.post('/mensajes/:msjId/reaccion', async (req, res, next) => {
     );
     res.json({ ok: true });
     await notify('comunidad_reaccion', { id: msjId, comunidad_id: comId });
-    await notificarDueno(msjOwner, {
-      tipo: 'reaccion',
-      titulo: `${nameOf(user)} reaccionó a tu mensaje`,
-      texto: emoji,
-      url: comId ? `/chat?conv=${comId}` : '/chat',
-      icono: 'happy-outline',
-      actor: user,
-      meta: { mensaje_id: msjId, grupo_id: comId || null },
-    });
+    // Las reacciones del CHAT de grupo NO generan notificacion (solo SSE en vivo).
   } catch (e) { next(e); }
 });
 

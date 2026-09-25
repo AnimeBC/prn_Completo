@@ -121,7 +121,11 @@ r.get('/', async (req, res, next) => {
          FROM notificaciones n
          LEFT JOIN notificaciones_leidas nl
                 ON nl.notificacion_id = n.id AND nl.user_key = $1
-        WHERE n.user_key = $1 OR (n.user_key IS NULL AND n.tipo = 'admin')
+        WHERE (n.user_key = $1 OR (n.user_key IS NULL AND n.tipo = 'admin'))
+          -- Ocultas: respuestas y reacciones del CHAT de grupo (el chat ya
+          -- avisa en vivo; no deben aparecer en el listado de notificaciones).
+          AND NOT (n.tipo IN ('respuesta', 'reaccion')
+                   AND (n.url LIKE '/chat?conv=%' OR n.url LIKE '/comunidad?grupo=%'))
           -- No repite solicitudes de amistad no leidas del mismo actor:
           -- solo se muestra la mas reciente.
           AND (
@@ -140,7 +144,8 @@ r.get('/', async (req, res, next) => {
     );
 
     // Cuenta leyendo el mismo criterio agrupado: las amistades no leidas del
-    // mismo actor cuentan como una sola.
+    // mismo actor cuentan como una sola. Excluye igual las respuestas y
+    // reacciones del CHAT de grupo (ocultas del listado).
     const { rows: cnt } = await query(
       `SELECT COUNT(*)::int AS n FROM (
          SELECT DISTINCT
@@ -151,6 +156,8 @@ r.get('/', async (req, res, next) => {
                   ON nl.notificacion_id = n.id AND nl.user_key = $1
           WHERE (n.user_key = $1 OR (n.user_key IS NULL AND n.tipo = 'admin'))
             AND nl.id IS NULL
+            AND NOT (n.tipo IN ('respuesta', 'reaccion')
+                     AND (n.url LIKE '/chat?conv=%' OR n.url LIKE '/comunidad?grupo=%'))
        ) t`,
       [userKey]
     );
