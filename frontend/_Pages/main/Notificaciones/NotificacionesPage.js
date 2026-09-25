@@ -115,25 +115,6 @@ export default function NotificacionesPage() {
     }
   }
 
-  return (
-    <main className={styles.page}>
-      <div className={styles.head}>
-        <h1 className={styles.title}>{es ? 'Notificaciones' : 'Notifications'}</h1>
-        {noLeidas > 0 && (
-          <button type="button" className={styles.markAll} onClick={onTodas}>
-            {es ? 'Marcar todas' : 'Mark all'}
-          </button>
-        )}
-      </div>
-
-      <div className={styles.list}>
-        {!authed && (
-          <p className={styles.empty}>{es ? 'Inicia sesión para ver tus notificaciones.' : 'Sign in to see your notifications.'}</p>
-        )}
-        {authed && loading && <p className={styles.empty}>{es ? 'Cargando…' : 'Loading…'}</p>}
-        {authed && !loading && items.length === 0 && (
-          <p className={styles.empty}>{es ? 'No tienes notificaciones por ahora.' : 'You have no notifications yet.'}</p>
-        )}
   // Navega al perfil publico del usuario (o a su chat directo como respaldo).
   async function irAPerfil(actorKey) {
     if (!actorKey) return;
