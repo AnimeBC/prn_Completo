@@ -53,6 +53,10 @@ const AVATAR_VIGENTE = `COALESCE(
   (SELECT ch.avatar FROM channels ch WHERE ch.user_key = m.user_key AND ch.avatar IS NOT NULL LIMIT 1),
   m.avatar
 )`;
+
+/** Conteo REAL de miembros de un grupo (no el contador denormalizado, que
+ * puede quedar inflado; la verdad es la tabla comunidad_miembros). */
+const MIEMBROS_REALES = '(SELECT COUNT(*)::int FROM comunidad_miembros cm2 WHERE cm2.comunidad_id = c.id)';
 function nameOf(u) {
   if (!u) return 'Usuario';
   return u.usuario || u.nombre || 'Usuario';
@@ -225,13 +229,13 @@ r.get('/grupos', async (req, res, next) => {
     const offsetIdx = selParams.length + 2;
 
     const orderSql = orden === 'recientes' ? 'c.created_at DESC'
-      : orden === 'activos' ? `${expActivos} DESC, c.miembros DESC`
-        : orden === 'publicaciones' ? `${expArchivos} DESC, c.miembros DESC`
-          : 'c.destacado DESC, c.miembros DESC';
+      : orden === 'activos' ? `${expActivos} DESC, ${MIEMBROS_REALES} DESC`
+        : orden === 'publicaciones' ? `${expArchivos} DESC, ${MIEMBROS_REALES} DESC`
+          : `c.destacado DESC, ${MIEMBROS_REALES} DESC`;
 
     const { rows } = await query(
       `SELECT c.id, c.nombre, c.slug, c.descripcion, c.avatar, c.banner, c.reglas, c.privacidad,
-              c.modo_union, c.miembros, c.destacado, c.created_at,
+              c.modo_union, ${MIEMBROS_REALES} AS miembros, c.destacado, c.created_at,
               ${miembro} AS miembro, ${dueno} AS soy_dueno, ${solicitud} AS solicitud,
               ${expActivos} AS activos,
               ${expArchivos} AS archivos,
@@ -279,6 +283,9 @@ r.get('/grupos/:id', async (req, res, next) => {
       solicitud = s.rows[0]?.estado || null;
     }
     const soyDueno = !!userKey && String(grupo.user_key || '') === String(userKey);
+    // Miembros REALES (la columna denormalizada puede estar inflada).
+    const reales = await query('SELECT COUNT(*)::int AS n FROM comunidad_miembros WHERE comunidad_id = $1', [id]);
+    grupo.miembros = reales.rows[0].n;
     const activos = await query(
       `SELECT COUNT(*)::int AS n FROM comunidad_miembros cm
          JOIN comunidad_presencia pr ON pr.user_key = cm.user_key
@@ -403,7 +410,7 @@ r.post('/grupos/:id/join', async (req, res, next) => {
     const exists = await query('SELECT 1 FROM comunidad_miembros WHERE comunidad_id = $1 AND user_key = $2', [id, user.user_key]);
     if (exists.rows[0]) {
       await query('DELETE FROM comunidad_miembros WHERE comunidad_id = $1 AND user_key = $2', [id, user.user_key]);
-      await query('UPDATE comunidades SET miembros = GREATEST(0, miembros - 1) WHERE id = $1', [id]);
+      await query('UPDATE comunidades SET miembros = (SELECT COUNT(*) FROM comunidad_miembros WHERE comunidad_id = $1) WHERE id = $1', [id]);
       await notify('comunidad_join', { id });
       return res.json({ ok: true, joined: false });
     }
@@ -448,7 +455,7 @@ r.post('/grupos/:id/join', async (req, res, next) => {
        VALUES ($1, $2, $3) ON CONFLICT (comunidad_id, user_key) DO NOTHING`,
       [id, user.user_key, nameOf(user)]
     );
-    await query('UPDATE comunidades SET miembros = miembros + 1 WHERE id = $1', [id]);
+    await query('UPDATE comunidades SET miembros = (SELECT COUNT(*) FROM comunidad_miembros WHERE comunidad_id = $1) WHERE id = $1', [id]);
     res.json({ ok: true, joined: true });
     await notify('comunidad_join', { id });
   } catch (e) { next(e); }
@@ -1026,7 +1033,7 @@ r.get('/chats', async (req, res, next) => {
          UNION
          SELECT cm.comunidad_id FROM comunidad_miembros cm WHERE cm.user_key = $1
        )
-       SELECT c.id, c.slug, c.nombre, c.avatar, c.descripcion, c.privacidad, c.miembros,
+       SELECT c.id, c.slug, c.nombre, c.avatar, c.descripcion, c.privacidad, ${MIEMBROS_REALES} AS miembros,
               (SELECT COUNT(*)::int FROM comunidad_miembros cm
                  JOIN comunidad_presencia pr ON pr.user_key = cm.user_key
                 WHERE cm.comunidad_id = c.id
@@ -1591,7 +1598,7 @@ r.get('/buscar', async (req, res, next) => {
     // Comunidades (con contador de en línea real, como en las tarjetas).
     if (buscaGrupos) {
       const { rows } = await query(
-        `SELECT c.id, c.nombre, c.slug, c.avatar, c.privacidad, c.modo_union, c.miembros,
+        `SELECT c.id, c.nombre, c.slug, c.avatar, c.privacidad, c.modo_union, ${MIEMBROS_REALES} AS miembros,
                 (SELECT COUNT(*)::int FROM comunidad_miembros cm
                    JOIN comunidad_presencia pr ON pr.user_key = cm.user_key
                   WHERE cm.comunidad_id = c.id
@@ -1599,7 +1606,7 @@ r.get('/buscar', async (req, res, next) => {
            FROM comunidades c
           WHERE c.activo = TRUE
             AND (lower(c.nombre) LIKE $1 OR lower(COALESCE(c.descripcion,'')) LIKE $1)
-          ORDER BY c.miembros DESC
+          ORDER BY ${MIEMBROS_REALES} DESC
           LIMIT ${limG} OFFSET ${offset}`,
         [like]
       );

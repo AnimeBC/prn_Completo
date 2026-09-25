@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import GrupoDetalle from '@/_Pages/main/Comunidad/GrupoDetalle';
 import { apiGet, mediaUrl } from '@/_Extras/Datos/server.js';
 import { buildOpenGraph, buildTwitter } from '@/_Extras/Seo/og.js';
@@ -27,9 +28,8 @@ export default async function GrupoPage({ params }) {
   const grupo = await getGrupo(id);
 
   return (
-    <>
-
+    <Suspense fallback={null}>
       <GrupoDetalle id={id} initialGrupo={grupo} />
-    </>
+    </Suspense>
   );
 }

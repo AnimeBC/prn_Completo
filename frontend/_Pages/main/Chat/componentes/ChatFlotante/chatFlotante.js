@@ -879,13 +879,31 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
     abrirCanal(router, m.user_key, m.usuario);
   }
 
+  // URL publica del grupo: SIEMPRE con el slug real (la ruta
+  // /comunidad/grupo/[id] resuelve id o slug, pero el enlace canonico es el
+  // slug). Si el chat no trae slug, se resuelve una vez y se cachea.
+  const slugRef = useRef({});
+  async function urlGrupo(tab) {
+    const id = grupoId;
+    let ref = chat?.slug || (id ? slugRef.current[id] : null);
+    if (!ref && id) {
+      try {
+        const r = await apiComunidad.grupo(id, userKey);
+        ref = r?.grupo?.slug || null;
+        if (ref) slugRef.current[id] = ref;
+      } catch { /* opcional: cae al id */ }
+    }
+    ref = ref || id;
+    return `/comunidad/grupo/${encodeURIComponent(ref)}${tab ? `?tab=${tab}` : ''}`;
+  }
+
   // Clic en el encabezado del chat (avatar + nombre + estado):
   // grupo -> pestaña de información del grupo; DM -> su canal.
   const headEsDm = tipo === 'dm' && !!canalSlug;
   const headEsGrupo = tipo === 'grupo' && !!grupoId;
   const headClic = headEsDm || headEsGrupo;
-  function irHead() {
-    if (headEsGrupo) router.push(`/comunidad/grupo/${grupoId}?tab=informacion`);
+  async function irHead() {
+    if (headEsGrupo) router.push(await urlGrupo('informacion'));
     else if (headEsDm) irAlCanal();
   }
 
@@ -1084,12 +1102,12 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
               </span>
             )}
             {tipo === 'grupo' && (
-              <button type="button" className={styles.iconBtn} onClick={() => { if (grupoId) router.push(`/comunidad/grupo/${grupoId}?tab=miembros`); }} title={es ? 'Miembros' : 'Members'}>
+              <button type="button" className={styles.iconBtn} onClick={async () => { if (grupoId) router.push(await urlGrupo('miembros')); }} title={es ? 'Miembros' : 'Members'}>
                 <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
             {tipo === 'grupo' && (
-              <button type="button" className={styles.iconBtn} onClick={() => { if (grupoId) router.push(`/comunidad/grupo/${grupoId}?tab=informacion`); }} title={es ? 'Información del grupo' : 'Group info'}>
+              <button type="button" className={styles.iconBtn} onClick={async () => { if (grupoId) router.push(await urlGrupo('informacion')); }} title={es ? 'Información del grupo' : 'Group info'}>
                 <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
@@ -1148,19 +1166,19 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                     </button>
                   )}
                   {tipo === 'grupo' && (
-                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); if (grupoId) router.push(`/comunidad/grupo/${grupoId}?tab=conversacion`); }}>
+                    <button type="button" role="menuitem" onClick={async () => { setHeadMenuOpen(false); if (grupoId) router.push(await urlGrupo('conversacion')); }}>
                       <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Ver grupo' : 'View group'}
                     </button>
                   )}
                   {tipo === 'grupo' && (
-                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); if (grupoId) router.push(`/comunidad/grupo/${grupoId}?tab=miembros`); }}>
+                    <button type="button" role="menuitem" onClick={async () => { setHeadMenuOpen(false); if (grupoId) router.push(await urlGrupo('miembros')); }}>
                       <ion-icon name="people-circle-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Miembros' : 'Members'}
                     </button>
                   )}
                   {tipo === 'grupo' && (
-                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); if (grupoId) router.push(`/comunidad/grupo/${grupoId}?tab=informacion`); }}>
+                    <button type="button" role="menuitem" onClick={async () => { setHeadMenuOpen(false); if (grupoId) router.push(await urlGrupo('informacion')); }}>
                       <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Información' : 'Info'}
                     </button>

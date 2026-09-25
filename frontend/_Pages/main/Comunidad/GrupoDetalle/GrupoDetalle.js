@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './grupoDetalle.module.css';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
@@ -16,6 +16,9 @@ function ini(n) {
 
 export default function GrupoDetalle({ id, initialGrupo = null }) {
   const router = useRouter();
+  // Reacciona a cambios de ?tab= aunque la pagina ya este montada (p. ej. al
+  // pulsar "Información"/"Miembros" desde el chat flotante).
+  const searchParams = useSearchParams();
   const { locale } = useLanguage();
   const es = locale !== 'en';
   const { userKey, authed } = useAuth();
@@ -63,12 +66,11 @@ export default function GrupoDetalle({ id, initialGrupo = null }) {
   useEffect(() => { cargarPosts(); }, [cargarPosts]);
   useEffect(() => { if (tab === 'miembros') cargarMiembros(); }, [tab, cargarMiembros]);
 
-  // Lee ?tab= de la URL al entrar.
+  // Lee ?tab= de la URL (y reacciona si cambia).
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const t0 = new URLSearchParams(window.location.search).get('tab');
+    const t0 = searchParams?.get('tab');
     if (t0 && ['conversacion', 'informacion', 'miembros'].includes(t0)) setTab(t0);
-  }, []);
+  }, [searchParams]);
 
   // Refleja la pestaña activa en la URL (?tab=...).
   function cambiarTab(t) {
@@ -76,7 +78,7 @@ export default function GrupoDetalle({ id, initialGrupo = null }) {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
     url.searchParams.set('tab', t);
-    window.history.replaceState(null, '', url.pathname + url.search);
+    router.replace(url.pathname + url.search, { scroll: false });
   }
 
   // Realtime

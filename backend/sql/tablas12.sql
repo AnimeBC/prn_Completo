@@ -46,3 +46,12 @@ UPDATE notificaciones
  WHERE tipo IN ('respuesta', 'reaccion')
    AND url LIKE '/comunidad?grupo=%'
    AND substring(url FROM 'grupo=([0-9]+)') IS NOT NULL;
+
+-- ============================================================
+-- Contador de miembros de grupos: estaba inflado (datos de relleno).
+-- Se recalcula desde la tabla real comunidad_miembros.
+-- Idempotente.
+-- ============================================================
+
+UPDATE comunidades c
+   SET miembros = (SELECT COUNT(*) FROM comunidad_miembros cm WHERE cm.comunidad_id = c.id);

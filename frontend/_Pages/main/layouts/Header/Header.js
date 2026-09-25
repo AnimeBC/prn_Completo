@@ -70,8 +70,10 @@ export default function Header() {
   // Información del chat (celular): grupo -> pestaña de información del grupo;
   // DM -> canal REAL resuelto por user_key (evita 404 por nombre visible).
   async function irAlCanal() {
-    if (chatInfo?.tipo === 'grupo' && chatInfo?.grupo_id) {
-      router.push(`/comunidad/grupo/${chatInfo.grupo_id}?tab=informacion`);
+    if (chatInfo?.tipo === 'grupo' && (chatInfo?.grupo_slug || chatInfo?.grupo_id)) {
+      // URL canonica con slug (si no hay slug, cae al id).
+      const ref = chatInfo.grupo_slug || chatInfo.grupo_id;
+      router.push(`/comunidad/grupo/${encodeURIComponent(ref)}?tab=informacion`);
       return;
     }
     if (chatInfo?.canal_slug) {
