@@ -98,6 +98,9 @@ export default function MatchContent() {
   const chatBoxRef = useRef(null);
   const statsTimerRef = useRef(null);
   const perfilRef = useRef(null);
+  const arrancarRef = useRef(null);
+  const sndEsperaRef = useRef(null);
+  const sndOkRef = useRef(null);
 
   faseRef.current = fase;
   localRef.current = localStream;
@@ -148,6 +151,40 @@ export default function MatchContent() {
   }, []);
 
   useEffect(() => { cargarStats(); }, [cargarStats]);
+
+  // Sonidos del match: "esperar" en loop mientras busca (volumen bajo) y
+  // "encontrado" una vez al emparejar. Solo se crean en el cliente.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    try {
+      const espera = new Audio('/match/sonidos/esperar.wav');
+      espera.loop = true;
+      espera.volume = 0.2;
+      const ok = new Audio('/match/sonidos/encontrado.mp3');
+      ok.volume = 0.35;
+      sndEsperaRef.current = espera;
+      sndOkRef.current = ok;
+    } catch { /* noop */ }
+    return () => {
+      try { sndEsperaRef.current?.pause(); } catch { /* noop */ }
+      try { sndOkRef.current?.pause(); } catch { /* noop */ }
+      sndEsperaRef.current = null;
+      sndOkRef.current = null;
+    };
+  }, []);
+
+  // Loop de espera: suena SOLO mientras fase === 'buscando'.
+  useEffect(() => {
+    const a = sndEsperaRef.current;
+    if (!a) return;
+    if (fase === 'buscando') {
+      a.currentTime = 0;
+      a.play().catch(() => {});
+    } else {
+      a.pause();
+      try { a.currentTime = 0; } catch { /* noop */ }
+    }
+  }, [fase]);
 
   useEffect(() => {
     let alive = true;
@@ -274,6 +311,10 @@ export default function MatchContent() {
     }
   }, [userKey, enCualquierLlamada, t, es, filtrosBusca]);
 
+  // La ultima version de arrancar siempre disponible dentro del listener SSE
+  // (los handlers no deben meterlo en deps: re-suscribiria el evento).
+  arrancarRef.current = arrancar;
+
   const comenzar = useCallback(() => {
     if (!userKey || !perfilCargado) return;
     if (!perfil) {
@@ -331,6 +372,7 @@ export default function MatchContent() {
     setMicOn(true);
     setCamOn(true);
     setSinCompat(false);
+    setMensajes([]);
     if (userKey) postMatch('salir', { userKey, matchId: m?.matchId }).catch(() => {});
   }, [closePc, pararLocal, userKey]);
 
@@ -344,6 +386,8 @@ export default function MatchContent() {
     setSeg(0);
     setSinCompat(false);
     setFase('buscando');
+    // Cambio de pareja: el chat anterior se borra, no se hereda.
+    setMensajes([]);
     pushMsg({ de: 'sistema', texto: t('match.buscarOtra') });
     try {
       const j = await postMatch('siguiente', { userKey, matchId: m?.matchId, filtros: filtrosBusca });
@@ -412,10 +456,14 @@ export default function MatchContent() {
           peerKey: p.peerKey,
           peerNombre: p.peerNombre || '',
         };
+        // Chat nuevo = pareja nueva: se limpia todo lo anterior.
+        setMensajes([]);
         setPeerNombre(p.peerNombre || '');
         setFase('conectado');
         setSinCompat(false);
         setError(null);
+        // Aviso sonoro de match encontrado.
+        try { sndOkRef.current?.play().catch(() => {}); } catch { /* noop */ }
         pushMsg({
           de: 'sistema',
           texto: t('match.conectadoMsg').replace('{nombre}', p.peerNombre || (es ? 'alguien' : 'someone')),
@@ -432,8 +480,18 @@ export default function MatchContent() {
         setRemoteStream(null);
         setPeerNombre('');
         if (faseRef.current === 'conectado') {
-          setFase('fin');
-          pushMsg({ de: 'sistema', texto: t('match.seFue') });
+          if (p.motivo === 'siguiente') {
+            // El par nos salto: re-emparejar SOLO, sin pedir clic.
+            setMensajes([]);
+            setSeg(0);
+            setSinCompat(false);
+            setFase('buscando');
+            pushMsg({ de: 'sistema', texto: t('match.buscarOtra') });
+            arrancarRef.current?.();
+          } else {
+            setFase('fin');
+            pushMsg({ de: 'sistema', texto: t('match.seFue') });
+          }
         }
         return;
       }
@@ -528,10 +586,20 @@ export default function MatchContent() {
     if (!tira || !m || !userKey) return;
     setTexto('');
     setEnviando(true);
-    pushMsg({ de: 'yo', texto: tira });
     try {
-      await postMatch('chat', { userKey, matchId: m.matchId, texto: tira });
-    } catch { /* el SSE del par fallaria igual */ }
+      const j = await postMatch('chat', { userKey, matchId: m.matchId, texto: tira });
+      if (j?.error) {
+        // El backend rechazo (match vencido/invalido): no se empuja nada
+        // al par; se avisa aqui para que no parezca que "si llego".
+        pushMsg({ de: 'sistema', texto: t('match.chatError') });
+        setTexto(tira); // se recupera el texto para reintentar
+      } else {
+        pushMsg({ de: 'yo', texto: tira });
+      }
+    } catch {
+      pushMsg({ de: 'sistema', texto: t('match.chatError') });
+      setTexto(tira);
+    }
     setEnviando(false);
   };
 
@@ -600,7 +668,14 @@ export default function MatchContent() {
               />
               {!remoteStream && (
                 <div className={styles.tileVacio}>
-                  {fase === 'buscando' ? t('match.buscando') : fase === 'fin' ? t('match.seFue') : t('match.sinPar')}
+                  {fase === 'buscando' ? (
+                    <span className={styles.cargaWrap}>
+                      <span className={styles.spinner}></span>
+                      <span>
+                        {t('match.buscando')} {fmtReloj(seg)}
+                      </span>
+                    </span>
+                  ) : fase === 'fin' ? t('match.seFue') : t('match.sinPar')}
                 </div>
               )}
               <span className={styles.tileChip}>

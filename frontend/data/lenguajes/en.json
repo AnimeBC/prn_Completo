@@ -132,6 +132,7 @@
     "cam": "Camera",
     "chatTitulo": "ROOM CHAT",
     "chatVacio": "Messages from your partner will appear here.",
+    "chatError": "Message could not be sent. Try again.",
     "escribir": "Type a message...",
     "enviar": "Send",
     "conectadoMsg": "Connected with {nombre}. Be respectful.",

@@ -132,6 +132,7 @@
     "cam": "Cámara",
     "chatTitulo": "CHAT DE SALA",
     "chatVacio": "Los mensajes de tu pareja aparecerán aquí.",
+    "chatError": "No se pudo enviar el mensaje. Intenta de nuevo.",
     "escribir": "Escribe un mensaje...",
     "enviar": "Enviar",
     "conectadoMsg": "Conectado con {nombre}. Sé respetuoso.",

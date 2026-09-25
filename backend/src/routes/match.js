@@ -125,7 +125,9 @@ async function matchActivo(userKey) {
 async function marcarActivo(userKey, matchId) {
   try {
     await redis.hSet(ACTIVO, userKey, matchId);
-    await redis.expire(ACTIVO, 600);
+    // 24h: con 10 min el match "vencia" y chat/signal empezaban a dar 403
+    // en llamadas largas (el frontend lo tragaba en silencio).
+    await redis.expire(ACTIVO, 86400);
   } catch { /* opcional */ }
 }
 
@@ -136,7 +138,7 @@ async function desmarcarActivo(userKey) {
 async function guardarPar(matchId, a, b) {
   try {
     await redis.hSet(PAR, matchId, JSON.stringify({ a, b }));
-    await redis.expire(PAR, 600);
+    await redis.expire(PAR, 86400);
   } catch { /* opcional */ }
 }
 

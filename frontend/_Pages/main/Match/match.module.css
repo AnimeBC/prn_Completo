@@ -437,6 +437,18 @@
   background: rgba(0, 0, 0, 0.55);
 }
 
+/* Loading girando + reloj de busqueda dentro del video. */
+.cargaWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cargaWrap .spinner {
+  width: 26px;
+  height: 26px;
+}
+
 .tileChip {
   position: absolute;
   top: 12px;
