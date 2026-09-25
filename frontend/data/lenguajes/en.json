@@ -173,6 +173,12 @@
     "reporteError": "Could not send the report.",
     "reporteRequiere": "Connect with someone to report.",
     "avisoChat": "You can report accounts with the report button.",
+    "ayudaTitulo": "Few people online right now",
+    "ayudaTexto": "The site is new, so there are few people online at the moment. If you can, come back at night or during peak hours when there are more people. And share pikantepe to help us grow: the more of us there are, the faster you find a match.",
+    "ayudaComparte": "SHARE AND GROW",
+    "ayudaCerrar": "Keep searching",
+    "compartirCopiar": "Copy link",
+    "compartirCopiado": "Link copied!",
     "chips": ["+18", "Lesbian", "Gay", "Sex", "Bisexual", "BDSM", "Fetishes", "Cybersex", "Roleplay", "Photos/Videos", "Toys"]
   },
   "video": {

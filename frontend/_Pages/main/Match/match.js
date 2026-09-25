@@ -85,6 +85,8 @@ export default function MatchContent() {
   const [repDetalle, setRepDetalle] = useState('');
   const [repEnviando, setRepEnviando] = useState(false);
   const [repError, setRepError] = useState(null);
+  const [ayudaAbierto, setAyudaAbierto] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   const [enviando, setEnviando] = useState(false);
   const [texto, setTexto] = useState('');
@@ -104,6 +106,11 @@ export default function MatchContent() {
   const arrancarRef = useRef(null);
   const sndEsperaRef = useRef(null);
   const sndOkRef = useRef(null);
+  // Carga minima de 2s al buscar: momento en que empezo la busqueda y
+  // timer diferido para aplicar el match encontrado muy rapido.
+  const busqDesdeRef = useRef(0);
+  const matchTimerRef = useRef(null);
+  const matchPendIdRef = useRef(null);
 
   faseRef.current = fase;
   localRef.current = localStream;
@@ -367,6 +374,12 @@ export default function MatchContent() {
   const detener = useCallback(async () => {
     const m = matchRef.current;
     matchRef.current = null;
+    // Cancela una carga diferida pendiente (2s) si el usuario para.
+    if (matchTimerRef.current) {
+      clearTimeout(matchTimerRef.current);
+      matchTimerRef.current = null;
+      matchPendIdRef.current = null;
+    }
     closePc();
     setRemoteStream(null);
     pararLocal();
@@ -439,8 +452,17 @@ export default function MatchContent() {
 
   useEffect(() => {
     if (fase !== 'buscando') return undefined;
+    busqDesdeRef.current = Date.now();
     const iv = setInterval(() => setSeg((s) => s + 1), 1000);
     return () => clearInterval(iv);
+  }, [fase]);
+
+  // Aviso a los 2 minutos de busqueda: pocas personas + links de compartir
+  // (la pagina es nueva). Se re-arma en cada busqueda nueva.
+  useEffect(() => {
+    if (fase !== 'buscando') return undefined;
+    const to = setTimeout(() => setAyudaAbierto(true), 120000);
+    return () => clearTimeout(to);
   }, [fase]);
 
   useEffect(() => {
@@ -459,33 +481,56 @@ export default function MatchContent() {
       if (tipo === 'match_found') {
         if (String(p.para) !== userKey) return;
         if (matchRef.current?.matchId === p.matchId) return;
-        matchRef.current = {
-          matchId: p.matchId,
-          peerKey: p.peerKey,
-          peerNombre: p.peerNombre || '',
+        // Carga minima fija de 2s: si el match llega antes, se difiere
+        // hasta cumplir el intervalo (el loading de busqueda sigue girando).
+        const aplicar = () => {
+          matchRef.current = {
+            matchId: p.matchId,
+            peerKey: p.peerKey,
+            peerNombre: p.peerNombre || '',
+          };
+          ultimoPeerRef.current = {
+            matchId: p.matchId,
+            peerKey: p.peerKey,
+          };
+          // Chat nuevo = pareja nueva: se limpia todo lo anterior.
+          setMensajes([]);
+          setPeerNombre(p.peerNombre || '');
+          setFase('conectado');
+          setSinCompat(false);
+          setError(null);
+          // Aviso sonoro de match encontrado.
+          try { sndOkRef.current?.play().catch(() => {}); } catch { /* noop */ }
+          pushMsg({
+            de: 'sistema',
+            texto: t('match.conectadoMsg').replace('{nombre}', p.peerNombre || (es ? 'alguien' : 'someone')),
+          });
+          if (p.ofertante) ofertar().catch(() => {});
         };
-        ultimoPeerRef.current = {
-          matchId: p.matchId,
-          peerKey: p.peerKey,
-        };
-        // Chat nuevo = pareja nueva: se limpia todo lo anterior.
-        setMensajes([]);
-        setPeerNombre(p.peerNombre || '');
-        setFase('conectado');
-        setSinCompat(false);
-        setError(null);
-        // Aviso sonoro de match encontrado.
-        try { sndOkRef.current?.play().catch(() => {}); } catch { /* noop */ }
-        pushMsg({
-          de: 'sistema',
-          texto: t('match.conectadoMsg').replace('{nombre}', p.peerNombre || (es ? 'alguien' : 'someone')),
-        });
-        if (p.ofertante) ofertar().catch(() => {});
+        const falta = 2000 - (Date.now() - (busqDesdeRef.current || 0));
+        if (falta > 0 && faseRef.current === 'buscando') {
+          if (matchTimerRef.current) clearTimeout(matchTimerRef.current);
+          matchPendIdRef.current = p.matchId;
+          matchTimerRef.current = setTimeout(() => {
+            matchTimerRef.current = null;
+            matchPendIdRef.current = null;
+            if (faseRef.current !== 'buscando') return; // cancelado
+            aplicar();
+          }, falta);
+          return;
+        }
+        aplicar();
         return;
       }
 
       if (tipo === 'match_end') {
         if (String(p.para) !== userKey) return;
+        // Si el match termino mientras esperabamos los 2s de carga, cancelar.
+        if (matchPendIdRef.current && matchPendIdRef.current === p.matchId) {
+          if (matchTimerRef.current) clearTimeout(matchTimerRef.current);
+          matchTimerRef.current = null;
+          matchPendIdRef.current = null;
+        }
         // eraNuestro cubre la carrera: matchRef ya seteado pero faseRef
         // todavia 'buscando' si llegaron los dos eventos en el mismo tick.
         const eraNuestro = !!(matchRef.current && (!p.matchId || p.matchId === matchRef.current.matchId));
@@ -619,6 +664,23 @@ export default function MatchContent() {
       if (next.has(c)) next.delete(c); else next.add(c);
       return next;
     });
+  };
+
+  // Compartir pikantepe (aviso de "pocas personas"): links directos.
+  const SHARE_URL = 'https://pikantepe.com';
+  const shareTexto = es
+    ? 'Mira pikantepe: videos, packs y match con alguien'
+    : 'Check out pikantepe: videos, packs and match with someone';
+  const abrirShare = (url) => {
+    try { window.open(url, '_blank', 'noopener, noreferrer'); } catch { /* noop */ }
+  };
+  const copiarEnlace = () => {
+    try {
+      navigator.clipboard.writeText(SHARE_URL).then(() => {
+        setCopiado(true);
+        setTimeout(() => setCopiado(false), 2000);
+      }).catch(() => {});
+    } catch { /* noop */ }
   };
 
   const estadoLabel = fase === 'buscando'
@@ -1199,6 +1261,62 @@ export default function MatchContent() {
               <button type="button" className={styles.btnPrincipal} onClick={() => setFiltrosAbierto(false)}>
                 <ion-icon name="checkmark-outline" suppressHydrationWarning></ion-icon>
                 <span><span className={styles.btnPrincipalTop}>{es ? 'Aplicar' : 'Apply'}</span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aviso a los 2 min de busqueda: pocas personas + compartir. */}
+      {ayudaAbierto && alBody(
+        <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={t('match.ayudaTitulo')}>
+          <div className={styles.modal}>
+            <div className={styles.modalHead}>
+              <span className={styles.modalIcono}>
+                <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
+              </span>
+              <div>
+                <h2 className={styles.modalTitulo}>{t('match.ayudaTitulo')}</h2>
+                <p className={styles.modalTexto}>{t('match.ayudaTexto')}</p>
+              </div>
+            </div>
+
+            <span className={styles.grupoLabel}>{t('match.ayudaComparte')}</span>
+            <div className={styles.shareFila}>
+              <button
+                type="button"
+                className={styles.shareBtn}
+                onClick={() => abrirShare(`https://wa.me/?text=${encodeURIComponent(`${shareTexto} ${SHARE_URL}`)}`)}
+              >
+                <ion-icon name="logo-whatsapp" suppressHydrationWarning></ion-icon>
+                WhatsApp
+              </button>
+              <button
+                type="button"
+                className={styles.shareBtn}
+                onClick={() => abrirShare(`https://t.me/share/url?url=${encodeURIComponent(SHARE_URL)}&text=${encodeURIComponent(shareTexto)}`)}
+              >
+                <ion-icon name="paper-plane-outline" suppressHydrationWarning></ion-icon>
+                Telegram
+              </button>
+              <button
+                type="button"
+                className={styles.shareBtn}
+                onClick={() => abrirShare(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${shareTexto} ${SHARE_URL}`)}`)}
+              >
+                <ion-icon name="logo-twitter" suppressHydrationWarning></ion-icon>
+                X
+              </button>
+              <button type="button" className={styles.shareBtn} onClick={copiarEnlace}>
+                <ion-icon name={copiado ? 'checkmark-outline' : 'link-outline'} suppressHydrationWarning></ion-icon>
+                {copiado ? t('match.compartirCopiado') : t('match.compartirCopiar')}
+              </button>
+            </div>
+
+            <div className={styles.modalAcciones}>
+              <button type="button" className={styles.btnPrincipal} onClick={() => setAyudaAbierto(false)}>
+                <ion-icon name="search-outline" suppressHydrationWarning></ion-icon>
+                <span><span className={styles.btnPrincipalTop}>{t('match.ayudaCerrar')}</span></span>
               </button>
             </div>
           </div>

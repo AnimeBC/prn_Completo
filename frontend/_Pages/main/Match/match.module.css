@@ -1301,6 +1301,40 @@ select.campoInput {
   min-width: 0;
 }
 
+/* Fila de botones para compartir (aviso de pocas personas). */
+.shareFila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.shareBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--border, #242428);
+  border: 1px solid transparent;
+  color: var(--text-primary, #FFFFFF);
+  border-radius: 12px;
+  padding: 11px 15px;
+  font-size: 13.5px;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+
+.shareBtn:hover {
+  border-color: var(--primary, #E60000);
+  background: rgba(242, 13, 22, 0.1);
+  transform: translateY(-1px);
+}
+
+.shareBtn ion-icon {
+  font-size: 17px;
+  color: var(--primary, #E60000);
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 1023px) {
   .grid {

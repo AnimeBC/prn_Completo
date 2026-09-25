@@ -173,6 +173,12 @@
     "reporteError": "No se pudo enviar el reporte.",
     "reporteRequiere": "Conéctate con alguien para poder reportar.",
     "avisoChat": "Puedes reportar cuentas con el botón de reportar.",
+    "ayudaTitulo": "Pocas personas conectadas ahora",
+    "ayudaTexto": "La página es nueva, así que hay poca gente en línea en este momento. Si puedes, vuelve de noche o en las horas pico cuando hay más personas. Y comparte pikantepe para ayudarnos a crecer: entre más seamos, más rápido encuentras pareja.",
+    "ayudaComparte": "COMPARTIR Y CRECER",
+    "ayudaCerrar": "Seguir buscando",
+    "compartirCopiar": "Copiar enlace",
+    "compartirCopiado": "¡Enlace copiado!",
     "chips": ["+18", "Lesbiana", "Gay", "Sexo", "Bisexual", "BDSM", "Fetiches", "Cybersexo", "Roleplay", "Fotos/Vídeos", "Juguetes"]
   },
   "video": {
