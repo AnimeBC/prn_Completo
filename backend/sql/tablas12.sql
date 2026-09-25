@@ -33,3 +33,16 @@ UPDATE users u
  WHERE u.user_key = sub.user_key
    AND u.avatar IS NULL
    AND sub.avatar IS NOT NULL;
+
+-- ============================================================
+-- Notificaciones de respuestas/reacciones de grupo: la url
+-- vieja abria la pagina de comunidad; ahora abren el chat
+-- directo (/chat?conv=<id>).
+-- Idempotente.
+-- ============================================================
+
+UPDATE notificaciones
+   SET url = '/chat?conv=' || substring(url FROM 'grupo=([0-9]+)')
+ WHERE tipo IN ('respuesta', 'reaccion')
+   AND url LIKE '/comunidad?grupo=%'
+   AND substring(url FROM 'grupo=([0-9]+)') IS NOT NULL;

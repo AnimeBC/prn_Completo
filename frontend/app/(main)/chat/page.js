@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import ChatClient from '@/_Pages/main/Chat/chat.js';
 
 export const metadata = {
@@ -9,9 +10,8 @@ export const metadata = {
 
 export default function ChatPage() {
   return (
-    <>
-
+    <Suspense fallback={null}>
       <ChatClient />
-    </>
+    </Suspense>
   );
 }

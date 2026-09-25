@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import styles from './chat.module.css';
 import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
@@ -38,6 +38,9 @@ function preview(c, es) {
 
 export default function ChatClient() {
   const router = useRouter();
+  // Reacciona a cambios de ?conv= / ?dm= aunque /chat ya este montado
+  // (p. ej. al clicar una notificacion de respuesta/reaccion).
+  const searchParams = useSearchParams();
   const { locale } = useLanguage();
   const es = locale !== 'en';
   const { userKey, authed } = useAuth();
@@ -68,15 +71,13 @@ export default function ChatClient() {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  // ?conv=<id> (grupo) o ?dm=<userKey> (amigo)
+  // ?conv=<id> (grupo) o ?dm=<userKey> (amigo). Se re-ejecuta si cambia la URL.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const sp = new URLSearchParams(window.location.search);
-    const dm = sp.get('dm');
-    const conv = sp.get('conv');
+    const dm = searchParams?.get('dm');
+    const conv = searchParams?.get('conv');
     if (dm) setSel(`d:${dm}`);
     else if (conv) setSel(`g:${conv}`);
-  }, []);
+  }, [searchParams]);
 
   // Sin conversación activa, se quita el tema de la interfaz.
   useEffect(() => {

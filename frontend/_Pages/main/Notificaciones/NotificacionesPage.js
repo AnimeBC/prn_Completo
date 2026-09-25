@@ -38,6 +38,17 @@ function relTime(dateStr, es) {
   return new Date(dateStr).toLocaleDateString(es ? 'es-PE' : 'en-US', { day: 'numeric', month: 'short' });
 }
 
+/**
+ * Responder/reaccionar en un grupo abre el chat de frente (/chat?conv=),
+ * aunque la notificacion vieja guarde la url de la comunidad.
+ */
+function irADestino(n) {
+  if ((n.tipo === 'respuesta' || n.tipo === 'reaccion') && typeof n.url === 'string' && n.url.startsWith('/comunidad?grupo=')) {
+    return `/chat?conv=${encodeURIComponent(n.url.slice('/comunidad?grupo='.length))}`;
+  }
+  return n.url;
+}
+
 /** Página completa de notificaciones (celular). */
 export default function NotificacionesPage() {
   const router = useRouter();
@@ -86,7 +97,7 @@ export default function NotificacionesPage() {
       irAPerfil(n.meta?.de || n.actor_key);
       return;
     }
-    if (n.url) router.push(n.url);
+    if (n.url) router.push(irADestino(n) || '/chat');
   }
 
   async function onTodas() {

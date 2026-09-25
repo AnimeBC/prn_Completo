@@ -31,11 +31,22 @@ function relTime(dateStr, es) {
   const min = Math.floor(diff / 60000);
   if (min < 1) return es ? 'hace un momento' : 'just now';
   if (min < 60) return es ? `hace ${min} min` : `${min} min ago`;
-  const h = Math.floor(min / 60);
+  const h = Math.floor(diff / 3600000);
   if (h < 24) return es ? `hace ${h} h` : `${h} h ago`;
   const d = Math.floor(h / 24);
   if (d < 7) return es ? `hace ${d} d` : `${d} d ago`;
   return new Date(dateStr).toLocaleDateString(es ? 'es-PE' : 'en-US', { day: 'numeric', month: 'short' });
+}
+
+/**
+ * Responder/reaccionar en un grupo abre el chat de frente (/chat?conv=),
+ * aunque la notificacion vieja guarde la url de la comunidad.
+ */
+function irADestino(n) {
+  if ((n.tipo === 'respuesta' || n.tipo === 'reaccion') && typeof n.url === 'string' && n.url.startsWith('/comunidad?grupo=')) {
+    return `/chat?conv=${encodeURIComponent(n.url.slice('/comunidad?grupo='.length))}`;
+  }
+  return n.url;
 }
 
 export default function Notificaciones() {
@@ -118,7 +129,7 @@ export default function Notificaciones() {
     }
     if (n.url) {
       setOpen(false);
-      router.push(n.url);
+      router.push(irADestino(n) || '/chat');
     }
   }
 
