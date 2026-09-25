@@ -200,7 +200,7 @@ r.get('/admin', authRequired, async (req, res, next) => {
     const { rows } = await query(
       `SELECT id, tipo, titulo, texto, url, icono, actor_nombre, actor_avatar, created_at
          FROM notificaciones
-        WHERE user_key IS NULL AND tipo = 'admin'
+        WHERE user_key IS NULL AND tipo IN ('admin', 'match_reporte')
         ORDER BY created_at DESC
         LIMIT 200`
     );
@@ -244,7 +244,7 @@ r.delete('/admin/:id', authRequired, async (req, res, next) => {
   try {
     const id = Number.parseInt(req.params.id, 10);
     if (!id) return res.status(400).json({ error: 'Id inválido' });
-    await query('DELETE FROM notificaciones WHERE id = $1 AND user_key IS NULL AND tipo = $2', [id, 'admin']);
+    await query(`DELETE FROM notificaciones WHERE id = $1 AND user_key IS NULL AND tipo IN ('admin', 'match_reporte')`, [id]);
     try { await publishEvent('notificacion_admin', { id }); } catch { /* redis opcional */ }
     res.json({ ok: true });
   } catch (e) { next(e); }

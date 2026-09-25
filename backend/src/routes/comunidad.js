@@ -32,12 +32,27 @@ function intOrNull(v) {
 async function resolveUser(userKey) {
   const k = String(userKey || '').trim().slice(0, 80);
   if (!k) return null;
+  // Avatar actual: users.avatar, y si no tiene, la foto del canal (a veces
+  // solo se subio desde la pagina del canal y users.avatar quedo vacio).
   const { rows } = await query(
-    'SELECT user_key, usuario, nombre, avatar FROM users WHERE user_key = $1',
+    `SELECT u.user_key, u.usuario, u.nombre,
+            COALESCE(u.avatar,
+                     (SELECT ch.avatar FROM channels ch
+                       WHERE ch.user_key = u.user_key AND ch.avatar IS NOT NULL
+                       LIMIT 1)) AS avatar
+       FROM users u
+      WHERE u.user_key = $1`,
     [k]
   );
   return rows[0] || null;
 }
+
+/** Avatar vigente de un usuario (users -> canal -> el guardado en el mensaje). */
+const AVATAR_VIGENTE = `COALESCE(
+  (SELECT u2.avatar FROM users u2 WHERE u2.user_key = m.user_key),
+  (SELECT ch.avatar FROM channels ch WHERE ch.user_key = m.user_key AND ch.avatar IS NOT NULL LIMIT 1),
+  m.avatar
+)`;
 function nameOf(u) {
   if (!u) return 'Usuario';
   return u.usuario || u.nombre || 'Usuario';
@@ -842,7 +857,7 @@ r.get('/grupos/:id/mensajes', async (req, res, next) => {
     const before = intOrNull(req.query.before);
     const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 50));
     const { rows } = await query(
-      `SELECT m.id, m.user_key, m.usuario, m.avatar, m.texto, m.tipo, m.media, m.created_at, m.reply_to,
+      `SELECT m.id, m.user_key, m.usuario, ${AVATAR_VIGENTE} AS avatar, m.texto, m.tipo, m.media, m.created_at, m.reply_to,
               m.editado, m.eliminado,
               r.usuario AS reply_usuario, r.texto AS reply_texto,
               (SELECT COUNT(*)::int FROM comunidad_chat_leido cl
@@ -1120,7 +1135,11 @@ r.get('/dm/chats', async (req, res, next) => {
     const { rows } = await query(
       `SELECT c.id,
               CASE WHEN c.a_key = $1 THEN c.b_key ELSE c.a_key END AS otro_key,
-              u.usuario AS otro_usuario, u.nombre AS otro_nombre, u.avatar AS otro_avatar,
+              u.usuario AS otro_usuario, u.nombre AS otro_nombre,
+              COALESCE(u.avatar,
+                       (SELECT ch.avatar FROM channels ch
+                         WHERE ch.user_key = CASE WHEN c.a_key = $1 THEN c.b_key ELSE c.a_key END
+                           AND ch.avatar IS NOT NULL LIMIT 1)) AS otro_avatar,
               (SELECT ch.slug FROM channels ch
                 WHERE ch.user_key = CASE WHEN c.a_key = $1 THEN c.b_key ELSE c.a_key END
                 LIMIT 1) AS otro_canal_slug,
@@ -1157,7 +1176,7 @@ r.get('/dm/:otroKey/mensajes', async (req, res, next) => {
     const conv = await dmConversacion(userKey, otroKey, false);
     if (!conv) return res.json({ data: [] });
     const { rows } = await query(
-      `SELECT m.id, m.user_key, m.usuario, m.avatar, m.texto, m.tipo, m.media, m.created_at, m.reply_to,
+      `SELECT m.id, m.user_key, m.usuario, ${AVATAR_VIGENTE} AS avatar, m.texto, m.tipo, m.media, m.created_at, m.reply_to,
               m.editado, m.eliminado,
               r.usuario AS reply_usuario, r.texto AS reply_texto,
               EXISTS(SELECT 1 FROM dm_leido dl

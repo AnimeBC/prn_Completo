@@ -179,6 +179,10 @@ r.post('/mine/avatar', authRequired, avatarUpload.single('avatar'), async (req, 
     const avatarPublic = publicOf(path.join(folder, chosen ? chosen.file : main));
 
     await query('UPDATE channels SET avatar = $2, updated_at = NOW() WHERE id = $1', [ch.id, avatarPublic]);
+    // Mantiene users.avatar en sincronia: el chat y demas listas leen users.avatar.
+    if (ch.user_key) {
+      await query('UPDATE users SET avatar = $1, updated_at = NOW() WHERE user_key = $2', [avatarPublic, ch.user_key]);
+    }
     await publishEvent('channel_updated', { id: ch.id });
     res.json({ ok: true, avatar: avatarPublic });
   } catch (e) { next(e); }
@@ -237,6 +241,8 @@ r.post('/user/avatar', avatarUpload.single('avatar'), async (req, res, next) => 
     const avatarPublic = publicOf(path.join(folder, chosen ? chosen.file : main));
 
     await query('UPDATE channels SET avatar = $2, updated_at = NOW() WHERE id = $1', [ch.id, avatarPublic]);
+    // Mantiene users.avatar en sincronia: el chat y demas listas leen users.avatar.
+    await query('UPDATE users SET avatar = $1, updated_at = NOW() WHERE user_key = $2', [avatarPublic, userKey]);
     await publishEvent('channel_updated', { id: ch.id });
     res.json({ ok: true, avatar: avatarPublic });
   } catch (e) { next(e); }

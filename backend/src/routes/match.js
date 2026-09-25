@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db/pool.js';
 import { publishEvent, redis } from '../db/redis.js';
 import { authRequired } from '../middleware/auth.js';
+import { crearNotificacion } from './notificaciones.js';
 
 const r = Router();
 
@@ -443,9 +444,11 @@ r.post('/reporte', async (req, res, next) => {
        RETURNING id, created_at`,
       [matchId, user.user_key, denunciadoKey, motivo, detalle || null],
     );
+    // Detalle completo: SOLO el admin lo ve (tipo 'match_reporte' con user_key
+    // NULL no aparece en las listas de usuarios ni de invitados).
     const notif = await query(
       `INSERT INTO notificaciones (user_key, tipo, titulo, texto, url, icono, actor_nombre, actor_avatar)
-       VALUES (NULL, 'admin', $1, $2, $3, $4, $5, NULL)
+       VALUES (NULL, 'match_reporte', $1, $2, $3, $4, $5, NULL)
        RETURNING id`,
       [
         'Reporte en Match',
@@ -455,6 +458,14 @@ r.post('/reporte', async (req, res, next) => {
         'Sistema Match',
       ],
     );
+    // Al denunciante solo le llega la confirmacion de su propio reporte.
+    await crearNotificacion({
+      userKey: user.user_key,
+      tipo: 'reporte',
+      titulo: 'Reporte enviado',
+      texto: 'Tu reporte ha sido enviado. Lo estaremos revisando.',
+      icono: 'flag-outline',
+    });
     try { await publishEvent('notificacion_admin', { id: notif.rows[0].id }); } catch { /* opcional */ }
     res.status(201).json({ ok: true, id: rows[0].id });
   } catch (e) { next(e); }
