@@ -37,6 +37,11 @@ const nextConfig = {
       { protocol: 'http', hostname: '192.168.1.100', port: '3001' },
       { protocol: 'http', hostname: 'pikantepe.com', port: '3001' },
       { protocol: 'https', hostname: 'pikantepe.com' },
+      // Avatares de cuentas que entraron con Google (users.avatar guarda la URL
+      // de lh3.googleusercontent.com). Sin esto next/image truena y el avatar
+      // no se ve en el chat aunque la imagen exista.
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
+      { protocol: 'https', hostname: '*.googleusercontent.com' },
     ],
     // Next 16 bloquea las IPs locales por defecto; el backend corre en
     // localhost:3001 (dev y VPS) — sin esto el optimizer da 400.

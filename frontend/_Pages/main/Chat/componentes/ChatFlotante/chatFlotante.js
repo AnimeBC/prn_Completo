@@ -207,6 +207,8 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   const [dragOver, setDragOver] = useState(false);
   // Visor de album: { items: [], idx, cap, autor } — recorrer el grupo completo.
   const [albumVis, setAlbumVis] = useState(null);
+  // Avatares que fallaron al cargar (URL externa caida): se muestra la inicial.
+  const [avataresMal, setAvataresMal] = useState(() => new Set());
   // Archivos en cola: se ven sobre el input hasta que se envíen (Enter o botón).
   const [pendientes, setPendientes] = useState([]);
   // Si hay varios y no caben, se ocultan tras un "+N" (clic para desplegar).
@@ -1285,8 +1287,8 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                   title={es ? 'Ver perfil' : 'View profile'}
                   onClick={() => irAlPerfil(m)}
                 >
-                  {m.avatar
-                    ? <Image src={comunidadMedia(m.avatar)} alt="" width={28} height={28} loading="lazy" />
+                  {m.avatar && !avataresMal.has(String(m.id))
+                    ? <Image src={comunidadMedia(m.avatar)} alt="" width={28} height={28} loading="lazy" onError={() => setAvataresMal((s) => new Set(s).add(String(m.id)))} />
                     : <span>{String(m.usuario || 'U').trim().slice(0, 1).toUpperCase()}</span>}
                 </button>
               )}
