@@ -918,9 +918,10 @@ r.post('/grupos/:id/mensajes', communityUpload.array('media', 10), async (req, r
         tipo: 'respuesta',
         titulo: `${nameOf(user)} respondió a tu mensaje`,
         texto: texto || `[${tipo}]`,
-        url: `/comunidad?grupo=${id}`,
+        url: `/chat?conv=${id}`,
         icono: 'return-down-forward',
         actor: user,
+        meta: { grupo_id: id, mensaje_id: ins.rows[0].id },
       });
     }
   } catch (e) { next(e); }
@@ -1007,10 +1008,10 @@ r.post('/mensajes/:msjId/reaccion', async (req, res, next) => {
       tipo: 'reaccion',
       titulo: `${nameOf(user)} reaccionó a tu mensaje`,
       texto: emoji,
-      url: `/comunidad?grupo=${comId || ''}`,
+      url: comId ? `/chat?conv=${comId}` : '/chat',
       icono: 'happy-outline',
       actor: user,
-      meta: { mensaje_id: msjId },
+      meta: { mensaje_id: msjId, grupo_id: comId || null },
     });
   } catch (e) { next(e); }
 });
@@ -1771,24 +1772,52 @@ r.post('/amistad/:userKey', async (req, res, next) => {
       );
     } else if (accion === 'aceptar') {
       await query("UPDATE amistades SET estado = 'aceptado', updated_at = NOW() WHERE a_key = $1 AND b_key = $2 AND estado = 'pendiente'", [a, b]);
-      // Limpia los avisos de solicitud pendiente (leidos o no) en ambos lados.
+      // Limpia SOLO los avisos de solicitud pendiente del SOLICITANTE (otro),
+      // que ya no aplican. Los del aceptante (me) se conservan y se convierten
+      // en "Solicitud aceptada" para que no desaparezcan de sus notificaciones.
       await query(
         `DELETE FROM notificaciones
-          WHERE tipo = 'amistad' AND user_key IN ($1, $2) AND actor_key IN ($1, $2)
+          WHERE tipo = 'amistad' AND user_key = $1 AND actor_key = $2
             AND lower(titulo) LIKE '%solicitud%' AND lower(titulo) NOT LIKE '%aceptad%'`,
-        [me, otro]
+        [otro, me]
       );
       try {
         const u = await query('SELECT user_key, usuario, nombre, avatar FROM users WHERE user_key = $1', [me]);
+        const yo = u.rows[0] || null;
+        // Para el aceptante: su aviso pasa a "Solicitud aceptada" (no desaparece).
+        const upd = await query(
+          `UPDATE notificaciones
+              SET titulo = 'Solicitud aceptada',
+                  texto = $3,
+                  icono = 'people',
+                  meta = (COALESCE(meta, '{}'::jsonb) - 'amistad') || jsonb_build_object('de', $4::text, 'resuelta', true)
+            WHERE tipo = 'amistad' AND user_key = $1 AND actor_key = $2
+              AND lower(titulo) LIKE '%solicitud%' AND lower(titulo) NOT LIKE '%aceptad%'`,
+          [me, otro, `Aceptaste la solicitud de ${nameOf(yo || {})}`, otro]
+        );
+        // Si no había aviso pendiente del aceptante (p.ej. fue borrado), se crea.
+        if (!upd.rowCount) {
+          await crearNotificacion({
+            userKey: me,
+            tipo: 'amistad',
+            titulo: 'Solicitud aceptada',
+            texto: `Aceptaste la solicitud de ${nameOf(yo || {})}`,
+            url: otroCanalUrl({ user_key: otro }),
+            icono: 'people',
+            actor: { user_key: otro },
+            meta: { de: otro, resuelta: true },
+          });
+        }
+        // Para el solicitante (otro): se crea el aviso de que fue aceptado.
         await crearNotificacion({
           userKey: otro,
           tipo: 'amistad',
           titulo: 'Solicitud aceptada',
-          texto: `${nameOf(u.rows[0] || {})} aceptó tu solicitud de amistad`,
+          texto: `${nameOf(yo || {})} aceptó tu solicitud de amistad`,
           url: otroCanalUrl({ user_key: me }),
           icono: 'people',
-          actor: u.rows[0] || null,
-          meta: { de: me },
+          actor: yo,
+          meta: { de: me, resuelta: true },
         });
       } catch { /* opcional */ }
     } else if (accion === 'rechazar') {

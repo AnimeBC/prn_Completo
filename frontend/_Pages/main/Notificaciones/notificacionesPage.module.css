@@ -164,12 +164,14 @@
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 0 14px 12px 64px;
 }
 
 .accept,
-.reject {
+.reject,
+.profile {
   flex: 1;
   padding: 8px 10px;
   border-radius: 8px;
@@ -191,8 +193,14 @@
   color: var(--text-primary, #FFFFFF);
 }
 
+.profile {
+  background-color: transparent;
+  color: var(--text-primary, #FFFFFF);
+}
+
 .accept:disabled,
-.reject:disabled {
+.reject:disabled,
+.profile:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

@@ -12,6 +12,7 @@ import {
   marcarTodasLeidas,
   responderSolicitud,
 } from '@/_Extras/Notificaciones/api.js';
+import { apiComunidad } from '@/_Extras/Comunidad/api.js';
 
 const LOCAL_KEY = 'pkp_notif_leidas';
 
@@ -80,6 +81,11 @@ export default function NotificacionesPage() {
       setItems((cur) => cur.map((x) => (x.id === n.id ? { ...x, leida: true } : x)));
       setNoLeidas((c) => Math.max(0, c - 1));
     }
+    // Las notificaciones de amistad llevan al perfil del otro (o al chat).
+    if (n.tipo === 'amistad' && (n.meta?.de || n.actor_key)) {
+      irAPerfil(n.meta?.de || n.actor_key);
+      return;
+    }
     if (n.url) router.push(n.url);
   }
 
@@ -128,8 +134,78 @@ export default function NotificacionesPage() {
         {authed && !loading && items.length === 0 && (
           <p className={styles.empty}>{es ? 'No tienes notificaciones por ahora.' : 'You have no notifications yet.'}</p>
         )}
+  // Navega al perfil publico del usuario (o a su chat directo como respaldo).
+  async function irAPerfil(actorKey) {
+    if (!actorKey) return;
+    const r = await apiComunidad.canalSlug(actorKey);
+    if (r?.slug) router.push(`/canal/${r.slug}`);
+    else router.push(`/chat?dm=${encodeURIComponent(actorKey)}`);
+  }
+
+  // Aceptar / cancelar una solicitud de amistad desde la notificacion.
+  async function onAmistad(n, estado) {
+    const de = n.meta?.de || n.actor_key;
+    if (!de || !key) return;
+    setBusy(`${n.id}-${estado}`);
+    const accion = estado === 'aceptar' ? 'aceptar' : 'cancelar';
+    const r = await apiComunidad.amistadAccion(de, key, accion);
+    setBusy(null);
+    if (r?.error) return;
+    setItems((cur) => cur.map((x) => (x.id === n.id
+      ? {
+          ...x,
+          titulo: estado === 'aceptar' ? (es ? 'Solicitud aceptada' : 'Request accepted') : (es ? 'Solicitud cancelada' : 'Request cancelled'),
+          meta: { ...x.meta, resuelta: true, cancelada: estado !== 'aceptar' },
+        }
+      : x)));
+    load();
+  }
+
+  // Por persona, solo la notificacion de amistad mas reciente lleva acciones.
+  const amistadReciente = (() => {
+    const map = new Map();
+    for (const n of items) {
+      if (n.tipo !== 'amistad') continue;
+      const actor = n.meta?.de || n.actor_key;
+      if (!actor) continue;
+      const actual = map.get(actor);
+      if (!actual || new Date(n.created_at) > new Date(actual.created_at)) map.set(actor, n);
+    }
+    return map;
+  })();
+
+  return (
+    <main className={styles.page}>
+      <div className={styles.head}>
+        <h1 className={styles.title}>{es ? 'Notificaciones' : 'Notifications'}</h1>
+        {noLeidas > 0 && (
+          <button type="button" className={styles.markAll} onClick={onTodas}>
+            {es ? 'Marcar todas' : 'Mark all'}
+          </button>
+        )}
+      </div>
+
+      <div className={styles.list}>
+        {!authed && (
+          <p className={styles.empty}>{es ? 'Inicia sesión para ver tus notificaciones.' : 'Sign in to see your notifications.'}</p>
+        )}
+        {authed && loading && <p className={styles.empty}>{es ? 'Cargando…' : 'Loading…'}</p>}
+        {authed && !loading && items.length === 0 && (
+          <p className={styles.empty}>{es ? 'No tienes notificaciones por ahora.' : 'You have no notifications yet.'}</p>
+        )}
         {items.map((n) => {
           const esSolicitud = n.tipo === 'solicitud' && n.meta?.sol_id;
+          const actorKey = n.meta?.de || n.actor_key || null;
+          const esAmistad = n.tipo === 'amistad' && !!actorKey;
+          const esRecienteDeActor = esAmistad && amistadReciente.get(actorKey)?.id === n.id;
+          const tituloLower = String(n.titulo || '').toLowerCase();
+          const esCancelada = tituloLower.includes('cancelad');
+          const esPendiente = esAmistad
+            && tituloLower.includes('solicitud')
+            && !/aceptad|rechazad|cancelad/i.test(tituloLower)
+            && !n.meta?.resuelta;
+          const esAmistadPendiente = esRecienteDeActor && esPendiente;
+          const esAmistadResuelta = esRecienteDeActor && esAmistad && !esPendiente && !esCancelada;
           return (
             <div key={n.id} className={`${styles.item} ${n.leida ? '' : styles.itemNew}`}>
               <button type="button" className={styles.itemMain} onClick={() => onItem(n)}>
@@ -159,6 +235,31 @@ export default function NotificacionesPage() {
                   </button>
                   <button type="button" className={styles.reject} disabled={busy === `${n.id}-rechazado`} onClick={() => onResponder(n, 'rechazado')}>
                     {es ? 'Rechazar' : 'Reject'}
+                  </button>
+                </div>
+              )}
+
+              {esAmistadPendiente && (
+                <div className={styles.actions}>
+                  <button type="button" className={styles.accept} disabled={busy === `${n.id}-aceptar`} onClick={() => onAmistad(n, 'aceptar')}>
+                    {es ? 'Aceptar' : 'Accept'}
+                  </button>
+                  <button type="button" className={styles.reject} disabled={busy === `${n.id}-cancelar`} onClick={() => onAmistad(n, 'cancelar')}>
+                    {es ? 'Cancelar' : 'Cancel'}
+                  </button>
+                  <button type="button" className={styles.profile} onClick={() => irAPerfil(actorKey)}>
+                    {es ? 'Ver perfil' : 'View profile'}
+                  </button>
+                </div>
+              )}
+
+              {esAmistadResuelta && (
+                <div className={styles.actions}>
+                  <button type="button" className={styles.profile} onClick={() => irAPerfil(actorKey)}>
+                    {es ? 'Ver perfil' : 'View profile'}
+                  </button>
+                  <button type="button" className={styles.accept} onClick={() => router.push(`/chat?dm=${encodeURIComponent(actorKey)}`)}>
+                    {es ? 'Enviar mensaje' : 'Send message'}
                   </button>
                 </div>
               )}
