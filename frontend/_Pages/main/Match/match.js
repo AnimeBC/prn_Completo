@@ -93,6 +93,9 @@ export default function MatchContent() {
   const localRef = useRef(null);
   const pendingRef = useRef([]);
   const matchRef = useRef(null);
+  // Ultima pareja conocida: sobrevive al match_end para poder reportarla
+  // aunque la persona ya se haya desconectado.
+  const ultimoPeerRef = useRef(null);
   const iceRef = useRef([{ urls: 'stun:stun.l.google.com:19302' }]);
   const faseRef = useRef('idle');
   const chatBoxRef = useRef(null);
@@ -403,8 +406,13 @@ export default function MatchContent() {
   }, [userKey, closePc, pushMsg, t, filtrosBusca]);
 
   const enviarReporte = useCallback(async () => {
-    const m = matchRef.current;
-    if (!m || !userKey || repEnviando) return;
+    if (repEnviando) return;
+    // Vale con la ultima pareja: se puede reportar incluso tras el match_end.
+    const m = matchRef.current || ultimoPeerRef.current;
+    if (!m || !userKey) {
+      setRepError(t('match.reporteRequiere'));
+      return;
+    }
     setRepError(null);
     setRepEnviando(true);
     try {
@@ -456,6 +464,10 @@ export default function MatchContent() {
           peerKey: p.peerKey,
           peerNombre: p.peerNombre || '',
         };
+        ultimoPeerRef.current = {
+          matchId: p.matchId,
+          peerKey: p.peerKey,
+        };
         // Chat nuevo = pareja nueva: se limpia todo lo anterior.
         setMensajes([]);
         setPeerNombre(p.peerNombre || '');
@@ -474,24 +486,22 @@ export default function MatchContent() {
 
       if (tipo === 'match_end') {
         if (String(p.para) !== userKey) return;
+        // eraNuestro cubre la carrera: matchRef ya seteado pero faseRef
+        // todavia 'buscando' si llegaron los dos eventos en el mismo tick.
+        const eraNuestro = !!(matchRef.current && (!p.matchId || p.matchId === matchRef.current.matchId));
         if (matchRef.current && p.matchId && p.matchId !== matchRef.current.matchId) return;
         matchRef.current = null;
         closePc();
         setRemoteStream(null);
         setPeerNombre('');
-        if (faseRef.current === 'conectado') {
-          if (p.motivo === 'siguiente') {
-            // El par nos salto: re-emparejar SOLO, sin pedir clic.
-            setMensajes([]);
-            setSeg(0);
-            setSinCompat(false);
-            setFase('buscando');
-            pushMsg({ de: 'sistema', texto: t('match.buscarOtra') });
-            arrancarRef.current?.();
-          } else {
-            setFase('fin');
-            pushMsg({ de: 'sistema', texto: t('match.seFue') });
-          }
+        if (faseRef.current === 'conectado' || eraNuestro) {
+          // El par se salto o se desconecto: re-emparejar SOLO, sin pedir clic.
+          setMensajes([]);
+          setSeg(0);
+          setSinCompat(false);
+          setFase('buscando');
+          pushMsg({ de: 'sistema', texto: t('match.buscarOtra') });
+          arrancarRef.current?.();
         }
         return;
       }
@@ -816,8 +826,10 @@ export default function MatchContent() {
               type="button"
               className={styles.flagBtn}
               onClick={() => {
-                if (fase !== 'conectado') { setRepError(t('match.reporteRequiere')); return; }
-                setRepError(null);
+                // Se puede reportar incluso tras la desconexion (ultimoPeerRef)
+                // o sin pareja: en ese caso el aviso sale DENTRO del modal.
+                const hayPar = !!(matchRef.current || ultimoPeerRef.current);
+                setRepError(hayPar ? null : t('match.reporteRequiere'));
                 setRepAbierto(true);
               }}
               title={t('match.reportar')}

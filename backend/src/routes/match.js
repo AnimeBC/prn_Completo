@@ -431,7 +431,9 @@ r.post('/reporte', async (req, res, next) => {
     }
     if (matchId) {
       const par = await leerPar(matchId);
-      if (!par || (par.a !== user.user_key && par.b !== user.user_key)) {
+      // Si el match sigue vivo exige ser miembro; si ya termino (par borrado
+      // tras salir/siguiente), la denuncia se acepta igual: importa la cuenta.
+      if (par && (par.a !== user.user_key && par.b !== user.user_key)) {
         return res.status(403).json({ error: 'Match no valido' });
       }
     }
