@@ -118,9 +118,17 @@ export function RealtimeProvider({ children }) {
         if (tipo === 'notificacion') sonar = !!p.userKey && String(p.userKey) === mine;
         else if (tipo === 'notificacion_admin') sonar = true;
         else if (tipo === 'comunidad_dm') {
-          sonar = !!p.para && String(p.para) === mine && String(p.de || '') !== mine;
+          // Silenciado: la conversación está silenciada por quien la recibe.
+          sonar = !!p.para && String(p.para) === mine && String(p.de || '') !== mine && !p.silenciado;
         } else if (tipo === 'comunidad_mensaje') {
-          sonar = !!p.de && String(p.de) !== mine;
+          // Grupos silenciados en la lista de chats: no suenan
+          // (cache que escribe chat.js al cargar el estado).
+          let silenciado = false;
+          try {
+            silenciado = (JSON.parse(window.localStorage.getItem('pkp_grupos_silenciados') || '[]') || [])
+              .includes(String(p.comunidad_id));
+          } catch { /* noop */ }
+          sonar = !!p.de && String(p.de) !== mine && !silenciado;
         }
         // Las llamadas entrantes usan su propio timbre (playRing) desde CallProvider.
         if (sonar) playNotification();

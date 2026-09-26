@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import styles from './chatFlotante.module.css';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
+import { API_URL } from '@/_Extras/Api/api.js';
 import { comunidadMedia, apiComunidad } from '@/_Extras/Comunidad/api.js';
 import { abrirCanal } from '@/_Extras/Canales/canal.js';
 import { presenciaEstado } from '@/_Extras/Fecha/fecha.js';
@@ -14,6 +15,8 @@ import Premium from '@/_Pages/main/Chat/componentes/premium';
 import Restringido from '@/_Pages/main/Chat/componentes/restringido';
 import Reproductor from '@/_Pages/main/Videos/componentes/reproductor';
 import AudioMsg from '@/_Pages/main/Chat/componentes/audioMsg';
+import InfoGrupo from '@/_Pages/main/Chat/componentes/InfoGrupo/InfoGrupo';
+import InfoDM from '@/_Pages/main/Chat/componentes/InfoDM/InfoDM';
 
 const EMOJIS = ['👍', '🔥', '😂', '😮', '😢', '❤️'];
 
@@ -38,6 +41,37 @@ function parseMedia(raw) {
     } catch { return [raw]; }
   }
   return [raw];
+}
+
+/** Texto del mensaje con los enlaces (http/https) clicables.
+ *  La puntuacion final (, . ! ? ) etc.) queda fuera del enlace. */
+function conEnlaces(texto) {
+  const raw = String(texto || '');
+  const out = [];
+  const re = /https?:\/\/[^\s<]+/g;
+  let last = 0;
+  let m = re.exec(raw);
+  while (m) {
+    let url = m[0];
+    let cola = '';
+    while (url.length > 8 && '.,;:!?)]}\'"'.includes(url.slice(-1))) {
+      cola = url.slice(-1) + cola;
+      url = url.slice(0, -1);
+    }
+    out.push(raw.slice(last, m.index));
+    if (url) {
+      out.push(
+        <a key={`l${m.index}`} href={url} target="_blank" rel="nofollow noopener">
+          {url}
+        </a>
+      );
+    }
+    out.push(cola);
+    last = m.index + m[0].length;
+    m = re.exec(raw);
+  }
+  out.push(raw.slice(last));
+  return out;
 }
 
 /** Carpeta/extension del archivo -> tipo de medio (foto | video | audio). */
@@ -209,6 +243,75 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   const [albumVis, setAlbumVis] = useState(null);
   // Avatares que fallaron al cargar (URL externa caida): se muestra la inicial.
   const [avataresMal, setAvataresMal] = useState(() => new Set());
+  // Modales de información: al abrirlo se agrega ?info=grupo | ?info=persona
+  // a la URL para que el botón atrás del navegador lo cierre (sin salir).
+  const [infoGrupo, setInfoGrupo] = useState(false);
+  const [infoDm, setInfoDm] = useState(false);
+  const infoPushRef = useRef({});
+
+  // Atrás del navegador con un modal abierto -> cierra el modal, no la página.
+  useEffect(() => {
+    const onPop = () => {
+      const v = typeof window !== 'undefined'
+        ? new URL(window.location.href).searchParams.get('info') : null;
+      if (v !== 'grupo') {
+        infoPushRef.current.grupo = false;
+        setInfoGrupo((x) => (x ? false : x));
+      }
+      if (v !== 'persona') {
+        infoPushRef.current.persona = false;
+        setInfoDm((x) => (x ? false : x));
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // El header (celular) pide abrir la información del grupo de ESTE chat.
+  useEffect(() => {
+    const onInfo = (e) => {
+      if (tipo !== 'grupo' || !grupoId) return;
+      const gid = e?.detail?.grupoId;
+      if (gid !== undefined && gid !== null && String(gid) !== String(grupoId)) return;
+      abrirInfoGrupo();
+    };
+    window.addEventListener('pkp:infogroup', onInfo);
+    return () => window.removeEventListener('pkp:infogroup', onInfo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipo, grupoId]);
+
+  function abrirInfo(tipoInfo) {
+    if (tipoInfo === 'grupo' && !grupoId) return;
+    if (tipoInfo === 'persona' && !otroKey) return;
+    if (tipoInfo === 'grupo') setInfoGrupo(true);
+    else setInfoDm(true);
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('info') !== tipoInfo) {
+      url.searchParams.set('info', tipoInfo);
+      infoPushRef.current[tipoInfo] = true;
+      router.push(url.pathname + url.search, { scroll: false });
+    }
+  }
+
+  function cerrarInfo(tipoInfo) {
+    if (tipoInfo === 'grupo') setInfoGrupo(false);
+    else setInfoDm(false);
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('info') !== tipoInfo) return;
+    if (infoPushRef.current[tipoInfo]) {
+      infoPushRef.current[tipoInfo] = false;
+      router.back();
+    } else {
+      // La URL ya traía el parámetro: solo se limpia.
+      url.searchParams.delete('info');
+      router.replace(url.pathname + url.search, { scroll: false });
+    }
+  }
+
+  function abrirInfoGrupo() { abrirInfo('grupo'); }
+  function cerrarInfoGrupo() { cerrarInfo('grupo'); }
   // Archivos en cola: se ven sobre el input hasta que se envíen (Enter o botón).
   const [pendientes, setPendientes] = useState([]);
   // Si hay varios y no caben, se ocultan tras un "+N" (clic para desplegar).
@@ -248,6 +351,17 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
       if (r && r.suApodo !== undefined) setSuApodo(r.suApodo || '');
       if (r && r.canal_slug !== undefined) setCanalSlug(r.canal_slug || '');
       if (r && r.tema) setTema({ gradient: r.tema.gradient || '', color: r.tema.color || '', emoji: r.tema.emoji || '' });
+    }
+    // Ej. "Fuiste eliminado de este grupo": se avisa y se vacía el chat.
+    if (r?.error) {
+      if (/bloquead/i.test(r.error)) {
+        // Bloqueo en DM: el aviso lo da la barra reemplazada (sin error doble).
+        setMensajes([]);
+      } else {
+        setMsg(r.error);
+        if (tipo === 'grupo') setMensajes([]);
+      }
+      return;
     }
     if (!Array.isArray(r?.data)) return;
     const data = r.data;
@@ -379,6 +493,154 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
     };
   }, [tipo, otroKey]);
 
+  // Estado del chat del grupo: envío de mensajes, stats en vivo y bloqueos.
+  // Redis (SSE -> pikantepe:change) refleja en TODAS las sesiones/pestañas
+  // (PC y móvil) cuando se elimina el grupo o se expulsa a alguien.
+  const [chatInfoGrupo, setChatInfoGrupo] = useState(null); // { chatActivo, soyDueno }
+  const [grupoStats, setGrupoStats] = useState(null);       // { miembros, activos }
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (tipo !== 'grupo' || !grupoId) {
+      setChatInfoGrupo(null);
+      setGrupoStats(null);
+      return undefined;
+    }
+    let alive = true;
+    let ultimaPresencia = 0;
+    const cargarCfg = () => apiComunidad.grupo(grupoId, userKey)
+      .then((r) => {
+        if (!alive) return;
+        if (!r?.grupo) {
+          // El grupo ya no existe: fue eliminado -> se refleja en todas sesiones.
+          setMsg(es ? 'Este grupo fue eliminado.' : 'This group was deleted.');
+          if (onCloseRef.current) onCloseRef.current();
+          return;
+        }
+        setChatInfoGrupo({ chatActivo: r.grupo.chat_activo !== false, soyDueno: !!r.soyDueno });
+        // Mismos datos que la página del grupo: miembros y "en línea" reales.
+        setGrupoStats({ miembros: r.grupo.miembros || 0, activos: r.grupo.activos || 0 });
+        if (r.expulsado) {
+          setMsg(es
+            ? 'Fuiste eliminado de este grupo. No puedes ver sus mensajes ni volver a unirte.'
+            : 'You were removed from this group. You cannot see its messages or rejoin.');
+          // Refresca los mensajes: el backend responde 403 y se vacía el chat.
+          cargar();
+        }
+      })
+      .catch(() => {});
+    cargarCfg();
+    const onChange = (e) => {
+      const d = e?.detail || {};
+      const t = String(d.type || '');
+      if (t === 'comunidad_grupo') { cargarCfg(); return; }
+      if (t === 'comunidad_join') {
+        const id = d.payload?.id;
+        if (id !== undefined && String(id) !== String(grupoId)) return;
+        cargarCfg();
+        return;
+      }
+      // Presencia: los latidos llegan seguidos -> como mucho 1 cada 3s.
+      if (t === 'comunidad_presencia') {
+        const ahora = Date.now();
+        if (ahora - ultimaPresencia >= 3000) {
+          ultimaPresencia = ahora;
+          cargarCfg();
+        }
+      }
+    };
+    window.addEventListener('pikantepe:change', onChange);
+    return () => {
+      alive = false;
+      window.removeEventListener('pikantepe:change', onChange);
+    };
+  }, [tipo, grupoId, userKey, es]);
+
+  // true = el dueño desactivó el envío de mensajes en este grupo.
+  const chatOff = tipo === 'grupo' && !!chatInfoGrupo && chatInfoGrupo.chatActivo === false;
+
+  // ---- Bloqueo en la conversación 1 a 1 ----
+  // Si hay bloqueo (de cualquiera de los dos lados), el input se reemplaza
+  // por un aviso; si lo puse yo aparecen Desbloquear / Reportar.
+  const [dmBloqueo, setDmBloqueo] = useState(null); // { bloqueoMio, bloqueadoPorEl }
+  const dmBloqueoRef = useRef(null);
+  dmBloqueoRef.current = dmBloqueo;
+  const dmBloqueado = tipo === 'dm' && !!dmBloqueo && (dmBloqueo.bloqueoMio || dmBloqueo.bloqueadoPorEl);
+
+  // Reporte de la persona (modal con motivo + detalle).
+  const [reporteOpen, setReporteOpen] = useState(false);
+  const [motivos, setMotivos] = useState([]);
+  const [motivoSel, setMotivoSel] = useState('');
+  const [motivoTexto, setMotivoTexto] = useState('');
+  const [reportando, setReportando] = useState(false);
+  const [msgReporte, setMsgReporte] = useState('');
+
+  useEffect(() => {
+    if (tipo !== 'dm' || !otroKey || !userKey) {
+      setDmBloqueo(null);
+      return undefined;
+    }
+    setDmBloqueo(null);
+    let alive = true;
+    const cargarBloq = () => apiComunidad.relacion(otroKey, userKey)
+      .then((r) => {
+        if (alive && r && !r.error) {
+          setDmBloqueo({ bloqueoMio: !!r.bloqueoMio, bloqueadoPorEl: !!r.bloqueadoPorEl });
+        }
+      })
+      .catch(() => {});
+    cargarBloq();
+    // Redis -> SSE: el bloqueo/desbloqueo se refleja en ambos lados al instante.
+    const onChange = (e) => {
+      const d = e?.detail || {};
+      if (String(d.type || '') !== 'comunidad_bloqueo') return;
+      const p = d.payload || {};
+      const esDeEsta = (String(p.de) === String(userKey) && String(p.para) === String(otroKey))
+        || (String(p.de) === String(otroKey) && String(p.para) === String(userKey));
+      if (esDeEsta) cargarBloq();
+    };
+    window.addEventListener('pikantepe:change', onChange);
+    return () => {
+      alive = false;
+      window.removeEventListener('pikantepe:change', onChange);
+    };
+  }, [tipo, otroKey, userKey]);
+
+  async function desbloquearDM() {
+    const r = await apiComunidad.bloquear(userKey, otroKey, 'desbloquear');
+    if (r && !r.error) setDmBloqueo((x) => ({ ...(x || {}), bloqueoMio: false }));
+  }
+
+  function abrirReporte() {
+    setMotivoSel('');
+    setMotivoTexto('');
+    setMsgReporte('');
+    setReporteOpen(true);
+    if (!motivos.length) {
+      fetch(`${API_URL}/api/report-motivos`)
+        .then((r) => r.json())
+        .then((j) => setMotivos(Array.isArray(j?.data) ? j.data : []))
+        .catch(() => setMotivos([]));
+    }
+  }
+
+  async function enviarReporte() {
+    if (!motivoSel || reportando) return;
+    setReportando(true);
+    setMsgReporte('');
+    const r = await apiComunidad.reportar({
+      userKey,
+      tipo: 'usuario',
+      target_key: otroKey,
+      motivo: motivoSel,
+      detalle: motivoTexto,
+    });
+    setReportando(false);
+    if (r?.error) { setMsgReporte(r.error); return; }
+    setMsgReporte(es ? 'Reporte enviado. Lo revisaremos.' : 'Report sent. We will review it.');
+    setTimeout(() => { setReporteOpen(false); setMsgReporte(''); }, 1100);
+  }
+
   // Al cambiar de conversacion: estado limpio y abierto en el ULTIMO mensaje
   // (aunque la instancia no se desmonte por alguna otra via).
   useEffect(() => {
@@ -431,15 +693,15 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
     return () => clearTimeout(t);
   }, [activo]);
 
-  // Solo marca "visto" el chat ACTIVO (en el que el usuario esta interactuando).
-  // Con varios modales abiertos, los demas no deben marcarse vistos.
+  // Solo marca "visto" el chat ACTIVO con la pestaña visible: NO hace falta
+  // tener el input enfocado (si el chat está abierto y llega un mensaje
+  // nuevo, se marca leído al instante y la lista no sigue marcándolo).
   useEffect(() => {
-    // Solo si el chat está activo, el input enfocado y la pestaña activa.
-    if (!activo || !inputFocused || !docFocused || !userKey) return;
+    if (!activo || !docFocused || !userKey) return;
     if (tipo === 'grupo' && grupoId) apiComunidad.marcarChatLeido(grupoId, userKey);
     if (tipo === 'dm' && otroKey) apiComunidad.dmLeido(otroKey, userKey);
     if (onVistoRef.current) onVistoRef.current();
-  }, [activo, inputFocused, docFocused, userKey, tipo, grupoId, otroKey, mensajes.length]);
+  }, [activo, docFocused, userKey, tipo, grupoId, otroKey, mensajes.length]);
 
   useEffect(() => {
     // Respaldo lento: la vía viva es el SSE (pikantepe:change).
@@ -531,6 +793,10 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
   /** Envía un mensaje con N archivos (álbum) o solo texto — UNA sola petición. */
   async function enviarPayload({ texto = '', tipoMsg = null, file = null, files = null }) {
     if (sending) return false;
+    // El dueño desactivó el envío de mensajes en este grupo.
+    if (chatOff) return false;
+    // Bloqueo (DM): no se envía nada mientras dure.
+    if (dmBloqueado) return false;
     const lista = files && files.length ? files : (file ? [file] : []);
     if (!texto && lista.length === 0) return false;
     // Excede el límite de la cuenta -> modal de restringido (no se envía).
@@ -1052,12 +1318,14 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           </span>
           <div className={styles.headInfo}>
             <strong className={styles.name}>{nombreMostrado}</strong>
-            <span className={`${styles.state} ${tipo === 'dm' && !presenciaEstado(otroEdad, es).online ? styles.stateOff : ''}`}>
+            <span className={`${styles.state} ${tipo === 'dm' && !dmBloqueado && !presenciaEstado(otroEdad, es).online ? styles.stateOff : ''}`}>
               {tipo !== 'grupo' && tema.emoji ? `${tema.emoji} ` : ''}
               {tipo === 'grupo'
-                ? (chat?.miembros
-                    ? `${fmtNum(chat.miembros)} ${es ? 'miembros' : 'members'} · ${fmtNum(chat.activos || 0)} ${es ? 'en línea' : 'online'}`
+                ? ((grupoStats?.miembros ?? chat?.miembros)
+                    ? `${fmtNum(grupoStats?.miembros ?? chat.miembros)} ${es ? 'miembros' : 'members'} · ${fmtNum(grupoStats ? grupoStats.activos : (chat?.activos || 0))} ${es ? 'en línea' : 'online'}`
                     : '')
+                // Bloqueados: no se muestra si está en línea ni cuándo estuvo.
+                : dmBloqueado ? ''
                 : presenciaEstado(otroEdad, es).label}
             </span>
           </div>
@@ -1081,7 +1349,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
               </button>
             )}
             {tipo === 'dm' && (
-              <button type="button" className={styles.iconBtn} onClick={irAlCanal} disabled={!canalSlug} title={es ? 'Información' : 'Info'}>
+              <button type="button" className={styles.iconBtn} onClick={() => abrirInfo('persona')} title={es ? 'Información' : 'Info'}>
                 <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
@@ -1102,12 +1370,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
               </span>
             )}
             {tipo === 'grupo' && (
-              <button type="button" className={styles.iconBtn} onClick={async () => { if (grupoId) router.push(await urlGrupo('miembros')); }} title={es ? 'Miembros' : 'Members'}>
-                <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
-              </button>
-            )}
-            {tipo === 'grupo' && (
-              <button type="button" className={styles.iconBtn} onClick={async () => { if (grupoId) router.push(await urlGrupo('informacion')); }} title={es ? 'Información del grupo' : 'Group info'}>
+              <button type="button" className={styles.iconBtn} onClick={() => { if (grupoId) abrirInfoGrupo(); }} title={es ? 'Información del grupo' : 'Group info'}>
                 <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
               </button>
             )}
@@ -1148,7 +1411,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                     </button>
                   )}
                   {tipo === 'dm' && (
-                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); irAlCanal(); }} disabled={!canalSlug}>
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); abrirInfo('persona'); }}>
                       <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Información' : 'Info'}
                     </button>
@@ -1178,7 +1441,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                     </button>
                   )}
                   {tipo === 'grupo' && (
-                    <button type="button" role="menuitem" onClick={async () => { setHeadMenuOpen(false); if (grupoId) router.push(await urlGrupo('informacion')); }}>
+                    <button type="button" role="menuitem" onClick={() => { setHeadMenuOpen(false); abrirInfoGrupo(); }}>
                       <ion-icon name="information-circle-outline" suppressHydrationWarning></ion-icon>
                       {es ? 'Información' : 'Info'}
                     </button>
@@ -1426,7 +1689,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
                     {m.media && m.tipo === 'audio' && <AudioMsg src={comunidadMedia(m.media)} mine={mio} onPlay={marcarVisto} />}
                     {(m.tipo === 'sticker' || m.tipo === 'gif') && m.texto
                       ? <span className={styles.sticker}>{m.texto}</span>
-                      : (m.texto && <span className={styles.text}>{m.texto}</span>)}
+                      : (m.texto && <span className={styles.text}>{conEnlaces(m.texto)}</span>)}
                     {m.editado && <span className={styles.editedLabel}>{es ? 'Mensaje editado' : 'Message edited'}</span>}
                   </>
                 )}
@@ -1543,7 +1806,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
         </div>
       )}
 
-      {msg && <p className={styles.error}>{msg}</p>}
+          {msg && !dmBloqueado && <p className={styles.error}>{msg}</p>}
 
       {pickerOpen && (
         <div className={styles.picker}>
@@ -1672,6 +1935,44 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
               )}
             </div>
           )}
+        {dmBloqueado ? (
+          /* Bloqueo: el input se reemplaza por el aviso (y acciones si yo
+             fui quien bloqueó). */
+          <div className={styles.footOff}>
+            <ion-icon name="ban-outline" suppressHydrationWarning></ion-icon>
+            <span className={styles.footOffText}>
+              {dmBloqueo?.bloqueoMio
+                ? (es ? 'Has bloqueado a este usuario.' : 'You blocked this user.')
+                : (es ? 'Este usuario no se le puede enviar mensajes.' : 'You cannot send messages to this user.')}
+            </span>
+            {dmBloqueo?.bloqueoMio && (
+              <span className={styles.footOffBtns}>
+                <button type="button" className={styles.footOffBtnOk} onClick={desbloquearDM} title={es ? 'Desbloquear' : 'Unblock'}>
+                  <ion-icon name="lock-open-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Desbloquear' : 'Unblock'}
+                </button>
+                <button type="button" className={styles.footOffBtnBad} onClick={abrirReporte} title={es ? 'Reportar' : 'Report'}>
+                  <ion-icon name="flag-outline" suppressHydrationWarning></ion-icon>
+                  {es ? 'Reportar' : 'Report'}
+                </button>
+              </span>
+            )}
+          </div>
+        ) : chatOff ? (
+          /* El dueño desactivó el envío: el input se reemplaza por el aviso. */
+          <div className={styles.footOff}>
+            <ion-icon name="lock-closed-outline" suppressHydrationWarning></ion-icon>
+            <span>
+              {chatInfoGrupo?.soyDueno
+                ? (es
+                  ? 'Desactivaste el envío de mensajes en este grupo. Actívalo en Información del grupo.'
+                  : 'You turned off message sending in this group. Enable it in Group info.')
+                : (es
+                  ? 'No se pueden enviar mensajes: el dueño desactivó esta opción.'
+                  : 'Messages are off: the owner disabled this option.')}
+            </span>
+          </div>
+        ) : (
         <div className={`${styles.foot} ${conNuevos ? styles.footUnread : ''}`}>
           <button
             type="button"
@@ -1713,6 +2014,7 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           )}
           <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" hidden multiple onChange={onArchivo} />
         </div>
+        )}
         </>
       )}
 
@@ -1814,6 +2116,84 @@ export default function ChatFlotante({ tipo = 'grupo', chat, userKey, onClose, o
           <div className={styles.ajustesFoot}>
             <button type="button" className={styles.ajustesReset} onClick={resetTema}>{es ? 'Restablecer' : 'Reset'}</button>
             <button type="button" className={styles.ajustesSave} onClick={guardarTema}>{es ? 'Guardar' : 'Save'}</button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de información del grupo (lateral izquierdo / pantalla completa). */}
+      {tipo === 'grupo' && (
+        <InfoGrupo
+          open={infoGrupo}
+          grupoId={grupoId}
+          userKey={userKey}
+          onClose={cerrarInfoGrupo}
+          onSalirGrupo={() => {
+            // Salir/eliminar: cierra el modal (y su ?info=grupo) y la ventana.
+            cerrarInfoGrupo();
+            if (onClose) onClose();
+          }}
+        />
+      )}
+
+      {/* Modal de información de la conversación 1 a 1 (perfil, acciones y
+          multimedia), con el mismo patrón de URL ?info=persona. */}
+      {tipo === 'dm' && otroKey && (
+        <InfoDM
+          open={infoDm}
+          otroKey={otroKey}
+          chat={chat}
+          userKey={userKey}
+          otroEdad={otroEdad}
+          onClose={() => cerrarInfo('persona')}
+        />
+      )}
+
+      {/* Modal de reporte de la persona. */}
+      {reporteOpen && (
+        <div
+          className={styles.repOverlay}
+          onClick={(e) => { if (e.target === e.currentTarget) setReporteOpen(false); }}
+        >
+          <div className={styles.repCard} role="dialog" aria-modal="true" aria-label={es ? 'Reportar usuario' : 'Report user'}>
+            <div className={styles.repHead}>
+              <strong>{es ? 'Reportar usuario' : 'Report user'}</strong>
+              <button type="button" className={styles.repClose} onClick={() => setReporteOpen(false)} aria-label={es ? 'Cerrar' : 'Close'}>
+                <ion-icon name="close-outline" suppressHydrationWarning></ion-icon>
+              </button>
+            </div>
+
+            <select className={styles.repSelect} value={motivoSel} onChange={(e) => setMotivoSel(e.target.value)}>
+              <option value="">{es ? 'Elige un motivo…' : 'Choose a reason…'}</option>
+              {(motivos.length ? motivos : [
+                { slug: 'spam', nombre: es ? 'Spam' : 'Spam' },
+                { slug: 'acoso', nombre: es ? 'Acoso o amenazas' : 'Harassment or threats' },
+                { slug: 'contenido', nombre: es ? 'Contenido ilegal' : 'Illegal content' },
+                { slug: 'otro', nombre: es ? 'Otro' : 'Other' },
+              ]).map((m) => (
+                <option key={m.slug} value={m.slug}>{m.nombre}</option>
+              ))}
+            </select>
+
+            <textarea
+              className={styles.repArea}
+              rows={2}
+              maxLength={500}
+              placeholder={es ? 'Detalle (opcional)' : 'Details (optional)'}
+              value={motivoTexto}
+              onChange={(e) => setMotivoTexto(e.target.value)}
+            />
+
+            {msgReporte && <p className={styles.repMsg}>{msgReporte}</p>}
+
+            <div className={styles.repActions}>
+              <button type="button" className={styles.repBtn} onClick={() => setReporteOpen(false)}>
+                {es ? 'Cancelar' : 'Cancel'}
+              </button>
+              <button type="button" className={styles.repBtnPri} onClick={enviarReporte} disabled={!motivoSel || reportando}>
+                <ion-icon name={reportando ? 'sync-outline' : 'flag-outline'} suppressHydrationWarning></ion-icon>
+                {reportando ? (es ? 'Enviando…' : 'Sending…') : (es ? 'Enviar reporte' : 'Send report')}
+              </button>
+            </div>
           </div>
         </div>
       )}

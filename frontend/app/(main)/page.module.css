@@ -92,6 +92,13 @@
   flex: 1;
 }
 
+/* Visor de fotos/videos a pantalla completa: el contenido sube por encima
+   del header, el footer y la nav inferior para que NO se asomen mientras
+   este abierto (vuelve a z-index 1 en cuanto se cierra). */
+.body:has([data-visor]) {
+  z-index: 9601;
+}
+
 @media (max-width: 768px) {
   .layout {
     padding-top: 56px; /* fixed mobile header height */

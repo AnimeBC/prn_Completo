@@ -520,6 +520,48 @@
 }
 
 /* ===== Responsive ===== */
+/* Bloqueado: el canal no está disponible para este usuario. */
+.canalBloqueado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 46vh;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.canalBloqueado ion-icon {
+  font-size: 54px;
+  color: #EF4444;
+}
+
+.canalBloqueado p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-primary, #FFFFFF);
+}
+
+.canalBloqueadoBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #27272A);
+  background: var(--bg-surface, #202124);
+  color: var(--text-primary, #FFFFFF);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.canalBloqueadoBtn:hover { border-color: var(--primary, #F20D16); }
+
 @media (max-width: 1024px) {
   .grid {
     grid-template-columns: repeat(2, 1fr);

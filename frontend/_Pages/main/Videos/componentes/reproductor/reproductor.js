@@ -289,9 +289,12 @@ const Reproductor = forwardRef(function Reproductor({
             </div>
             <div className={styles.controlsRight}>
               <button className={styles.speedBtn} type="button" aria-label={t('video.velocidad')} onClick={cycleSpeed}>{speed}x</button>
-              <button className={`${styles.ctrlBtn} ${qualityOpen ? styles.ctrlActive : ''}`} type="button" aria-label={t('video.calidadVideo')} aria-haspopup="menu" aria-expanded={qualityOpen} onClick={() => setQualityOpen((p) => !p)}>
-                <ion-icon name="settings-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
-              </button>
+              {/* Solo si hay mas de una calidad: con una sola no hay que elegir. */}
+              {qualities.length > 1 && (
+                <button className={`${styles.ctrlBtn} ${qualityOpen ? styles.ctrlActive : ''}`} type="button" aria-label={t('video.calidadVideo')} aria-haspopup="menu" aria-expanded={qualityOpen} onClick={() => setQualityOpen((p) => !p)}>
+                  <ion-icon name="settings-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>
+                </button>
+              )}
               {!compact && (
                 <button className={styles.ctrlBtn} type="button" aria-label={t('video.mini')} onClick={togglePip}>
                   <ion-icon name="albums-outline" className={styles.ctrlIcon} suppressHydrationWarning></ion-icon>

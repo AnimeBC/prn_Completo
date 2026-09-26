@@ -604,6 +604,13 @@
 .quote span { font-size: 11px; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
 
 .text { font-size: 13px; line-height: 1.4; word-break: break-word; white-space: pre-wrap; }
+/* Enlaces dentro del mensaje (p. ej. una publicacion compartida) */
+.text a {
+  color: var(--primary, #F20D16);
+  font-weight: 700;
+  text-decoration: underline;
+  word-break: break-all;
+}
 .media { max-width: 200px; border-radius: 10px; margin-top: 3px; }
 .mediaZoom { cursor: zoom-in; }
 
@@ -1238,6 +1245,189 @@
   0%, 100% { box-shadow: inset 0 0 0 2px rgba(242, 13, 22, 1); }
   50% { box-shadow: inset 0 0 0 2px rgba(242, 13, 22, 0.45); }
 }
+
+/* El dueño desactivó el envío: reemplaza al input con un aviso. */
+.footOff {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border, #242526);
+  background: rgba(242, 13, 22, 0.07);
+  color: var(--text-secondary, #A1A1AA);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.footOff ion-icon {
+  font-size: 17px;
+  color: var(--primary, #F20D16);
+  flex-shrink: 0;
+}
+
+/* Bloqueo (DM): aviso + botones Desbloquear/Reportar en vez del input. */
+.footOffText {
+  flex: 1;
+  min-width: 0;
+}
+
+.footOffBtns {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.footOffBtnOk,
+.footOffBtnBad {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.footOffBtnOk {
+  border: 1px solid rgba(34, 197, 94, 0.55);
+  color: #22C55E;
+}
+
+.footOffBtnOk:hover { background: #22C55E; color: #fff; }
+
+.footOffBtnBad {
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  color: #EF4444;
+}
+
+.footOffBtnBad:hover { background: #EF4444; color: #fff; }
+
+/* Modal de reporte de usuario */
+.repOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9995;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.repCard {
+  width: min(400px, 100%);
+  background: var(--bg, #050505);
+  border: 1px solid var(--border, #27272A);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.repHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.repHead strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary, #FFF);
+}
+
+.repClose {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #FFF);
+  font-size: 19px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.repClose:hover { background: var(--bg-surface, #202124); }
+
+.repSelect,
+.repArea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #27272A);
+  background: var(--bg-input, #1C1C1F);
+  color: var(--text-primary, #FFF);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.repSelect:focus,
+.repArea:focus { outline: none; border-color: var(--primary, #F20D16); }
+
+.repSelect option { background: var(--bg-card, #121215); color: var(--text-primary, #FFF); }
+
+.repArea { resize: vertical; min-height: 64px; }
+
+.repMsg {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #22C55E;
+}
+
+.repActions {
+  display: flex;
+  gap: 10px;
+}
+
+.repBtn,
+.repBtnPri {
+  flex: 1;
+  min-height: 42px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.repBtn {
+  border: 1px solid var(--border, #27272A);
+  background: transparent;
+  color: var(--text-secondary, #A1A1AA);
+}
+
+.repBtn:hover { border-color: var(--primary, #F20D16); color: var(--primary, #F20D16); }
+
+.repBtnPri {
+  border: none;
+  background: var(--primary, #F20D16);
+  color: #fff;
+}
+
+.repBtnPri:hover:not(:disabled) { filter: brightness(1.08); }
+.repBtnPri:disabled { opacity: 0.55; cursor: default; }
+
 .input {
   flex: 1;
   min-width: 0;

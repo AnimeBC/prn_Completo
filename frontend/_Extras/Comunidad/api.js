@@ -72,12 +72,34 @@ export const apiComunidad = {
     return req(`/api/comunidad/feed?${p.toString()}`);
   },
   crearPost: (fd) => req('/api/comunidad/posts', { method: 'POST', headers: authHeaders(), body: fd }),
-  like: (id, userKey) => req(`/api/comunidad/posts/${id}/like`, jsonPost({ userKey })),
+  like: (id, userKey, reaccion = '') => req(`/api/comunidad/posts/${id}/like`, jsonPost({ userKey, reaccion })),
   guardar: (id, userKey) => req(`/api/comunidad/posts/${id}/save`, jsonPost({ userKey })),
   compartir: (id) => req(`/api/comunidad/posts/${id}/share`, { method: 'POST' }),
-  comentarios: (id) => req(`/api/comunidad/posts/${id}/comments`),
-  comentar: (id, userKey, texto) => req(`/api/comunidad/posts/${id}/comments`, jsonPost({ userKey, texto })),
-  borrarPost: (id) => req(`/api/comunidad/posts/${id}`, { method: 'DELETE' }),
+  // Lista paginada de quienes reaccionaron (modal "quien reacciono").
+  reaccionesPost: (id, userKey = '', opts = {}) => {
+    const p = new URLSearchParams();
+    if (userKey) p.set('userKey', userKey);
+    if (opts.reaccion) p.set('reaccion', opts.reaccion);
+    if (opts.offset) p.set('offset', String(opts.offset));
+    if (opts.limit) p.set('limit', String(opts.limit));
+    const qs = p.toString();
+    return req(`/api/comunidad/posts/${id}/reactions${qs ? `?${qs}` : ''}`);
+  },
+  fijarPost: (id, userKey) => req(`/api/comunidad/posts/${id}/pin`, jsonPost({ userKey })),
+  votarEncuesta: (id, userKey, opcion) => req(`/api/comunidad/posts/${id}/encuesta`, jsonPost({ userKey, opcion })),
+  // media: comentarios de una foto/video concreta (sin media = hilo general).
+  comentarios: (id, userKey = '', media = null) => {
+    const p = new URLSearchParams();
+    if (userKey) p.set('userKey', userKey);
+    if (media) p.set('media', media);
+    const qs = p.toString();
+    return req(`/api/comunidad/posts/${id}/comments${qs ? `?${qs}` : ''}`);
+  },
+  comentar: (id, userKey, texto, parentId = null, media = null) =>
+    req(`/api/comunidad/posts/${id}/comments`, jsonPost({ userKey, texto, parent_id: parentId, media })),
+  likeComentario: (id, cid, userKey) => req(`/api/comunidad/posts/${id}/comments/${cid}/like`, jsonPost({ userKey })),
+  borrarComentario: (id, cid, userKey) => req(`/api/comunidad/posts/${id}/comments/${cid}`, jsonDelete({ userKey })),
+  borrarPost: (id, userKey) => req(`/api/comunidad/posts/${id}`, jsonDelete({ userKey })),
 
   // Historias
   stories: () => req('/api/comunidad/stories'),
@@ -118,8 +140,16 @@ export const apiComunidad = {
     return req(`/api/comunidad/grupos${qs ? `?${qs}` : ''}`);
   },
   grupo: (id, userKey = '') => req(`/api/comunidad/grupos/${id}${userKey ? `?userKey=${encodeURIComponent(userKey)}` : ''}`),
-  /** Miembros del grupo con su presencia (edad en segundos desde la BD). */
-  gruposMiembros: (id) => req(`/api/comunidad/grupos/${id}/miembros`),
+  /** Miembros del grupo (buscable y paginado): { q, offset, limit, userKey } -> { data, hasMore }. */
+  gruposMiembros: (id, opts = {}) => {
+    const p = new URLSearchParams();
+    if (opts.q) p.set('q', opts.q);
+    if (opts.offset) p.set('offset', String(opts.offset));
+    if (opts.limit) p.set('limit', String(opts.limit));
+    if (opts.userKey) p.set('userKey', opts.userKey);
+    const qs = p.toString();
+    return req(`/api/comunidad/grupos/${id}/miembros${qs ? `?${qs}` : ''}`);
+  },
   crearGrupo: (fd) => req('/api/comunidad/grupos', { method: 'POST', headers: authHeaders(), body: fd }),
   unirse: (id, userKey, mensaje = '', accion = '') => req(`/api/comunidad/grupos/${id}/join`, jsonPost({ userKey, mensaje, accion })),
   grupoAvatar: (id, userKey, file) => {
@@ -134,6 +164,26 @@ export const apiComunidad = {
     fd.append('banner', file);
     return req(`/api/comunidad/grupos/${id}/banner`, { method: 'POST', body: fd });
   },
+  /** Editar datos del grupo (dueño: todo; semidueno con permiso editar_grupo). */
+  actualizarGrupo: (id, body) => req(`/api/comunidad/grupos/${id}`, jsonPut(body)),
+  /** Asignar rol/permisos de un miembro (solo dueño). */
+  miembroRol: (id, mk, body) => req(`/api/comunidad/grupos/${id}/miembros/${encodeURIComponent(mk)}`, jsonPut(body)),
+  /** Expulsar miembro (dueño o semidueno con eliminar_miembros). */
+  quitarMiembro: (id, mk, userKey) => req(`/api/comunidad/grupos/${id}/miembros/${encodeURIComponent(mk)}`, jsonDelete({ userKey })),
+  /** Agregar miembro directo (dueño o semidueno con agregar_miembros). */
+  agregarMiembro: (id, userKey, member) => req(`/api/comunidad/grupos/${id}/miembros`, jsonPost({ userKey, member })),
+  /** Personas agregables al grupo: busqueda paginada { q, offset, limit, userKey }. */
+  agregablesGrupo: (id, opts = {}) => {
+    const p = new URLSearchParams();
+    if (opts.userKey) p.set('userKey', opts.userKey);
+    if (opts.q) p.set('q', opts.q);
+    if (opts.offset) p.set('offset', String(opts.offset));
+    if (opts.limit) p.set('limit', String(opts.limit));
+    const qs = p.toString();
+    return req(`/api/comunidad/grupos/${id}/agregables${qs ? `?${qs}` : ''}`);
+  },
+  /** Eliminar grupo (solo dueño; borrado lógico). */
+  eliminarGrupo: (id, userKey) => req(`/api/comunidad/grupos/${id}`, jsonDelete({ userKey })),
   solicitudesGrupo: (id, userKey) => req(`/api/comunidad/grupos/${id}/solicitudes?userKey=${encodeURIComponent(userKey)}`),
   resolverSolicitudGrupo: (id, solId, userKey, estado) => req(`/api/comunidad/grupos/${id}/solicitudes/${solId}`, jsonPost({ userKey, estado })),
 
@@ -158,8 +208,32 @@ export const apiComunidad = {
   /** Slug del canal publico de un usuario (para enlazar /canal/<slug>). */
   canalSlug: (userKey) => req(`/api/comunidad/canal-slug/${encodeURIComponent(userKey)}`),
   marcarChatLeido: (id, userKey) => req(`/api/comunidad/chats/${id}/leido`, jsonPost({ userKey })),
+  /** Archivar / fijar (máx 5) / silenciar una conversación de la lista:
+   *  { tipo: 'dm'|'grupo', ref, archivado?, fijado?, silenciado? }. */
+  chatEstado: (body) => req('/api/comunidad/chat/estado', jsonPost(body)),
   /** Mensajes directos (1 a 1). */
   dmChats: (userKey) => req(`/api/comunidad/dm/chats?userKey=${encodeURIComponent(userKey)}`),
+  /** Datos públicos de una persona (para abrir un chat sin conversación). */
+  usuario: (key) => req(`/api/comunidad/usuarios/${encodeURIComponent(key)}`),
+
+  /** Bloquear/desbloquear a alguien: accion 'bloquear'|'desbloquear'. */
+  bloquear: (userKey, otro, accion) => req('/api/comunidad/bloquear', jsonPost({ userKey, otro, accion })),
+  /** Estado entre los dos: { bloqueoMio, bloqueadoPorEl, silenciado }. */
+  relacion: (otroKey, userKey) =>
+    req(`/api/comunidad/relacion/${encodeURIComponent(otroKey)}?userKey=${encodeURIComponent(userKey)}`),
+  /** Silenciar/desilenciar la conversación (toggle). */
+  dmSilencio: (otroKey, userKey) => req('/api/comunidad/dm/silencio', jsonPost({ userKey, otro: otroKey })),
+  /** "Eliminar chat": se oculta solo en la cuenta del usuario. */
+  dmEliminarChat: (otroKey, userKey) => req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/eliminar`, jsonPost({ userKey })),
+  /** Archivos de la conversación, paginados: { offset, limit, userKey }. */
+  dmMultimedia: (otroKey, opts = {}) => {
+    const p = new URLSearchParams();
+    if (opts.userKey) p.set('userKey', opts.userKey);
+    if (opts.offset) p.set('offset', String(opts.offset));
+    if (opts.limit) p.set('limit', String(opts.limit));
+    const qs = p.toString();
+    return req(`/api/comunidad/dm/${encodeURIComponent(otroKey)}/multimedia${qs ? `?${qs}` : ''}`);
+  },
   dmMensajes: (otroKey, userKey, before = null, limit = null) => {
     const p = new URLSearchParams({ userKey });
     if (before) p.set('before', String(before));

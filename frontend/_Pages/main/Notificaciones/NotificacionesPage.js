@@ -76,7 +76,11 @@ export default function NotificacionesPage() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    const onChange = () => load();
+    const onChange = (e) => {
+      // La presencia no afecta las notificaciones: no recargar en cada latido.
+      if (String(e?.detail?.type || '') === 'comunidad_presencia') return;
+      load();
+    };
     window.addEventListener('pikantepe:change', onChange);
     window.addEventListener('pkp:me', onChange);
     return () => {

@@ -71,10 +71,12 @@ export default function Header() {
   // DM -> canal REAL resuelto por user_key (evita 404 por nombre visible).
   async function irAlCanal() {
     if (chatInfo?.tipo === 'grupo' && (chatInfo?.grupo_slug || chatInfo?.grupo_id)) {
-      // URL canonica con slug (si no hay slug, cae al id).
-      const ref = chatInfo.grupo_slug || chatInfo.grupo_id;
-      router.push(`/comunidad/grupo/${encodeURIComponent(ref)}?tab=informacion`);
-      return;
+      // Abre el modal de información del grupo (lo maneja el chat flotante
+      // montado en /chat); si nadie lo escucha, cae al grupo por slug.
+      try {
+        window.dispatchEvent(new CustomEvent('pkp:infogroup', { detail: { grupoId: chatInfo.grupo_id } }));
+        return;
+      } catch { /* sigue con la redireccion */ }
     }
     if (chatInfo?.canal_slug) {
       router.push(`/canal/${chatInfo.canal_slug}`);

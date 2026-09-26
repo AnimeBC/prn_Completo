@@ -255,12 +255,13 @@ export function removeMedia(publicPath) {
 // controla en las rutas según users.subida_mb (200 MB por defecto).
 const MAX_COMMUNITY_MB = Number(process.env.MAX_COMMUNITY_MB || 20480);
 
-/** Multer para la comunidad: hasta 12 archivos (video / imagen / audio).
- *  Los posts limitan a 6 con array('media', 6); los mensajes de chat pueden
- *  mandar álbumes de hasta 10 archivos en un solo mensaje. */
+/** Multer para la comunidad: video / imagen / audio.
+ *  No hay límite de CANTIDAD (posts y chats mandan los archivos que quieran):
+ *  el límite real es de PESO y se valida en cada ruta con users.subida_mb
+ *  (200 MB por defecto). "files" es solo un tope técnico contra abusos. */
 export const communityUpload = multer({
   storage,
-  limits: { fileSize: MAX_COMMUNITY_MB * 1024 * 1024, files: 12 },
+  limits: { fileSize: MAX_COMMUNITY_MB * 1024 * 1024, files: 40 },
   fileFilter(req, file, cb) {
     const bad = (msg) => { const e = new Error(msg); e.status = 400; return cb(e); };
     const name = file.originalname || '';

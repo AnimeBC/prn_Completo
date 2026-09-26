@@ -243,7 +243,8 @@ export function ChatDockProvider({ children }) {
         if (autoAgregar) {
           for (const c of dmRows) {
             const id = `dm:${c.otro_key}`;
-            if ((c.no_leidos || 0) > 0 && !ids.has(id)) {
+            // Archivadas o silenciadas: no abren chat head.
+            if ((c.no_leidos || 0) > 0 && !ids.has(id) && !c.archivado && !c.silenciado) {
               const nombre = c.otro_usuario || c.otro_nombre || 'Usuario';
               nuevas.push({
                 id,
@@ -286,7 +287,12 @@ export function ChatDockProvider({ children }) {
       const entrante = tipo === 'comunidad_dm'
         && p.de && p.para
         && String(p.para) === String(userKey)
-        && String(p.de) !== String(userKey);
+        && String(p.de) !== String(userKey)
+        && !p.silenciado; // conversación silenciada -> no abre chat head
+      // "Eliminar chat" en otra sesión: cierra la ventana flotante.
+      if (tipo === 'comunidad_dm_oculto' && String(p.para) === String(userKey)) {
+        setFlotantes((prev) => prev.filter((f) => String(f.id) !== `dm:${p.de}`));
+      }
       if (t) clearTimeout(t);
       t = setTimeout(() => recolectar(!!entrante), 400);
     };

@@ -1,5 +1,7 @@
 .overlay{
-  position:fixed; inset:0; z-index:9000;
+  /* Por encima de los modales de pagina (9500/9510) y del visor de
+     fotos (9700): si no, el aviso de iniciar sesion quedaria detras. */
+  position:fixed; inset:0; z-index:9750;
   display:flex; align-items:center; justify-content:center;
   padding:20px;
   background: rgba(5,5,5,.78);

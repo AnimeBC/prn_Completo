@@ -643,6 +643,32 @@
 }
 .iconBtn:hover { border-color: var(--primary, #F20D16); color: var(--primary, #F20D16); }
 
+/* Botón para crear grupo: pastilla con icono + texto, fondo suave. */
+.crearBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 12px 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #27272A);
+  background: rgba(242, 13, 22, 0.12);
+  color: var(--text-primary, #FFFFFF);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.crearBtn ion-icon { font-size: 17px; color: var(--primary, #F20D16); }
+.crearBtn:hover {
+  background: var(--primary, #F20D16);
+  border-color: var(--primary, #F20D16);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+.crearBtn:hover ion-icon { color: #FFFFFF; }
+
 .badge {
   background: var(--primary, #F20D16);
   color: #FFFFFF;

@@ -241,6 +241,36 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
   // Amistad con el dueño del canal
   const duenoKey = channel?.user_key || initialChannel?.user_key || null;
 
+  // Bloqueo entre los dos (Redis -> SSE): con bloqueo el canal NO existe
+  // para ninguno de los dos hasta que se desbloquee.
+  const [bloqueado, setBloqueado] = useState(false);
+
+  const cargarBloqueo = useCallback(async () => {
+    if (!authed || !userKey || !duenoKey || String(duenoKey) === String(userKey)) {
+      setBloqueado(false);
+      return;
+    }
+    const r = await apiComunidad.relacion(duenoKey, userKey);
+    if (r && !r.error) setBloqueado(!!r.bloqueoMio || !!r.bloqueadoPorEl);
+    else setBloqueado(false);
+  }, [authed, userKey, duenoKey]);
+
+  useEffect(() => { cargarBloqueo(); }, [cargarBloqueo]);
+
+  // Tiempo real: el bloqueo/desbloqueo cierra (o reabre) el canal al instante.
+  useEffect(() => {
+    const onChange = (e) => {
+      const d = e?.detail || {};
+      if (String(d.type || '') !== 'comunidad_bloqueo') return;
+      const p = d.payload || {};
+      const mios = (String(p.de) === String(userKey) && String(p.para) === String(duenoKey))
+        || (String(p.de) === String(duenoKey) && String(p.para) === String(userKey));
+      if (mios) cargarBloqueo();
+    };
+    window.addEventListener('pikantepe:change', onChange);
+    return () => window.removeEventListener('pikantepe:change', onChange);
+  }, [cargarBloqueo, userKey, duenoKey]);
+
   const cargarRel = useCallback(async () => {
     if (!authed || !userKey || !duenoKey || String(duenoKey) === String(userKey)) { setRel(null); return; }
     const r = await apiComunidad.amistad(duenoKey, userKey);
@@ -286,6 +316,12 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
   function abrirMensaje() {
     if (!authed) { setAuthOpen(true); return; }
     if (!duenoKey) return;
+    // En celular no se abren flotantes: va directo al chat 1 a 1
+    // (mismo criterio que "abrirAmigo" de Comunidad).
+    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
+      router.push(`/chat?dm=${encodeURIComponent(duenoKey)}`);
+      return;
+    }
     abrirDock({ user_key: duenoKey, usuario: channel?.nombre || '', avatar: channel?.avatar || null }, 'dm');
   }
 
@@ -316,6 +352,22 @@ export default function CanalClient({ slug, initialChannel, initialVideos = [], 
   const initial = String(channel?.nombre || '?').trim().charAt(0).toUpperCase();
   const desc = String(channel?.descripcion || '');
   const descLong = desc.length > 110;
+
+  // Bloqueados: el canal no muestra nada (ni perfil, ni videos, ni acciones).
+  if (bloqueado) {
+    return (
+      <main className={styles.main}>
+        <div className={styles.canalBloqueado}>
+          <ion-icon name="ban-outline" suppressHydrationWarning></ion-icon>
+          <p>{es ? 'Este canal no está disponible.' : 'This channel is not available.'}</p>
+          <button type="button" className={styles.canalBloqueadoBtn} onClick={() => router.push('/comunidad')}>
+            <ion-icon name="arrow-back-outline" suppressHydrationWarning></ion-icon>
+            {es ? 'Volver' : 'Back'}
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className={styles.main}>

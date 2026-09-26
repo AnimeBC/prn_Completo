@@ -132,8 +132,11 @@ export default function Mensajes() {
   useEffect(() => {
     if (!authed) return undefined;
     const onChange = (e) => {
+      const t = String(e?.detail?.type || '');
+      // La presencia no afecta la lista de chats: no recargar en cada latido.
+      if (t === 'comunidad_presencia') return;
       load();
-      if (String(e?.detail?.type || '') === 'comunidad_story') loadStories();
+      if (t === 'comunidad_story') loadStories();
     };
     window.addEventListener('pikantepe:change', onChange);
     return () => window.removeEventListener('pikantepe:change', onChange);

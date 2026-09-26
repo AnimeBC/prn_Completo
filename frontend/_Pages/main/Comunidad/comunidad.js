@@ -7,7 +7,6 @@ import { useAuth } from '@/_Extras/Auth/AuthProvider.js';
 import { useLanguage } from '@/_Extras/Idioma/LanguageProvider.js';
 import AuthModal from '@/_Pages/main/Auth/AuthModal';
 import { useChatDock } from '@/_Extras/ChatDock/ChatDockProvider.js';
-import { useSidebar } from '@/app/sidebarContext.js';
 
 import { apiComunidad, comunidadMedia, comprimirImagen } from '@/_Extras/Comunidad/api.js';
 import { soloUnoPlay } from '@/_Extras/Media/onlyOne.js';
@@ -68,14 +67,16 @@ function StoryDrop({ onFile, es }) {
 
 /** Tarjeta de publicación reutilizable (feed y resultados de búsqueda). */
 function PostCard({ p, es, comentariosDe, comentarios, comentarioTexto, setComentarioTexto, onLike, onComentarios, onCompartir, onGuardar, onReportar, onComentar }) {
+  // Publicacion anonima: el servidor no envia autor, se etiqueta como tal.
+  const autor = p.anonimo ? (es ? 'Publicación anónima' : 'Anonymous') : p.usuario;
   return (
     <article className={styles.post}>
       <header className={styles.postHead}>
-        <span className={styles.avatarSm}>{p.avatar ? <img src={comunidadMedia(p.avatar)} alt="" /> : (p.usuario || '?').slice(0, 1).toUpperCase()}</span>
+        <span className={styles.avatarSm}>{p.avatar ? <img src={comunidadMedia(p.avatar)} alt="" /> : (autor || '?').slice(0, 1).toUpperCase()}</span>
         <div className={styles.postWho}>
-          <span className={styles.postUser}>{p.grupo_nombre || p.usuario}</span>
+          <span className={styles.postUser}>{p.grupo_nombre || autor}</span>
           <span className={styles.postTime}>
-            {p.grupo_nombre ? `${p.usuario} · ` : ''}{fecha(p.created_at, es ? 'es' : 'en')}
+            {p.grupo_nombre ? `${autor} · ` : ''}{fecha(p.created_at, es ? 'es' : 'en')}
             <span className={styles.postScope} title={es ? 'Público' : 'Public'}>
               {' · '}<ion-icon name="earth-outline" suppressHydrationWarning></ion-icon>
             </span>
@@ -125,7 +126,7 @@ function PostCard({ p, es, comentariosDe, comentarios, comentarioTexto, setComen
             <div key={c.id} className={styles.comment}>
               <span className={styles.avatarXs}>{c.avatar ? <img src={comunidadMedia(c.avatar)} alt="" /> : (c.usuario || '?').slice(0, 1).toUpperCase()}</span>
               <div>
-                <span className={styles.commentUser}>{c.usuario}</span>
+                <span className={styles.commentUser}>{c.usuario || (es ? 'Alguien' : 'Someone')}</span>
                 <p className={styles.commentText}>{c.texto}</p>
               </div>
             </div>
@@ -185,16 +186,12 @@ export default function ComunidadClient() {
   const [presencia, setPresencia] = useState([]);
   const [amigos, setAmigos] = useState([]);
   const { abrir: abrirDock } = useChatDock();
-  const { openMaint } = useSidebar();
 
   const [chats, setChats] = useState([]);
   const [maxWindows, setMaxWindows] = useState(3);
 
   const [subiendo, setSubiendo] = useState(false);
   const [msg, setMsg] = useState('');
-  const [abrirCrearGrupo, setAbrirCrearGrupo] = useState(false);
-  const [nuevoGrupo, setNuevoGrupo] = useState({ nombre: '', descripcion: '', reglas: '', privacidad: 'publica', modo_union: 'libre' });
-  const [grupoImg, setGrupoImg] = useState(null);
   const [onlineQ, setOnlineQ] = useState('');
   const [onlineLimit, setOnlineLimit] = useState(6);
   // Movil: pestaña de "Grupos / Amigos" debajo de las historias.
@@ -569,7 +566,7 @@ export default function ComunidadClient() {
     function onCambio(e) {
       const tipo = String(e?.detail?.type || '');
       if (!tipo.startsWith('comunidad_')) return;
-      if (['comunidad_post', 'comunidad_comment', 'comunidad_post_like', 'comunidad_post_share', 'comunidad_post_save'].includes(tipo)) {
+      if (['comunidad_post', 'comunidad_comment', 'comunidad_post_like', 'comunidad_post_share', 'comunidad_post_save', 'comunidad_post_pin', 'comunidad_post_vote', 'comunidad_post_del'].includes(tipo)) {
         cargarFeed();
       }
       if (tipo === 'comunidad_mensaje' || tipo === 'comunidad_reaccion') {
@@ -604,7 +601,13 @@ export default function ComunidadClient() {
     const r = await apiComunidad.like(p.id, userKey);
     if (r.error) return;
     setFeed((list) => list.map((x) => x.id === p.id
-      ? { ...x, liked: r.liked, likes: Math.max(0, x.likes + (r.liked ? 1 : -1)) } : x));
+      ? {
+        ...x,
+        liked: r.liked,
+        mi_reaccion: r.liked ? (r.reaccion || 'like') : null,
+        likes: Number.isFinite(r.likes) ? r.likes : Math.max(0, x.likes + (r.liked ? 1 : -1)),
+      }
+      : x));
   }
 
   async function alternarGuardar(p) {
@@ -624,7 +627,7 @@ export default function ComunidadClient() {
     if (comentariosDe === p.id) { setComentariosDe(null); return; }
     setComentariosDe(p.id);
     setComentarioTexto('');
-    const r = await apiComunidad.comentarios(p.id);
+    const r = await apiComunidad.comentarios(p.id, userKey);
     setComentarios(Array.isArray(r.data) ? r.data : []);
   }
 
@@ -689,28 +692,6 @@ export default function ComunidadClient() {
     const r = await apiComunidad.resolverSolicitudGrupo(g.id, sol.id, userKey, estado);
     if (r.error) { setMsg(r.error); return; }
     setSolGrupoModal((m) => (m ? { ...m, lista: m.lista.map((x) => (x.id === sol.id ? { ...x, estado } : x)) } : m));
-    cargarTodo();
-  }
-
-  async function crearGrupo() {
-    if (!requireAuth()) return;
-    if (!nuevoGrupo.nombre.trim()) return;
-    setSubiendo(true);
-    const fd = new FormData();
-    fd.append('userKey', userKey);
-    fd.append('nombre', nuevoGrupo.nombre.trim());
-    fd.append('descripcion', nuevoGrupo.descripcion);
-    fd.append('reglas', nuevoGrupo.reglas);
-    fd.append('privacidad', nuevoGrupo.privacidad);
-    fd.append('modo_union', nuevoGrupo.modo_union);
-    if (grupoImg) fd.append('avatar', await comprimirImagen(grupoImg, 720, 0.82));
-    const r = await apiComunidad.crearGrupo(fd);
-    setSubiendo(false);
-    if (r.error) { setMsg(r.error); return; }
-    setNuevoGrupo({ nombre: '', descripcion: '', reglas: '', privacidad: 'publica', modo_union: 'libre' });
-    setGrupoImg(null);
-    setAbrirCrearGrupo(false);
-    setMsg(es ? 'Comunidad creada.' : 'Community created.');
     cargarTodo();
   }
 
@@ -1464,46 +1445,15 @@ export default function ComunidadClient() {
               <span className={styles.blockTitle}>{es ? 'Grupos y Comunidades' : 'Groups & Communities'}</span>
               <button
                 type="button"
-                className={styles.iconBtn}
-                onClick={() => openMaint(es
-                  ? 'En mantenimiento: la creación de comunidades estará habilitada mañana, miércoles 23.'
-                  : 'Under maintenance: community creation will be enabled tomorrow, Wednesday 23.')}
-                aria-label="Crear grupo"
+                className={styles.crearBtn}
+                onClick={() => router.push('/comunidad/crear-grupo')}
+                aria-label={es ? 'Crear grupo' : 'Create group'}
+                title={es ? 'Crear grupo' : 'Create group'}
               >
                 <ion-icon name="add-outline" suppressHydrationWarning></ion-icon>
+                {es ? 'Crear' : 'Create'}
               </button>
             </div>
-
-            {abrirCrearGrupo && (
-              <div className={styles.card}>
-                <input className={styles.input} placeholder={es ? 'Nombre del grupo' : 'Group name'} value={nuevoGrupo.nombre}
-                  onChange={(e) => setNuevoGrupo({ ...nuevoGrupo, nombre: e.target.value })} />
-                <label className={styles.fileRow}>
-                  <ion-icon name="image-outline" suppressHydrationWarning></ion-icon>
-                  {grupoImg ? grupoImg.name : (es ? 'Imagen del grupo (opcional)' : 'Group image (optional)')}
-                  <input type="file" accept="image/*" className={styles.hidden}
-                    onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) setGrupoImg(f); }} />
-                </label>
-                <textarea className={styles.textarea} rows={2} placeholder={es ? 'Descripción' : 'Description'} value={nuevoGrupo.descripcion}
-                  onChange={(e) => setNuevoGrupo({ ...nuevoGrupo, descripcion: e.target.value })} />
-                <textarea className={styles.textarea} rows={2} placeholder={es ? 'Reglas del grupo' : 'Group rules'} value={nuevoGrupo.reglas}
-                  onChange={(e) => setNuevoGrupo({ ...nuevoGrupo, reglas: e.target.value })} />
-                <select className={styles.select} value={nuevoGrupo.privacidad}
-                  onChange={(e) => setNuevoGrupo({ ...nuevoGrupo, privacidad: e.target.value })}>
-                  <option value="publica">{es ? 'Pública' : 'Public'}</option>
-                  <option value="privada">{es ? 'Privada' : 'Private'}</option>
-                </select>
-                <select className={styles.select} value={nuevoGrupo.modo_union}
-                  onChange={(e) => setNuevoGrupo({ ...nuevoGrupo, modo_union: e.target.value })}>
-                  <option value="libre">{es ? 'Unirse directo' : 'Join directly'}</option>
-                  <option value="invitacion">{es ? 'Con invitación / aprobación' : 'By invitation / approval'}</option>
-                </select>
-                <button type="button" className={styles.primaryBtn} onClick={crearGrupo} disabled={subiendo}>
-                  <ion-icon name="people-outline" suppressHydrationWarning></ion-icon>
-                  {es ? 'Crear comunidad' : 'Create community'}
-                </button>
-              </div>
-            )}
 
             <div className={styles.groupList}>
               {gruposDestacados.map(renderGrupoCard)}
